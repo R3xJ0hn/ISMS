@@ -84,6 +84,8 @@ export default function Navbar() {
             className="lg:hidden"
             onClick={() => setOpen((prev) => !prev)}
             aria-label="Toggle Menu"
+            aria-expanded={open}
+            aria-controls="mobile-menu"
           >
             {open ? <X size={28} /> : <Menu size={28} />}
           </button>
@@ -91,7 +93,10 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {open && (
-          <div className="lg:hidden border-t bg-white absolute w-full px-5 shadow-md/30">
+          <div
+            id="mobile-menu"
+            className="lg:hidden border-t bg-white absolute w-full px-5 shadow-md/30"
+          >
             <ul className="flex flex-col divide-y text-center font-medium">
               {NAV_ITEMS.map(({ label, href }) => (
                 <li key={label} className="py-4">

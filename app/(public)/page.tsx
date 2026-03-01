@@ -131,7 +131,7 @@ export default function page() {
                   <span>
                     Associate in Computer Technology
                     <span className="mt-1 block text-xs text-gray-500">
-                      (2-years course ladderized to BSIT)
+                      (2-year course ladderized to BSIT)
                     </span>
                   </span>
                 </li>
