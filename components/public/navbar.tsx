@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, Mail, Menu, X, ChevronDown } from "lucide-react";
+import { Phone, Mail, Menu, X } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/", dropdown: false },
@@ -20,11 +20,18 @@ export default function Navbar() {
   return (
     <>
       {/* Top Bar */}
-      <div className="flex w-full justify-between bg-[#3b3570] text-white text-xs px-5 py-1 ">
-        <p>This is not the official website of Datamex College of Saint Adeline. For official information, visit the school's
-          <a href="https://www.stadeline.education/" className="underline"> Official Website</a>.</p>
+      <div className="flex w-full flex-col gap-2 bg-[#3b3570] px-5 py-1 text-xs text-white sm:flex-row sm:items-center sm:justify-between">
+        <p className="whitespace-normal sm:whitespace-nowrap sm:truncate">
+          This is not the official website of Datamex College of Saint Adeline.
+          For official information, visit the school&apos;s
+          <a href="https://www.stadeline.education/" className="underline">
+            {" "}
+            Official Website
+          </a>
+          .
+        </p>
 
-        <div className="flex items-center gap-6">
+        <div className="hidden items-center gap-6 sm:flex">
           <div className="flex items-center gap-1">
             <Phone size={12} />
             <span>(02) 921 8350</span>
@@ -53,16 +60,16 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <ul className="hidden lg:flex items-center gap-10 font-medium text-gray-600">
-            {NAV_ITEMS.map(({ label, href, dropdown }) => (
+            {NAV_ITEMS.map(({ label, href }) => (
               <li
                 key={label}
                 className="flex items-center gap-1 hover:text-black"
               >
                 <Link href={href}>{label}</Link>
-                {dropdown && <ChevronDown size={14} />}
               </li>
             ))}
           </ul>
+          {/* TODO: NAV_ITEMS includes dropdown flags; add a real dropdown UI before restoring ChevronDown indicators. */}
 
           {/* Right Link */}
           <Link

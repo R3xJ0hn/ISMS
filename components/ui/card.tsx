@@ -28,9 +28,19 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+type CardTitleProps<T extends React.ElementType = "h3"> = {
+  as?: T
+} & Omit<React.ComponentPropsWithoutRef<T>, "as">
+
+function CardTitle<T extends React.ElementType = "h3">({
+  as,
+  className,
+  ...props
+}: CardTitleProps<T>) {
+  const Component = as ?? "h3"
+
   return (
-    <div
+    <Component
       data-slot="card-title"
       className={cn("leading-none font-semibold", className)}
       {...props}

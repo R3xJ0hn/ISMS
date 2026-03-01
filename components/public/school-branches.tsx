@@ -10,7 +10,7 @@ const branches = [
     title: "DCSA Meycauayan",
     image: "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366051/uploads/ga78teh5pp1tqj9ia0lu.jpg",
     location:
-      "Datamex bldg., Ngusong Buwaya St., Brgy Saluysoy Meycauyan City Bulacan",
+      "Datamex bldg., Ngusong Buwaya St., Brgy Saluysoy Meycauayan City Bulacan",
     mapLink: "https://maps.app.goo.gl/AYHnJy3oRhh6HsfC8",
     phone: "(0951) 296-5086",
     facebookLink:

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import AutoScroll from "embla-carousel-auto-scroll";
+import Image from "next/image";
 
 import {
   Carousel,
@@ -11,7 +12,6 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarDays, MapPin } from "lucide-react";
 
 type LifeCard = {
   id: string;
@@ -98,16 +98,30 @@ const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
 export default function SchoolLife() {
-  const autoScroll = React.useRef(
-    AutoScroll({
+  const [reducedMotion, setReducedMotion] = React.useState(false);
+  const autoScroll = React.useMemo(() => {
+    if (reducedMotion) {
+      return null;
+    }
+
+    return AutoScroll({
       speed: 1.2,
       startDelay: 0,
       stopOnInteraction: false,
       stopOnMouseEnter: true,
-    }),
-  );
+    });
+  }, [reducedMotion]);
 
   const sectionRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setReducedMotion(mediaQuery.matches);
+
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
 
   React.useEffect(() => {
     const el = sectionRef.current;
@@ -181,7 +195,6 @@ export default function SchoolLife() {
         <h3 className="mt-4 text-balance text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
           Where Futures Begin at{" "}
           <span className="relative inline-block">
-            <span className="absolute -inset-x-2 -inset-y-1 rounded-lg bg-primary/15 ring-1 ring-primary/25" />
             <span className="relative text-primary">DATAMEX</span>
           </span>
         </h3>
@@ -281,10 +294,10 @@ export default function SchoolLife() {
         <div className="relative z-10 mt-8 pb-20">
           <Carousel
             opts={{ loop: true, align: "center" }}
-            plugins={[autoScroll.current]}
+            plugins={autoScroll ? [autoScroll] : []}
             className="w-full"
-            onMouseEnter={() => autoScroll.current.stop()}
-            onMouseLeave={() => autoScroll.current.play()}
+            onMouseEnter={() => autoScroll?.stop()}
+            onMouseLeave={() => autoScroll?.play()}
           >
             <CarouselContent className="-ml-3">
               {lifeCards.map((item) => (
@@ -295,10 +308,13 @@ export default function SchoolLife() {
                   <Card className="group overflow-hidden rounded-2xl border bg-card py-0 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                     <CardContent className="p-0">
                       <div className="relative overflow-hidden">
-                        <img
+                        <Image
                           src={item.image}
                           alt={item.title}
                           className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-[1.04] sm:h-44"
+                          width={600}
+                          height={240}
+                          sizes="100vw"
                         />
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-background/50 via-background/10 to-transparent" />
                       </div>

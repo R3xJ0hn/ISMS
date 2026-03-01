@@ -1,12 +1,13 @@
 import React from "react";
+import { Facebook, Globe, MapPin } from "lucide-react";
 
 export default function Footer() {
+  const currentYear = new Date().getFullYear();
+
   return (
     <footer className="w-full bg-primary text-slate-100">
-      {/* <!-- TOP --> */}
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-          {/* <!-- Programs --> */}
           <div>
             <h3 className="text-sm font-semibold tracking-wide text-white">
               Programs
@@ -15,7 +16,7 @@ export default function Footer() {
               <li>
                 <a
                   href="#"
-                  className="text-slate-300 hover:text-white transition-colors"
+                  className="text-slate-300 transition-colors hover:text-white"
                 >
                   Senior High School
                 </a>
@@ -23,7 +24,7 @@ export default function Footer() {
               <li>
                 <a
                   href="#"
-                  className="text-slate-300 hover:text-white transition-colors"
+                  className="text-slate-300 transition-colors hover:text-white"
                 >
                   College
                 </a>
@@ -31,7 +32,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* <!-- Admissions --> */}
           <div>
             <h3 className="text-sm font-semibold tracking-wide text-white">
               Admissions
@@ -40,7 +40,7 @@ export default function Footer() {
               <li>
                 <a
                   href="#"
-                  className="text-slate-300 hover:text-white transition-colors"
+                  className="text-slate-300 transition-colors hover:text-white"
                 >
                   Procedures and Requirements
                 </a>
@@ -48,7 +48,7 @@ export default function Footer() {
               <li>
                 <a
                   href="#"
-                  className="text-slate-300 hover:text-white transition-colors"
+                  className="text-slate-300 transition-colors hover:text-white"
                 >
                   Online Reservation
                 </a>
@@ -56,20 +56,17 @@ export default function Footer() {
             </ul>
           </div>
 
-
-
-          {/* <!-- Contact --> */}
           <div>
             <h3 className="text-sm font-semibold tracking-wide text-white">
               Contact
             </h3>
 
-            <address className="mt-4 not-italic space-y-3 text-sm">
+            <address className="mt-4 space-y-3 text-sm not-italic">
               <a
                 href="https://maps.app.goo.gl/AYHnJy3oRhh6HsfC8"
-                className="group flex items-start gap-3 text-slate-300 hover:text-white transition-colors"
+                className="group flex items-start gap-3 text-slate-300 transition-colors hover:text-white"
               >
-                <i className="fa-solid fa-location-dot mt-0.5"></i>
+                <MapPin size={16} className="mt-0.5 shrink-0" />
                 <span>
                   Datamex bldg., Ngusong Buwaya St., Brgy Saluysoy Meycauayan
                   City Bulacan
@@ -78,17 +75,17 @@ export default function Footer() {
 
               <a
                 href="https://stadeline.education/"
-                className="group flex items-center gap-3 text-slate-300 hover:text-white transition-colors"
+                className="group flex items-center gap-3 text-slate-300 transition-colors hover:text-white"
               >
-                <i className="fa-regular fa-globe-pointer"></i>
+                <Globe size={16} className="shrink-0" />
                 <span>Our Official Website</span>
               </a>
 
               <a
-                href="https://www.facebook.com/datamexcollegeofstadelinemeycauayan/ "
-                className="group flex items-center gap-3 text-slate-300 hover:text-white transition-colors"
+                href="https://www.facebook.com/datamexcollegeofstadelinemeycauayan/"
+                className="group flex items-center gap-3 text-slate-300 transition-colors hover:text-white"
               >
-                <i className="fa-brands fa-facebook"></i>
+                <Facebook size={16} className="shrink-0" />
                 <span>Datamex Meycauayan.</span>
               </a>
             </address>
@@ -99,7 +96,8 @@ export default function Footer() {
       <div className="border-t border-white/10 bg-gray-950">
         <div className="mx-auto max-w-7xl px-6 py-5">
           <span className="block text-center text-xs text-slate-400">
-            © 2016 Datamex College of Saint Adeline · All rights reserved
+            Copyright {currentYear} Datamex College of Saint Adeline. All rights
+            reserved.
           </span>
         </div>
       </div>

@@ -1,5 +1,3 @@
-"use client";
-
 import HeroCarousel from "./hero-carousel";
 import HeroForm from "./hero-form";
 

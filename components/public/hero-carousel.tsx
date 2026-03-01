@@ -36,7 +36,7 @@ const slides = [
 export default function HeroCarousel() {
   const autoplay = useRef(
     Autoplay({
-      delay: 3000, // 5 seconds
+      delay: 3000, // 3 seconds
       stopOnInteraction: false,
       stopOnMouseEnter: true, // pause on hover (optional)
     })

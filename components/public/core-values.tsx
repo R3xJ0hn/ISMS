@@ -1,6 +1,3 @@
-// app/(public)/components/CoreValuesSection.tsx
-"use client";
-
 import React from "react";
 import {
   Crown,
@@ -100,7 +97,7 @@ export default function CoreValuesSection() {
               </h2>
 
               <p className="mt-4 text-base leading-relaxed text-slate-600">
-                These values guide how we learn, lead, and support one another helping every
+                These values guide how we learn, lead, and support one another, helping every
                 student grow with character and purpose.
               </p>
             </div>

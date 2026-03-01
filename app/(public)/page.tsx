@@ -5,6 +5,7 @@ import SchoolBranches from "@/components/public/school-branches";
 import SchoolLife from "@/components/public/school-life";
 import { BookMarked, GraduationCap, ToolCase } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function page() {
   return (
@@ -55,7 +56,7 @@ export default function page() {
             </p>
           </div>
 
-          <div className="relative w-full h-full lg:h-auto p-5">
+          <div className="relative w-full h-64 lg:h-auto p-5">
             <Image
               src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772362161/uploads/uzmj1kgeurubodkbxpu4.jpg"
               alt="Future of Education"
@@ -130,7 +131,7 @@ export default function page() {
                   <span>
                     Associate in Computer Technology
                     <span className="mt-1 block text-xs text-gray-500">
-                      (2-years course laderize to BSIT)
+                      (2-years course ladderized to BSIT)
                     </span>
                   </span>
                 </li>
@@ -256,13 +257,13 @@ export default function page() {
 
               {/* Button aligned under the text block */}
               <div className="mt-12">
-                <a
-                  href="/apply" // change this
+                <Link
+                  href="/apply"
                   className="inline-flex items-center justify-center bg-secondary px-16 py-4 text-sm font-semibold uppercase tracking-widest text-white transition
                              hover:bg-marron focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                 >
                   Apply Now
-                </a>
+                </Link>
               </div>
             </div>
           </div>
