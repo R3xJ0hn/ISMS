@@ -139,6 +139,7 @@ export default function Navbar() {
                     <Link
                       href={item.href}
                       aria-current={active ? "page" : undefined}
+                      onClick={() => setOpen(false)}
                       className={cn(
                         "block border-b-2 border-transparent px-3 py-4 transition-colors hover:text-accent",
                         active && "border-accent font-bold text-accent"
@@ -153,6 +154,7 @@ export default function Navbar() {
                 <Link
                   href="/portal"
                   aria-current={portalActive ? "page" : undefined}
+                  onClick={() => setOpen(false)}
                   className={cn(
                     "block border-b-2 border-transparent px-3 py-4 text-[#2e2a6b] transition-colors hover:text-accent",
                     portalActive && "border-accent font-bold text-accent"
