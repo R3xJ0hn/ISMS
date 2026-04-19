@@ -258,7 +258,7 @@ export default function page() {
               {/* Button aligned under the text block */}
               <div className="mt-12">
                 <Link
-                  href="/apply"
+                  href="/admission"
                   className="inline-flex items-center justify-center bg-secondary px-16 py-4 text-sm font-semibold uppercase tracking-widest text-white transition
                              hover:bg-marron focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                 >

@@ -1,5 +1,6 @@
 import React from "react";
 import { Facebook, Globe, MapPin } from "lucide-react";
+import Link from "next/link";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -38,20 +39,20 @@ export default function Footer() {
             </h3>
             <ul className="mt-4 space-y-2 text-sm">
               <li>
-                <a
-                  href="#"
+                <Link
+                  href="/admission"
                   className="text-slate-300 transition-colors hover:text-white"
                 >
                   Procedures and Requirements
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  href="/admission"
                   className="text-slate-300 transition-colors hover:text-white"
                 >
                   Online Reservation
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
