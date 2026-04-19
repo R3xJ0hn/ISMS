@@ -92,6 +92,8 @@ function stepIsComplete(
   switch (stepId) {
     case "applicant":
       return Boolean(form.applicant_type && form.branch_id);
+    case "program":
+      return true;
     case "student":
       return Boolean(
         form.student_first_name &&
@@ -136,6 +138,10 @@ function stepIsComplete(
   }
 }
 
+function firstIncompleteStepIndex(form: AdmissionFormValues, consent: boolean) {
+  return steps.findIndex((step) => !stepIsComplete(step.id, form, consent));
+}
+
 export default function AdmissionWizard() {
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [form, setForm] = React.useState<AdmissionFormValues>(
@@ -148,6 +154,18 @@ export default function AdmissionWizard() {
   const isFirstStep = currentIndex === 0;
   const isLastStep = currentIndex === steps.length - 1;
   const currentStepComplete = stepIsComplete(currentStep.id, form, consent);
+  const incompleteStepIndex = firstIncompleteStepIndex(form, consent);
+  const formComplete = incompleteStepIndex === -1;
+
+  function canNavigateToStep(index: number) {
+    if (index === currentIndex) {
+      return true;
+    }
+
+    return steps
+      .slice(0, index)
+      .every((step) => stepIsComplete(step.id, form, consent));
+  }
 
   function updateField(field: FieldName, value: string) {
     setSubmitted(false);
@@ -160,11 +178,13 @@ export default function AdmissionWizard() {
   }
 
   function goNext() {
-    if (!currentStepComplete) {
+    const nextIndex = Math.min(currentIndex + 1, steps.length - 1);
+
+    if (!currentStepComplete || !canNavigateToStep(nextIndex)) {
       return;
     }
 
-    setCurrentIndex((prev) => Math.min(prev + 1, steps.length - 1));
+    setCurrentIndex(nextIndex);
   }
 
   function goBack() {
@@ -174,7 +194,11 @@ export default function AdmissionWizard() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!consent) {
+    const invalidStepIndex = firstIncompleteStepIndex(form, consent);
+
+    if (invalidStepIndex !== -1) {
+      setSubmitted(false);
+      setCurrentIndex(invalidStepIndex);
       return;
     }
 
@@ -185,6 +209,8 @@ export default function AdmissionWizard() {
     switch (currentStep.id) {
       case "applicant":
         return <ApplicantStep form={form} onChange={updateField} />;
+      case "program":
+        return (<h2>Program Step</h2>);
       case "student":
         return (<h2>Student Step</h2>);    
       case "contact":
@@ -221,17 +247,25 @@ export default function AdmissionWizard() {
                 const Icon = step.icon;
                 const active = index === currentIndex;
                 const complete = stepIsComplete(step.id, form, consent);
+                const canNavigate = canNavigateToStep(index);
 
                 return (
                   <li key={step.id}>
                     <button
                       type="button"
-                      onClick={() => setCurrentIndex(index)}
+                      onClick={() => {
+                        if (canNavigate) {
+                          setCurrentIndex(index);
+                        }
+                      }}
+                      disabled={!canNavigate}
                       className={cn(
                         "flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/25",
                         active
                           ? "bg-primary text-white"
-                          : "text-gray-700 hover:bg-gray-100"
+                          : canNavigate
+                            ? "text-gray-700 hover:bg-gray-100"
+                            : "cursor-not-allowed text-gray-400 opacity-70"
                       )}
                     >
                       <span
@@ -314,7 +348,7 @@ export default function AdmissionWizard() {
                 {isLastStep ? (
                   <button
                     type="submit"
-                    disabled={!consent}
+                    disabled={!formComplete}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-secondary px-5 text-sm font-semibold text-white transition hover:bg-secondary/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Submit for Review

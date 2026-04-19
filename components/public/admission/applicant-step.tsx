@@ -161,14 +161,24 @@ function SelectField({
         id={id}
         name={id}
         value={value}
-        onChange={(event) => onChange(id, event.target.value)}
+        required={required}
+        aria-required={required}
+        onChange={(event) => {
+          event.currentTarget.setCustomValidity("");
+          onChange(id, event.target.value);
+        }}
+        onInvalid={(event) => {
+          event.currentTarget.setCustomValidity(`Please ${placeholder.toLowerCase()}.`);
+        }}
         disabled={disabled}
         className={cn(
           selectClass,
           disabled && "cursor-not-allowed bg-gray-100 text-gray-500"
         )}
       >
-        <option value="">{placeholder}</option>
+        <option value="" disabled hidden>
+          {placeholder}
+        </option>
         {branches.map((branch) => (
           <option key={branch.id} value={branch.id}>
             {branch.title}
