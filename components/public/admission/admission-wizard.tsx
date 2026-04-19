@@ -11,8 +11,11 @@ import {
 
 import { cn } from "@/lib/utils";
 import { steps, type Step, type StepId } from "./config";
+import ApplicantStep from "./applicant-step";
 
 export const initialFormValues = {
+  applicant_type: "",
+  branch_id: "",
   student_first_name: "",
   student_last_name: "",
   student_middle_name: "",
@@ -87,6 +90,8 @@ function stepIsComplete(
   consent: boolean
 ) {
   switch (stepId) {
+    case "applicant":
+      return Boolean(form.applicant_type && form.branch_id);
     case "student":
       return Boolean(
         form.student_first_name &&
@@ -133,8 +138,9 @@ function stepIsComplete(
 
 export default function AdmissionWizard() {
   const [currentIndex, setCurrentIndex] = React.useState(0);
-  const [form, setForm] =
-    React.useState(initialFormValues);
+  const [form, setForm] = React.useState<AdmissionFormValues>(
+    initialFormValues
+  );
   const [consent, setConsent] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
 
@@ -177,6 +183,8 @@ export default function AdmissionWizard() {
 
   function renderStep() {
     switch (currentStep.id) {
+      case "applicant":
+        return <ApplicantStep form={form} onChange={updateField} />;
       case "student":
         return (<h2>Student Step</h2>);    
       case "contact":

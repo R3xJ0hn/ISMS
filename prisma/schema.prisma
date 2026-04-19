@@ -92,6 +92,8 @@ model Branch {
   addressId    BigInt?  @map("address_id")
   phone        String?  @db.Text
   facebookText String?  @map("facebook_text") @db.Text
+  mapLink      String?  @map("map_link") @db.Text
+  image        String?  @db.Text
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)

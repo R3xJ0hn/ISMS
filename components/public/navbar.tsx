@@ -67,7 +67,13 @@ export default function Navbar() {
         <div className="flex h-20 items-center justify-between mx-auto px-5 lg:px-20 shadow-md/30">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <Image src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772363064/uploads/czeccbdle54njfottdz1.png" alt="Logo" width={48} height={48} />
+            <Image
+              src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772363064/uploads/czeccbdle54njfottdz1.png"
+              alt="Logo"
+              width={48}
+              height={48}
+              className="h-12 w-12"
+            />
             <div className="border-l-4 border-amber-400 pl-3">
               <p className="font-bold text-[#2e2a6b] leading-tight">
                 DATAMEX{" "}
