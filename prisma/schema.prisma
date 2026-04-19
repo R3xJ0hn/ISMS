@@ -50,17 +50,17 @@ enum ApplicationStatus {
 }
 
 model Address {
-  id          BigInt   @id @default(autoincrement())
-  houseNumber String?  @map("house_number") @db.Text
-  subdivision String?  @db.Text
-  street      String?  @db.Text
+  id          BigInt  @id @default(autoincrement())
+  houseNumber String? @map("house_number") @db.Text
+  subdivision String? @db.Text
+  street      String? @db.Text
 
-  barangay    String   @db.Text
-  city        String   @db.Text
-  province    String   @db.Text
-  postalCode  String?  @map("postal_code") @db.Text
-  
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  barangay   String  @db.Text
+  city       String  @db.Text
+  province   String  @db.Text
+  postalCode String? @map("postal_code") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   lastSchools LastSchool[]
   students    Student[]
@@ -85,19 +85,18 @@ model LastSchool {
   @@map("last_schools")
 }
 
-
 model Branch {
   id           BigInt   @id @default(autoincrement())
   code         String   @unique @db.Text
   title        String   @db.Text
-  addressId  BigInt?    @map("address_id")
+  addressId    BigInt?  @map("address_id")
   phone        String?  @db.Text
   facebookText String?  @map("facebook_text") @db.Text
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  address     Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
-  sections    Section[]
-  enrollments Enrollment[]
+  address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  sections     Section[]
+  enrollments  Enrollment[]
   applications AdmissionApplication[]
 
   @@map("branches")
@@ -109,7 +108,7 @@ model ProgramType {
   label     String   @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  programs Program[]
+  programs     Program[]
   applications AdmissionApplication[]
 
   @@map("program_types")
@@ -122,10 +121,10 @@ model Program {
   label         String   @db.Text
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  programType ProgramType @relation(fields: [programTypeId], references: [id], onDelete: Restrict)
-  yearLevels  YearLevel[]
-  sections    Section[]
-  enrollments Enrollment[]
+  programType  ProgramType            @relation(fields: [programTypeId], references: [id], onDelete: Restrict)
+  yearLevels   YearLevel[]
+  sections     Section[]
+  enrollments  Enrollment[]
   applications AdmissionApplication[]
 
   @@map("programs")
@@ -139,9 +138,9 @@ model YearLevel {
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  program     Program @relation(fields: [programId], references: [id], onDelete: Cascade)
-  sections    Section[]
-  enrollments Enrollment[]
+  program      Program                @relation(fields: [programId], references: [id], onDelete: Cascade)
+  sections     Section[]
+  enrollments  Enrollment[]
   applications AdmissionApplication[]
 
   @@unique([programId, code])
@@ -174,17 +173,17 @@ model Student {
   citizenship     String      @db.Text
   birthplace      String      @db.Text
   religion        String?     @db.Text
-  email           String      @db.Text
+  email           String      @unique @db.Text
   phone           String      @db.Text
   facebookAccount String?     @map("facebook_account") @db.Text
   addressId       BigInt?     @map("address_id")
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  address            Address?                 @relation(fields: [addressId], references: [id], onDelete: SetNull)
-  guardians          StudentGuardian[]
-  applications       AdmissionApplication[]
-  enrollments        Enrollment[]
+  address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  guardians    StudentGuardian[]
+  applications AdmissionApplication[]
+  enrollments  Enrollment[]
 
   @@map("students")
 }
@@ -214,8 +213,9 @@ model StudentGuardian {
   studentId    BigInt   @map("student_id")
   guardianId   BigInt   @map("guardian_id")
   relationship String   @db.Text
-  isPrimary    Boolean  @default(true) @map("is_primary")
+  isPrimary    Boolean  @default(false) @map("is_primary")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
@@ -266,32 +266,32 @@ model Enrollment {
 }
 
 model AdmissionApplication {
-  id                   BigInt            @id @default(autoincrement())
-  studentId            BigInt            @map("student_id")
-  applicantType        ApplicantType     @map("applicant_type")
-  applicationStatus    ApplicationStatus @default(draft) @map("application_status")
+  id                BigInt            @id @default(autoincrement())
+  studentId         BigInt            @map("student_id")
+  applicantType     ApplicantType     @map("applicant_type")
+  applicationStatus ApplicationStatus @default(draft) @map("application_status")
 
-  lastSchoolId         BigInt?   @map("last_school_id")
-  LSSchoolYearEnd      String?   @map("ls_school_year_text") @db.Text
-  LSAttainedLevelText  String?   @map("ls_year_level_text") @db.Text
-  LSGraduationDate     DateTime? @map("ls_graduation_date") @db.Date
+  lastSchoolId        BigInt?   @map("last_school_id")
+  LSSchoolYearEnd     String?   @map("ls_school_year_text") @db.Text
+  LSAttainedLevelText String?   @map("ls_year_level_text") @db.Text
+  LSGraduationDate    DateTime? @map("ls_graduation_date") @db.Date
 
-  branchId             BigInt   @map("branch_id")
-  programTypeId        BigInt   @map("program_type_id")
-  programId            BigInt   @map("program_id")
-  yearLevelId          BigInt   @map("year_level_id")
+  branchId      BigInt @map("branch_id")
+  programTypeId BigInt @map("program_type_id")
+  programId     BigInt @map("program_id")
+  yearLevelId   BigInt @map("year_level_id")
 
-  remarks              String?           @db.Text
-  submittedAt          DateTime?         @map("submitted_at") @db.Timestamptz(6)
-  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  remarks     String?   @db.Text
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  student     Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  lastSchool  LastSchool?         @relation(fields: [lastSchoolId], references: [id], onDelete: SetNull)
-  branch      Branch              @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  programType ProgramType         @relation(fields: [programTypeId], references: [id], onDelete: Restrict)
-  program     Program             @relation(fields: [programId], references: [id], onDelete: Restrict)
-  yearLevel   YearLevel           @relation(fields: [yearLevelId], references: [id], onDelete: Restrict)
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lastSchool  LastSchool? @relation(fields: [lastSchoolId], references: [id], onDelete: SetNull)
+  branch      Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  programType ProgramType @relation(fields: [programTypeId], references: [id], onDelete: Restrict)
+  program     Program     @relation(fields: [programId], references: [id], onDelete: Restrict)
+  yearLevel   YearLevel   @relation(fields: [yearLevelId], references: [id], onDelete: Restrict)
 
   @@map("admission_applications")
 }

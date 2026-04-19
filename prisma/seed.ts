@@ -15,11 +15,23 @@ async function seed() {
   // Add your seeding logic here
 }
 
-seed()
-  .catch((e) => {
+async function main() {
+  try {
+    await seed();
+  } catch (e) {
     console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+    process.exitCode = 1;
+  } finally {
+    try {
+      await prisma.$disconnect();
+    } catch (e) {
+      console.error("Failed to disconnect Prisma client:", e);
+      process.exitCode = 1;
+    }
+  }
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
