@@ -16,6 +16,27 @@ type BranchAddress = {
   postalCode: string | null;
 };
 
+const branchSelect = {
+  id: true,
+  slug: true,
+  title: true,
+  image: true,
+  phone: true,
+  facebookText: true,
+  mapLink: true,
+  address: {
+    select: {
+      houseNumber: true,
+      subdivision: true,
+      street: true,
+      barangay: true,
+      city: true,
+      province: true,
+      postalCode: true,
+    },
+  },
+} as const;
+
 function formatAddress(address: BranchAddress | null) {
   if (!address) {
     return "";
@@ -40,39 +61,16 @@ export async function GET() {
       orderBy: {
         title: "asc",
       },
-      select: {
-        id: true,
-        code: true,
-        title: true,
-        image: true,
-        phone: true,
-        facebookText: true,
-        mapLink: true,
-        address: {
-          select: {
-            houseNumber: true,
-            subdivision: true,
-            street: true,
-            barangay: true,
-            city: true,
-            province: true,
-            postalCode: true,
-          },
-        },
-      },
+      select: branchSelect,
     });
 
     return NextResponse.json({
-      branches: branches.map((branch) => ({
-        id: branch.id.toString(),
-        code: branch.code,
-        title: branch.title,
-        image: branch.image,
-        phone: branch.phone,
-        facebookText: branch.facebookText,
-        mapLink: branch.mapLink,
-        address: branch.address,
-        formattedAddress: formatAddress(branch.address),
+      branches: branches.map(({ id, slug, address, ...branch }) => ({
+        ...branch,
+        id: id.toString(),
+        code: slug,
+        address,
+        formattedAddress: formatAddress(address),
       })),
     });
   } catch (error) {

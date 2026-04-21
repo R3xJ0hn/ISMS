@@ -2,6 +2,7 @@
   "name": "isms",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "prebuild": "prisma generate --generator client",
@@ -23,7 +24,6 @@
     "lucide-react": "^0.562.0",
     "next": "^16.1.6",
     "pg": "^8.20.0",
-    "prisma": "^7.7.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.5.0"
@@ -36,6 +36,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "^16.1.6",
+    "prisma": "^7.7.0",
     "prisma-erd-generator": "^2.4.2",
     "shadcn": "^3.8.5",
     "tailwindcss": "^4",

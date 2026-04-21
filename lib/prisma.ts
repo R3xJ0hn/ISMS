@@ -3,6 +3,7 @@ import { PrismaClient } from "./generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   ismsPrisma?: PrismaClient;
+  ismsPrismaClientClass?: typeof PrismaClient;
 };
 
 function createPrismaClient() {
@@ -17,8 +18,19 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.ismsPrisma ?? createPrismaClient();
+const shouldReusePrismaClient =
+  globalForPrisma.ismsPrisma &&
+  globalForPrisma.ismsPrismaClientClass === PrismaClient;
+
+if (globalForPrisma.ismsPrisma && !shouldReusePrismaClient) {
+  void globalForPrisma.ismsPrisma.$disconnect().catch(() => {});
+}
+
+export const prisma = shouldReusePrismaClient
+  ? globalForPrisma.ismsPrisma!
+  : createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.ismsPrisma = prisma;
+  globalForPrisma.ismsPrismaClientClass = PrismaClient;
 }
