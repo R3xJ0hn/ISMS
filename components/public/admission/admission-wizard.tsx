@@ -12,6 +12,11 @@ import {
 import { cn } from "@/lib/utils";
 import { steps, type Step, type StepId } from "./config";
 import ApplicantStep from "./applicant-step";
+import CurrentStudentStep, {
+  type CurrentStudentFieldName,
+  type CurrentStudentStepHandle,
+  type CurrentStudentVerification,
+} from "./current-student-step";
 
 export const initialFormValues = {
   applicant_type: "",
@@ -58,6 +63,16 @@ export const initialFormValues = {
   guardian_contact_number: "",
   guardian_occupation: "",
   current_student_number: "",
+  current_student_email: "",
+  current_student_first_name: "",
+  current_student_last_name: "",
+  current_student_birth_date: "",
+  current_last_school_year_attended: "",
+  current_student_record_id: "",
+  current_student_verified_name: "",
+  current_student_verified_school_year: "",
+  current_student_verified_program: "",
+  current_student_verified_branch: "",
   current_year_level: "",
   current_section: "",
   current_school_year: "",
@@ -66,13 +81,56 @@ export const initialFormValues = {
 type FieldName = keyof typeof initialFormValues;
 type AdmissionFormValues = typeof initialFormValues;
 
-function StepHeader({ step, currentIndex }: { step: Step; currentIndex: number }) {
+const EXISTING_STUDENT = "Existing Student";
+
+const currentStudentInputFields = new Set<FieldName>([
+  "current_student_number",
+  "current_student_email",
+  "current_student_first_name",
+  "current_student_last_name",
+  "current_student_birth_date",
+  "current_last_school_year_attended",
+]);
+
+function isCurrentStudentInputField(
+  field: FieldName
+): field is CurrentStudentFieldName {
+  return currentStudentInputFields.has(field);
+}
+
+function clearCurrentStudentVerification(form: AdmissionFormValues) {
+  return {
+    ...form,
+    current_student_record_id: "",
+    current_student_verified_name: "",
+    current_student_verified_school_year: "",
+    current_student_verified_program: "",
+    current_student_verified_branch: "",
+  };
+}
+
+function getVisibleSteps(applicantType: string) {
+  return steps.filter(
+    (step) =>
+      step.id !== "currentStudent" || applicantType === EXISTING_STUDENT
+  );
+}
+
+function StepHeader({
+  step,
+  currentIndex,
+  totalSteps,
+}: {
+  step: Step;
+  currentIndex: number;
+  totalSteps: number;
+}) {
   const Icon = step.icon;
 
   return (
     <div className="border-b border-gray-200 px-5 py-5 sm:px-7">
       <p className="text-xs font-bold uppercase tracking-widest text-secondary">
-        Step {currentIndex + 1} of {steps.length} / {step.eyebrow}
+        Step {currentIndex + 1} of {totalSteps} / {step.eyebrow}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <Icon className="size-7 text-primary" aria-hidden="true" />
@@ -130,7 +188,19 @@ function stepIsComplete(
           form.guardian_contact_number
       );
     case "currentStudent":
-      return true;
+      if (form.applicant_type !== EXISTING_STUDENT) {
+        return true;
+      }
+
+      return Boolean(
+        form.current_student_number &&
+          form.current_student_email &&
+          form.current_student_first_name &&
+          form.current_student_last_name &&
+          form.current_student_birth_date &&
+          form.current_last_school_year_attended &&
+          form.current_student_record_id
+      );
     case "review":
       return consent;
     default:
@@ -138,8 +208,29 @@ function stepIsComplete(
   }
 }
 
-function firstIncompleteStepIndex(form: AdmissionFormValues, consent: boolean) {
-  return steps.findIndex((step) => !stepIsComplete(step.id, form, consent));
+function currentStudentInputsComplete(form: AdmissionFormValues) {
+  if (form.applicant_type !== EXISTING_STUDENT) {
+    return true;
+  }
+
+  return Boolean(
+    form.current_student_number &&
+      form.current_student_email &&
+      form.current_student_first_name &&
+      form.current_student_last_name &&
+      form.current_student_birth_date &&
+      form.current_last_school_year_attended
+  );
+}
+
+function firstIncompleteStepIndex(
+  form: AdmissionFormValues,
+  consent: boolean,
+  visibleSteps: Step[]
+) {
+  return visibleSteps.findIndex(
+    (step) => !stepIsComplete(step.id, form, consent)
+  );
 }
 
 export default function AdmissionWizard() {
@@ -147,41 +238,103 @@ export default function AdmissionWizard() {
   const [form, setForm] = React.useState<AdmissionFormValues>(
     initialFormValues
   );
-  const [consent, setConsent] = React.useState(false);
-  const [submitted, setSubmitted] = React.useState(false);
+  const [consent] = React.useState(false);
+  const [verifyingCurrentStudent, setVerifyingCurrentStudent] =
+    React.useState(false);
+  const currentStudentStepRef =
+    React.useRef<CurrentStudentStepHandle | null>(null);
 
-  const currentStep = steps[currentIndex];
-  const isFirstStep = currentIndex === 0;
-  const isLastStep = currentIndex === steps.length - 1;
+  const visibleSteps = React.useMemo(
+    () => getVisibleSteps(form.applicant_type),
+    [form.applicant_type]
+  );
+  const safeCurrentIndex = Math.min(currentIndex, visibleSteps.length - 1);
+  const currentStep = visibleSteps[safeCurrentIndex];
+  const isFirstStep = safeCurrentIndex === 0;
+  const isLastStep = safeCurrentIndex === visibleSteps.length - 1;
   const currentStepComplete = stepIsComplete(currentStep.id, form, consent);
-  const incompleteStepIndex = firstIncompleteStepIndex(form, consent);
+  const currentStepReadyToContinue =
+    currentStep.id === "currentStudent"
+      ? currentStudentInputsComplete(form)
+      : currentStepComplete;
+  const incompleteStepIndex = firstIncompleteStepIndex(
+    form,
+    consent,
+    visibleSteps
+  );
   const formComplete = incompleteStepIndex === -1;
 
+  React.useEffect(() => {
+    if (currentIndex !== safeCurrentIndex) {
+      setCurrentIndex(safeCurrentIndex);
+    }
+  }, [currentIndex, safeCurrentIndex]);
+
   function canNavigateToStep(index: number) {
-    if (index === currentIndex) {
+    if (index === safeCurrentIndex) {
       return true;
     }
 
-    return steps
+    return visibleSteps
       .slice(0, index)
       .every((step) => stepIsComplete(step.id, form, consent));
   }
 
   function updateField(field: FieldName, value: string) {
-    setSubmitted(false);
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setVerifyingCurrentStudent(false);
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+
+      if (isCurrentStudentInputField(field)) {
+        return clearCurrentStudentVerification(next);
+      }
+
+      if (field === "applicant_type" && value !== EXISTING_STUDENT) {
+        return clearCurrentStudentVerification(next);
+      }
+
+      return next;
+    });
   }
 
-  function updateConsent(value: boolean) {
-    setSubmitted(false);
-    setConsent(value);
+  function handleCurrentStudentVerified(
+    verification: CurrentStudentVerification
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      current_student_record_id: verification.recordId,
+      current_student_verified_name: verification.displayName,
+      current_student_verified_school_year: verification.schoolYear,
+      current_student_verified_program: verification.program,
+      current_student_verified_branch: verification.branch,
+      contact_email: prev.contact_email || prev.current_student_email,
+      student_first_name:
+        prev.student_first_name || prev.current_student_first_name,
+      student_last_name: prev.student_last_name || prev.current_student_last_name,
+      student_birth_date:
+        prev.student_birth_date || prev.current_student_birth_date,
+    }));
   }
 
-  function goNext() {
-    const nextIndex = Math.min(currentIndex + 1, steps.length - 1);
+  async function goNext() {
+    const nextIndex = Math.min(safeCurrentIndex + 1, visibleSteps.length - 1);
 
-    if (!currentStepComplete || !canNavigateToStep(nextIndex)) {
+    if (!currentStepReadyToContinue || verifyingCurrentStudent) {
       return;
+    }
+
+    if (currentStep.id === "currentStudent" && !form.current_student_record_id) {
+      setVerifyingCurrentStudent(true);
+
+      try {
+        const verified = await currentStudentStepRef.current?.verify();
+
+        if (!verified) {
+          return;
+        }
+      } finally {
+        setVerifyingCurrentStudent(false);
+      }
     }
 
     setCurrentIndex(nextIndex);
@@ -194,15 +347,16 @@ export default function AdmissionWizard() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const invalidStepIndex = firstIncompleteStepIndex(form, consent);
+    const invalidStepIndex = firstIncompleteStepIndex(
+      form,
+      consent,
+      visibleSteps
+    );
 
     if (invalidStepIndex !== -1) {
-      setSubmitted(false);
       setCurrentIndex(invalidStepIndex);
       return;
     }
-
-    setSubmitted(true);
   }
 
   function renderStep() {
@@ -220,7 +374,14 @@ export default function AdmissionWizard() {
       case "guardian":
         return (<h2>Guardian Step</h2>);
       case "currentStudent":
-        return (<h2>Current Student Step</h2>);
+        return (
+          <CurrentStudentStep
+            ref={currentStudentStepRef}
+            form={form}
+            onChange={updateField}
+            onVerified={handleCurrentStudentVerified}
+          />
+        );
       case "review":
         return ( <h2>Review Step</h2>);
       default:
@@ -238,14 +399,14 @@ export default function AdmissionWizard() {
                 Admission progress
               </p>
               <p className="mt-2 text-2xl font-bold text-gray-950">
-                {currentIndex + 1}/{steps.length}
+                {safeCurrentIndex + 1}/{visibleSteps.length}
               </p>
             </div>
 
             <ol className="grid gap-1 p-3">
-              {steps.map((step, index) => {
+              {visibleSteps.map((step, index) => {
                 const Icon = step.icon;
-                const active = index === currentIndex;
+                const active = index === safeCurrentIndex;
                 const complete = stepIsComplete(step.id, form, consent);
                 const canNavigate = canNavigateToStep(index);
 
@@ -321,16 +482,23 @@ export default function AdmissionWizard() {
             onSubmit={handleSubmit}
             className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
           >
-            <StepHeader step={currentStep} currentIndex={currentIndex} />
+            <StepHeader
+              step={currentStep}
+              currentIndex={safeCurrentIndex}
+              totalSteps={visibleSteps.length}
+            />
 
             <div className="min-h-140 px-5 py-6 sm:px-7">
               {renderStep()}
             </div>
 
             <div className="flex flex-col gap-4 border-t border-gray-200 bg-gray-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-              {(!currentStepComplete) && (
-                 <p className="text-sm font-medium text-secondary">
-                    Complete the required fields to continue.
+              {!currentStepComplete && (
+                <p className="text-sm font-medium text-secondary">
+                  {currentStep.id === "currentStudent" &&
+                  currentStudentInputsComplete(form)
+                    ? "Continue will verify your student record before you can proceed."
+                    : "Complete the required fields to continue."}
                 </p>
               )}
 
@@ -358,10 +526,12 @@ export default function AdmissionWizard() {
                   <button
                     type="button"
                     onClick={goNext}
-                    disabled={!currentStepComplete}
+                    disabled={
+                      !currentStepReadyToContinue || verifyingCurrentStudent
+                    }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Continue
+                    {verifyingCurrentStudent ? "Verifying record..." : "Continue"}
                     <ArrowRight size={16} aria-hidden="true" />
                   </button>
                 )}

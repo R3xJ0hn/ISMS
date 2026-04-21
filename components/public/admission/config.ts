@@ -10,8 +10,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 export type StepId =
-  | "applicant"  
-  | "program"  
+  | "applicant"
+  | "program"
   | "student"
   | "contact"
   | "lastSchool"
@@ -28,11 +28,18 @@ export type Step = {
 };
 
 export const steps: Step[] = [
-{
+  {
     id: "applicant",
     label: "Applicant",
     title: "Admission Type",
     eyebrow: "Start here",
+    icon: ClipboardList,
+  },
+  {
+    id: "currentStudent",
+    label: "Current",
+    title: "Current Student Details",
+    eyebrow: "For existing students",
     icon: ClipboardList,
   },
   {
@@ -70,13 +77,7 @@ export const steps: Step[] = [
     eyebrow: "Emergency contact",
     icon: UsersRound,
   },
-  {
-    id: "currentStudent",
-    label: "Current",
-    title: "Current Student Details",
-    eyebrow: "For existing students",
-    icon: ClipboardList,
-  },
+
   {
     id: "review",
     label: "Review",

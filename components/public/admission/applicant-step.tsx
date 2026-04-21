@@ -47,24 +47,17 @@ const applicantTypes: ApplicantType[] = [
       "For applicants starting a new college record with Datamex College of Saint Adeline.",
   },
   {
-    value: "Transferee",
-    title: "Transferee",
+    value: "Existing Student",
+    title: "Existing student",
     description:
-      "For applicants who previously enrolled in another college or university.",
-  },
-  {
-    value: "Returning Student",
-    title: "Returning student",
-    description:
-      "For former DCSA students who want to continue or resume enrollment.",
+      "For currently or previously enrolled DCSA students",
   },
 ];
 
 const selectClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
-const fallbackBranchImage =
-  "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366051/uploads/ga78teh5pp1tqj9ia0lu.jpg";
+
 
 function ChoiceButton({
   type,
@@ -244,9 +237,9 @@ function BranchDetails({
 
   return (
     <div className="grid gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-start">
-      <div className="relative aspect-[16/9] overflow-hidden rounded-md bg-gray-100 lg:aspect-[4/3]">
+      <div className="relative aspect-video overflow-hidden rounded-md bg-gray-100 lg:aspect-4/3">
         <Image
-          src={branch.image ?? fallbackBranchImage}
+          src={branch.image ?? ""}
           alt={branch.title}
           fill
           className="object-cover"
