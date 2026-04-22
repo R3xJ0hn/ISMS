@@ -27,9 +27,24 @@ function normalizeName(value: unknown) {
 }
 
 function parseBirthDateRange(value: string) {
-  const start = new Date(`${value}T00:00:00.000Z`);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
-  if (Number.isNaN(start.getTime())) {
+  if (!match) {
+    return null;
+  }
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number.parseInt(yearText, 10);
+  const month = Number.parseInt(monthText, 10);
+  const day = Number.parseInt(dayText, 10);
+  const start = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    Number.isNaN(start.getTime()) ||
+    start.getUTCFullYear() !== year ||
+    start.getUTCMonth() + 1 !== month ||
+    start.getUTCDate() !== day
+  ) {
     return null;
   }
 

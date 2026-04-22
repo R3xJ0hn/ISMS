@@ -235,16 +235,24 @@ function BranchDetails({
     );
   }
 
+  const branchImage = branch.image?.trim();
+
   return (
     <div className="grid gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-start">
       <div className="relative aspect-video overflow-hidden rounded-md bg-gray-100 lg:aspect-4/3">
-        <Image
-          src={branch.image ?? ""}
-          alt={branch.title}
-          fill
-          className="object-cover"
-          sizes="(max-width: 1024px) 100vw, 56rem"
-        />
+        {branchImage ? (
+          <Image
+            src={branchImage}
+            alt={branch.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 1024px) 100vw, 56rem"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-gray-100 px-4 text-center text-sm font-medium text-gray-500">
+            Branch image unavailable
+          </div>
+        )}
       </div>
 
       <div className="min-w-0">

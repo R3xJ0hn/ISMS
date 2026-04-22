@@ -21,21 +21,3 @@ export async function findStudentIdsByNumbers(
 
   return students.map((student) => student.id);
 }
-
-export async function findLastSchoolIdsByNames(
-  prisma: PrismaClient,
-  schoolNames: readonly string[]
-) {
-  const schools = await prisma.lastSchool.findMany({
-    where: {
-      schoolName: {
-        in: uniqueStrings(schoolNames),
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  return schools.map((school) => school.id);
-}

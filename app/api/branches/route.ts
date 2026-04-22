@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
-export const dynamic = "force-static";
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type BranchAddress = {
   houseNumber: string | null;
@@ -55,8 +55,8 @@ function formatAddress(address: BranchAddress | null) {
     .join(", ");
 }
 
-export async function GET() {
-  try {
+const getBranches = unstable_cache(
+  async () => {
     const branches = await prisma.branch.findMany({
       orderBy: {
         title: "asc",
@@ -64,14 +64,24 @@ export async function GET() {
       select: branchSelect,
     });
 
+    return branches.map(({ id, slug, address, ...branch }) => ({
+      ...branch,
+      id: id.toString(),
+      code: slug,
+      address,
+      formattedAddress: formatAddress(address),
+    }));
+  },
+  ["api-branches"],
+  {
+    revalidate: 300,
+  }
+);
+
+export async function GET() {
+  try {
     return NextResponse.json({
-      branches: branches.map(({ id, slug, address, ...branch }) => ({
-        ...branch,
-        id: id.toString(),
-        code: slug,
-        address,
-        formattedAddress: formatAddress(address),
-      })),
+      branches: await getBranches(),
     });
   } catch (error) {
     console.error("Failed to fetch branches:", error);

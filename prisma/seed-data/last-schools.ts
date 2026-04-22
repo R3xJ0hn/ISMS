@@ -1,6 +1,6 @@
 import { defineSeed } from "../_factory";
 import { SchoolType } from "../../lib/generated/prisma/enums";
-import { findLastSchoolIdsByNames } from "./_helpers";
+import { uniqueStrings } from "./_helpers";
 
 type LastSchoolSeedRow = {
   key: string;
@@ -60,19 +60,23 @@ export default defineSeed({
   rows: seedLastSchools,
   idGroup: "lastSchools",
   getRowKey: (row) => row.key,
-  create: async ({ prisma, getId }, { key: _key, addressKey, ...row }) =>
+  create: async ({ prisma, getId }, row) =>
     prisma.lastSchool.create({
       data: {
-        ...row,
-        addressId: addressKey
-          ? getId("addresses", addressKey, "address")
+        schoolName: row.schoolName,
+        schoolId: row.schoolId,
+        shortName: row.shortName,
+        schoolType: row.schoolType,
+        addressId: row.addressKey
+          ? getId("addresses", row.addressKey, "address")
           : null,
       },
     }),
   down: async ({ prisma }, rows) => {
-    const schoolIds = await findLastSchoolIdsByNames(
-      prisma,
-      rows.map((row) => row.schoolName)
+    const schoolIds = uniqueStrings(
+      rows
+        .map((row) => row.schoolId)
+        .filter((schoolId): schoolId is string => schoolId !== null)
     );
 
     if (schoolIds.length === 0) {
@@ -81,7 +85,7 @@ export default defineSeed({
 
     await prisma.lastSchool.deleteMany({
       where: {
-        id: {
+        schoolId: {
           in: schoolIds,
         },
       },

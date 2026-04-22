@@ -1,3 +1,6 @@
+// Synthetic test fixture data only. The names, sequential phone numbers,
+// example.com emails, and other personal details in this file are artificial
+// and intended solely for seeding and testing, not real personal information.
 import { defineSeed } from "../_factory";
 
 type GuardianSeedRow = {

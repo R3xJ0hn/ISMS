@@ -80,6 +80,18 @@ export const initialFormValues = {
 
 type FieldName = keyof typeof initialFormValues;
 type AdmissionFormValues = typeof initialFormValues;
+type SubmissionStatus = "idle" | "submitting" | "submitted";
+type AdmissionSubmissionResponse = {
+  submitted?: boolean;
+  submissionId?: string;
+  submittedAt?: string;
+  message?: string;
+};
+type AdmissionConfirmation = {
+  message: string;
+  submissionId: string;
+  submittedAt: string;
+};
 
 const EXISTING_STUDENT = "Existing Student";
 
@@ -233,14 +245,57 @@ function firstIncompleteStepIndex(
   );
 }
 
+async function submitAdmission(
+  form: AdmissionFormValues,
+  consent: boolean
+) {
+  const response = await fetch("/api/admissions/submit", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      form,
+      consent,
+    }),
+  });
+
+  const data = (await response.json()) as AdmissionSubmissionResponse;
+
+  if (
+    !response.ok ||
+    !data.submitted ||
+    !data.submissionId ||
+    !data.submittedAt
+  ) {
+    throw new Error(
+      data.message ??
+        "We could not submit your admission form right now. Please try again."
+    );
+  }
+
+  return {
+    message:
+      data.message ??
+      "Your admission form has been submitted to the registrar for review.",
+    submissionId: data.submissionId,
+    submittedAt: data.submittedAt,
+  } satisfies AdmissionConfirmation;
+}
+
 export default function AdmissionWizard() {
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [form, setForm] = React.useState<AdmissionFormValues>(
-    initialFormValues
+    () => ({ ...initialFormValues })
   );
   const [consent] = React.useState(false);
   const [verifyingCurrentStudent, setVerifyingCurrentStudent] =
     React.useState(false);
+  const [submissionStatus, setSubmissionStatus] =
+    React.useState<SubmissionStatus>("idle");
+  const [submissionError, setSubmissionError] = React.useState("");
+  const [confirmation, setConfirmation] =
+    React.useState<AdmissionConfirmation | null>(null);
   const currentStudentStepRef =
     React.useRef<CurrentStudentStepHandle | null>(null);
 
@@ -282,6 +337,7 @@ export default function AdmissionWizard() {
 
   function updateField(field: FieldName, value: string) {
     setVerifyingCurrentStudent(false);
+    setSubmissionError("");
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -316,10 +372,23 @@ export default function AdmissionWizard() {
     }));
   }
 
+  function resetWizard() {
+    setCurrentIndex(0);
+    setForm({ ...initialFormValues });
+    setVerifyingCurrentStudent(false);
+    setSubmissionStatus("idle");
+    setSubmissionError("");
+    setConfirmation(null);
+  }
+
   async function goNext() {
     const nextIndex = Math.min(safeCurrentIndex + 1, visibleSteps.length - 1);
 
-    if (!currentStepReadyToContinue || verifyingCurrentStudent) {
+    if (
+      !currentStepReadyToContinue ||
+      verifyingCurrentStudent ||
+      submissionStatus === "submitting"
+    ) {
       return;
     }
 
@@ -344,8 +413,9 @@ export default function AdmissionWizard() {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSubmissionError("");
 
     const invalidStepIndex = firstIncompleteStepIndex(
       form,
@@ -355,7 +425,25 @@ export default function AdmissionWizard() {
 
     if (invalidStepIndex !== -1) {
       setCurrentIndex(invalidStepIndex);
+      setSubmissionError(
+        "Complete the remaining admission steps before submitting your application."
+      );
       return;
+    }
+
+    try {
+      setSubmissionStatus("submitting");
+      const result = await submitAdmission(form, consent);
+      setConfirmation(result);
+      setSubmissionStatus("submitted");
+      setCurrentIndex(visibleSteps.length - 1);
+    } catch (error) {
+      setSubmissionStatus("idle");
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "We could not submit your admission form right now. Please try again."
+      );
     }
   }
 
@@ -419,7 +507,11 @@ export default function AdmissionWizard() {
                           setCurrentIndex(index);
                         }
                       }}
-                      disabled={!canNavigate}
+                      disabled={
+                        !canNavigate ||
+                        submissionStatus === "submitting" ||
+                        Boolean(confirmation)
+                      }
                       className={cn(
                         "flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/25",
                         active
@@ -489,52 +581,122 @@ export default function AdmissionWizard() {
             />
 
             <div className="min-h-140 px-5 py-6 sm:px-7">
-              {renderStep()}
+              {confirmation ? (
+                <div className="mx-auto flex h-full max-w-2xl items-center">
+                  <div className="w-full rounded-2xl border border-emerald-200 bg-emerald-50/70 p-6 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
+                        <Check size={18} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                          Submission received
+                        </p>
+                        <h3 className="mt-1 text-2xl font-bold text-gray-950">
+                          Your admission form is now in the registrar queue.
+                        </h3>
+                        <p className="mt-3 text-sm leading-6 text-gray-700">
+                          {confirmation.message}
+                        </p>
+                      </div>
+                    </div>
+
+                    <dl className="mt-6 grid gap-4 rounded-xl border border-emerald-200 bg-white/80 p-4 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="font-semibold text-gray-600">
+                          Submission reference
+                        </dt>
+                        <dd className="mt-1 font-mono text-gray-950">
+                          {confirmation.submissionId}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-semibold text-gray-600">
+                          Submitted at
+                        </dt>
+                        <dd className="mt-1 text-gray-950">
+                          {new Intl.DateTimeFormat("en-PH", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(new Date(confirmation.submittedAt))}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <p className="mt-4 text-sm leading-6 text-gray-600">
+                      Keep this reference number for follow-up questions while
+                      your documents are being reviewed.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                renderStep()
+              )}
             </div>
 
             <div className="flex flex-col gap-4 border-t border-gray-200 bg-gray-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-              {!currentStepComplete && (
+              {submissionError ? (
+                <p className="text-sm font-medium text-red-700">
+                  {submissionError}
+                </p>
+              ) : !confirmation && !currentStepComplete ? (
                 <p className="text-sm font-medium text-secondary">
                   {currentStep.id === "currentStudent" &&
                   currentStudentInputsComplete(form)
                     ? "Continue will verify your student record before you can proceed."
                     : "Complete the required fields to continue."}
                 </p>
-              )}
+              ) : null}
 
               <div className="flex flex-col gap-3 sm:ml-auto sm:flex-row">
                 <button
                   type="button"
-                  onClick={goBack}
-                  disabled={isFirstStep}
+                  onClick={confirmation ? resetWizard : goBack}
+                  disabled={
+                    submissionStatus === "submitting" ||
+                    (!confirmation && isFirstStep)
+                  }
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <ArrowLeft size={16} aria-hidden="true" />
-                  Back
+                  {confirmation ? (
+                    <>
+                      <ArrowLeft size={16} aria-hidden="true" />
+                      Start another application
+                    </>
+                  ) : (
+                    <>
+                      <ArrowLeft size={16} aria-hidden="true" />
+                      Back
+                    </>
+                  )}
                 </button>
 
-                {isLastStep ? (
+                {!confirmation && isLastStep ? (
                   <button
                     type="submit"
-                    disabled={!formComplete}
+                    disabled={!formComplete || submissionStatus === "submitting"}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-secondary px-5 text-sm font-semibold text-white transition hover:bg-secondary/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Submit for Review
+                    {submissionStatus === "submitting"
+                      ? "Submitting..."
+                      : "Submit for Review"}
                     <Send size={16} aria-hidden="true" />
                   </button>
-                ) : (
+                ) : !confirmation ? (
                   <button
                     type="button"
                     onClick={goNext}
                     disabled={
-                      !currentStepReadyToContinue || verifyingCurrentStudent
+                      !currentStepReadyToContinue ||
+                      verifyingCurrentStudent ||
+                      submissionStatus === "submitting"
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {verifyingCurrentStudent ? "Verifying record..." : "Continue"}
                     <ArrowRight size={16} aria-hidden="true" />
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           </form>

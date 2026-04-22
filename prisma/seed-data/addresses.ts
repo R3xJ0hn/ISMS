@@ -64,15 +64,46 @@ export const seedAddresses = [
   },
 ] as const satisfies readonly AddressSeedRow[];
 
+function getAddressData(row: AddressSeedRow) {
+  return {
+    houseNumber: row.houseNumber,
+    subdivision: row.subdivision,
+    street: row.street,
+    barangay: row.barangay,
+    city: row.city,
+    province: row.province,
+    postalCode: row.postalCode,
+  };
+}
+
+function isAddressSeedCleanupEnabled() {
+  const cleanupFlag = process.env.SEED_CLEANUP_ENABLED?.toLowerCase();
+
+  return (
+    process.env.NODE_ENV !== "production" &&
+    (cleanupFlag === "true" || cleanupFlag === "1")
+  );
+}
+
 export default defineSeed({
   table: "address",
   order: 10,
   rows: seedAddresses,
   idGroup: "addresses",
   getRowKey: (row) => row.key,
-  create: async ({ prisma }, { key: _key, ...data }) =>
-    prisma.address.create({ data }),
-  deleteWhere: (rows) => ({
-    OR: rows.map(({ key: _key, ...address }) => address),
-  }),
+  create: async ({ prisma }, row) =>
+    prisma.address.create({ data: getAddressData(row) }),
+  down: async ({ prisma }, rows) => {
+    // Address cleanup matches persisted address fields, so keep it opt-in for
+    // disposable environments only.
+    if (!isAddressSeedCleanupEnabled()) {
+      return;
+    }
+
+    await prisma.address.deleteMany({
+      where: {
+        OR: rows.map((row) => getAddressData(row)),
+      },
+    });
+  },
 });

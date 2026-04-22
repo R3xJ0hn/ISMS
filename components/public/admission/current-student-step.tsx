@@ -99,6 +99,7 @@ function TextField({
   autoComplete,
   required,
   hint,
+  disabled,
 }: {
   id: CurrentStudentFieldName;
   label: string;
@@ -109,6 +110,7 @@ function TextField({
   autoComplete?: string;
   required?: boolean;
   hint?: string;
+  disabled?: boolean;
 }) {
   return (
     <Field id={id} label={label} required={required} hint={hint}>
@@ -121,8 +123,12 @@ function TextField({
         aria-required={required}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        disabled={disabled}
         onChange={(event) => onChange(id, event.target.value)}
-        className={inputClass}
+        className={cn(
+          inputClass,
+          disabled && "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"
+        )}
       />
     </Field>
   );
@@ -160,6 +166,9 @@ const CurrentStudentStep = React.forwardRef<
 >(function CurrentStudentStep({ form, onChange, onVerified }, ref) {
   const [status, setStatus] = React.useState<VerificationStatus>("idle");
   const [message, setMessage] = React.useState("");
+  const verifyRequestIdRef = React.useRef(0);
+  const verifyAbortRef = React.useRef<AbortController | null>(null);
+  const activeVerificationSignatureRef = React.useRef<string | null>(null);
 
   const requiredComplete = Boolean(
     form.current_student_number &&
@@ -170,8 +179,26 @@ const CurrentStudentStep = React.forwardRef<
       form.current_last_school_year_attended
   );
   const verified = Boolean(form.current_student_record_id);
+  const verifying = status === "verifying";
+  const verificationSignature = [
+    form.branch_id,
+    form.current_student_number,
+    form.current_student_email,
+    form.current_student_first_name,
+    form.current_student_last_name,
+    form.current_student_birth_date,
+    form.current_last_school_year_attended,
+  ].join("\u0000");
+
+  const cancelPendingVerification = React.useCallback(() => {
+    verifyRequestIdRef.current += 1;
+    activeVerificationSignatureRef.current = null;
+    verifyAbortRef.current?.abort();
+    verifyAbortRef.current = null;
+  }, []);
 
   function handleChange(field: CurrentStudentFieldName, value: string) {
+    cancelPendingVerification();
     setStatus("idle");
     setMessage("");
     onChange(field, value);
@@ -189,6 +216,14 @@ const CurrentStudentStep = React.forwardRef<
       setMessage("Complete all verification fields before checking the record.");
       return false;
     }
+
+    cancelPendingVerification();
+
+    const requestId = verifyRequestIdRef.current + 1;
+    verifyRequestIdRef.current = requestId;
+    const controller = new AbortController();
+    verifyAbortRef.current = controller;
+    activeVerificationSignatureRef.current = verificationSignature;
 
     try {
       setStatus("verifying");
@@ -208,9 +243,17 @@ const CurrentStudentStep = React.forwardRef<
           birthDate: form.current_student_birth_date,
           lastSchoolYearAttended: form.current_last_school_year_attended,
         }),
+        signal: controller.signal,
       });
 
       const data = (await response.json()) as VerifyStudentResponse;
+
+      if (
+        controller.signal.aborted ||
+        verifyRequestIdRef.current !== requestId
+      ) {
+        return false;
+      }
 
       if (!response.ok || !data.verified || !data.student) {
         throw new Error(
@@ -219,6 +262,13 @@ const CurrentStudentStep = React.forwardRef<
       }
 
       const latestEnrollment = data.student.latestEnrollment;
+
+      if (
+        controller.signal.aborted ||
+        verifyRequestIdRef.current !== requestId
+      ) {
+        return false;
+      }
 
       onVerified({
         recordId: data.student.id,
@@ -233,10 +283,25 @@ const CurrentStudentStep = React.forwardRef<
         }),
         branch: latestEnrollment?.branch ?? "",
       });
+
+      if (
+        controller.signal.aborted ||
+        verifyRequestIdRef.current !== requestId
+      ) {
+        return false;
+      }
+
       setStatus("verified");
       setMessage("Student record verified. You can continue.");
       return true;
     } catch (error) {
+      if (
+        controller.signal.aborted ||
+        verifyRequestIdRef.current !== requestId
+      ) {
+        return false;
+      }
+
       setStatus("failed");
       setMessage(
         error instanceof Error
@@ -244,8 +309,36 @@ const CurrentStudentStep = React.forwardRef<
           : "No matching student record was found."
       );
       return false;
+    } finally {
+      if (verifyAbortRef.current === controller) {
+        verifyAbortRef.current = null;
+      }
+
+      if (verifyRequestIdRef.current === requestId) {
+        activeVerificationSignatureRef.current = null;
+      }
     }
-  }, [form, onVerified, requiredComplete, verified]);
+  }, [
+    cancelPendingVerification,
+    form,
+    onVerified,
+    requiredComplete,
+    verificationSignature,
+    verified,
+  ]);
+
+  React.useEffect(() => {
+    if (
+      verifying &&
+      activeVerificationSignatureRef.current !== verificationSignature
+    ) {
+      cancelPendingVerification();
+      setStatus("idle");
+      setMessage("");
+    }
+  }, [cancelPendingVerification, verificationSignature, verifying]);
+
+  React.useEffect(() => cancelPendingVerification, [cancelPendingVerification]);
 
   React.useImperativeHandle(
     ref,
@@ -295,6 +388,7 @@ const CurrentStudentStep = React.forwardRef<
           placeholder="Example: 2612345"
           autoComplete="off"
           required
+          disabled={verifying}
         />
         <TextField
           id="current_student_email"
@@ -305,6 +399,7 @@ const CurrentStudentStep = React.forwardRef<
           placeholder="name@example.com"
           autoComplete="email"
           required
+          disabled={verifying}
         />
         <TextField
           id="current_student_first_name"
@@ -313,6 +408,7 @@ const CurrentStudentStep = React.forwardRef<
           onChange={handleChange}
           autoComplete="given-name"
           required
+          disabled={verifying}
         />
         <TextField
           id="current_student_last_name"
@@ -321,6 +417,7 @@ const CurrentStudentStep = React.forwardRef<
           onChange={handleChange}
           autoComplete="family-name"
           required
+          disabled={verifying}
         />
         <TextField
           id="current_student_birth_date"
@@ -330,6 +427,7 @@ const CurrentStudentStep = React.forwardRef<
           onChange={handleChange}
           autoComplete="bday"
           required
+          disabled={verifying}
         />
         <TextField
           id="current_last_school_year_attended"
@@ -339,6 +437,7 @@ const CurrentStudentStep = React.forwardRef<
           placeholder="Example: 2025-2026"
           hint="Use the school year from your latest DCSA enrollment."
           required
+          disabled={verifying}
         />
       </div>
 

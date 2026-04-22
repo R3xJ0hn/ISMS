@@ -1,4 +1,8 @@
 import { defineSeed } from "../_factory";
+import { uniqueStrings } from "./_helpers";
+import { seedAcademicLevels } from "./academic-levels";
+import { seedBranches } from "./branches";
+import { seedPrograms } from "./programs";
 
 type SectionSeedRow = {
   key: string;
@@ -52,31 +56,161 @@ export const seedSections = [
   },
 ] as const satisfies readonly SectionSeedRow[];
 
+const branchSlugByKey = new Map(
+  seedBranches.map((row) => [row.key, row.slug] as const)
+);
+const programCodeByKey = new Map(
+  seedPrograms.map((row) => [row.key, row.code] as const)
+);
+const academicLevelSlugByKey = new Map(
+  seedAcademicLevels.map((row) => [row.key, row.slug] as const)
+);
+
+function getSeedReference(
+  lookup: ReadonlyMap<string, string>,
+  key: string,
+  label: string
+) {
+  const value = lookup.get(key);
+
+  if (!value) {
+    throw new Error(`Missing seeded ${label}: ${key}`);
+  }
+
+  return value;
+}
+
 export default defineSeed({
   table: "section",
   order: 60,
   rows: seedSections,
   idGroup: "sections",
   getRowKey: (row) => row.key,
-  create: async (
-    { prisma, getId },
-    { key: _key, branchKey, programKey, academicLevelKey, ...row }
-  ) =>
+  create: async ({ prisma, getId }, row) =>
     prisma.section.create({
       data: {
-        ...row,
-        branchId: getId("branches", branchKey, "branch"),
-        programId: getId("programs", programKey, "program"),
+        sectionCode: row.sectionCode,
+        sectionName: row.sectionName,
+        branchId: getId("branches", row.branchKey, "branch"),
+        programId: getId("programs", row.programKey, "program"),
         academicLevelsId: getId(
           "academicLevels",
-          academicLevelKey,
+          row.academicLevelKey,
           "academic level"
         ),
       },
     }),
-  deleteWhere: (rows) => ({
-    sectionCode: {
-      in: rows.map((row) => row.sectionCode),
-    },
-  }),
+  down: async ({ prisma }, rows) => {
+    const branchSlugs = uniqueStrings(
+      rows.map((row) =>
+        getSeedReference(branchSlugByKey, row.branchKey, "branch")
+      )
+    );
+    const programCodes = uniqueStrings(
+      rows.map((row) =>
+        getSeedReference(programCodeByKey, row.programKey, "program")
+      )
+    );
+    const academicLevelSlugs = uniqueStrings(
+      rows.map((row) =>
+        getSeedReference(
+          academicLevelSlugByKey,
+          row.academicLevelKey,
+          "academic level"
+        )
+      )
+    );
+
+    const branches = await prisma.branch.findMany({
+      where: {
+        slug: {
+          in: branchSlugs,
+        },
+      },
+      select: {
+        id: true,
+        slug: true,
+      },
+    });
+    const programs = await prisma.program.findMany({
+      where: {
+        code: {
+          in: programCodes,
+        },
+      },
+      select: {
+        code: true,
+        id: true,
+      },
+    });
+    const academicLevels = await prisma.academicLevels.findMany({
+      where: {
+        slug: {
+          in: academicLevelSlugs,
+        },
+      },
+      select: {
+        id: true,
+        slug: true,
+      },
+    });
+
+    const branchIdBySlug = new Map(
+      branches.map((branch) => [branch.slug, branch.id] as const)
+    );
+    const programIdByCode = new Map(
+      programs.map((program) => [program.code, program.id] as const)
+    );
+    const academicLevelIdBySlug = new Map(
+      academicLevels.map((level) => [level.slug, level.id] as const)
+    );
+
+    const predicates = rows.flatMap((row) => {
+      const branchSlug = getSeedReference(
+        branchSlugByKey,
+        row.branchKey,
+        "branch"
+      );
+      const programCode = getSeedReference(
+        programCodeByKey,
+        row.programKey,
+        "program"
+      );
+      const academicLevelSlug = getSeedReference(
+        academicLevelSlugByKey,
+        row.academicLevelKey,
+        "academic level"
+      );
+      const branchId = branchIdBySlug.get(branchSlug);
+      const programId = programIdByCode.get(programCode);
+      const academicLevelsId = academicLevelIdBySlug.get(academicLevelSlug);
+
+      if (
+        branchId === undefined ||
+        programId === undefined ||
+        academicLevelsId === undefined
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          branchId,
+          programId,
+          academicLevelsId,
+          sectionCode: row.sectionCode,
+        },
+      ];
+    });
+
+    if (predicates.length === 0) {
+      return;
+    }
+
+    await prisma.section.deleteMany({
+      where: {
+        OR: predicates,
+      },
+    });
+  },
 });
