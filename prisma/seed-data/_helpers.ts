@@ -52,8 +52,7 @@ export function assertAcademicLevelAllowedForProgramType(
   academicLevelKey: string,
   context: string
 ) {
-  const allowedAcademicLevels =
-    allowedAcademicLevelKeysByProgramType[programType] ?? [];
+  const allowedAcademicLevels = allowedAcademicLevelKeysByProgramType[programType];
 
   if (!allowedAcademicLevels.includes(academicLevelKey)) {
     throw new Error(

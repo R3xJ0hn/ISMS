@@ -1,10 +1,6 @@
 import { defineSeed } from "../_factory";
 import { EnrollmentStatus } from "../../lib/generated/prisma/enums";
-import {
-  assertAcademicLevelAllowedForProgram,
-  findStudentIdsByNumbers,
-  uniqueStrings,
-} from "./_helpers";
+import { assertAcademicLevelAllowedForProgram, uniqueStrings } from "./_helpers";
 
 type EnrollmentSeedRow = {
   studentKey: string;
@@ -111,20 +107,66 @@ export default defineSeed({
     });
   },
   down: async ({ prisma }, rows) => {
-    const studentIds = await findStudentIdsByNumbers(
-      prisma,
-      uniqueStrings(rows.map((row) => row.studentKey))
-    );
+    const [students, schoolYears] = await Promise.all([
+      prisma.student.findMany({
+        where: {
+          studentNumber: {
+            in: uniqueStrings(rows.map((row) => row.studentKey)),
+          },
+        },
+        select: {
+          id: true,
+          studentNumber: true,
+        },
+      }),
+      prisma.schoolYear.findMany({
+        where: {
+          name: {
+            in: uniqueStrings(rows.map((row) => row.schoolYearKey)),
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+    ]);
 
-    if (studentIds.length === 0) {
+    const studentIdByNumber = new Map(
+      students.map((student) => [student.studentNumber, student.id] as const)
+    );
+    const schoolYearIdByName = new Map(
+      schoolYears.map((schoolYear) => [schoolYear.name, schoolYear.id] as const)
+    );
+    const enrollmentPairs = new Map<
+      string,
+      { studentId: bigint; schoolYearId: bigint }
+    >();
+
+    for (const row of rows) {
+      const studentId = studentIdByNumber.get(row.studentKey);
+      const schoolYearId = schoolYearIdByName.get(row.schoolYearKey);
+
+      if (!studentId || !schoolYearId) {
+        continue;
+      }
+
+      enrollmentPairs.set(`${studentId}:${schoolYearId}`, {
+        studentId,
+        schoolYearId,
+      });
+    }
+
+    if (enrollmentPairs.size === 0) {
       return;
     }
 
     await prisma.enrollment.deleteMany({
       where: {
-        studentId: {
-          in: studentIds,
-        },
+        OR: [...enrollmentPairs.values()].map(({ studentId, schoolYearId }) => ({
+          studentId,
+          schoolYearId,
+        })),
       },
     });
   },

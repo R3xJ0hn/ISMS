@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import type { HTMLInputTypeAttribute, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -18,15 +19,39 @@ type FieldProps = {
   children: ReactNode;
 };
 
+function mergeAriaDescribedBy(
+  currentValue: string | undefined,
+  hintId: string
+) {
+  const ids = new Set([...(currentValue?.split(/\s+/) ?? []), hintId]);
+
+  return [...ids].filter(Boolean).join(" ");
+}
+
 export function Field({ id, label, required, hint, children }: FieldProps) {
+  const hintId = hint ? `${id}-hint` : undefined;
+  const describedChild =
+    hintId && React.isValidElement<{ "aria-describedby"?: string }>(children)
+      ? React.cloneElement(children, {
+          "aria-describedby": mergeAriaDescribedBy(
+            children.props["aria-describedby"],
+            hintId
+          ),
+        })
+      : children;
+
   return (
     <div className="space-y-2">
       <label htmlFor={id} className="block text-sm font-semibold text-gray-800">
         {label}
         {required ? <span className="text-secondary"> *</span> : null}
       </label>
-      {children}
-      {hint ? <p className="text-xs leading-5 text-gray-500">{hint}</p> : null}
+      {describedChild}
+      {hint ? (
+        <p id={hintId} className="text-xs leading-5 text-gray-500">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

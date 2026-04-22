@@ -165,6 +165,16 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
   const [branch, setBranch] = React.useState<BranchSummary | null>(null);
   const [programs, setPrograms] = React.useState<ProgramOption[]>([]);
   const [status, setStatus] = React.useState<ProgramOptionsStatus>("idle");
+  const resetDependentFields = React.useEffectEvent(() => {
+    onChange("branch_code", "");
+    onChange("branch_title", "");
+    onChange("program_type", "");
+    onChange("program_id", "");
+    onChange("program_code", "");
+    onChange("program_label", "");
+    onChange("academic_level_id", "");
+    onChange("academic_level_label", "");
+  });
   const updateBranchMetadata = React.useEffectEvent(
     (nextBranch: BranchSummary | null) => {
       onChange("branch_code", nextBranch?.code ?? "");
@@ -179,6 +189,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
       setBranch(null);
       setPrograms([]);
       setStatus("idle");
+      resetDependentFields();
       return () => controller.abort();
     }
 
@@ -208,6 +219,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
           setBranch(null);
           setPrograms([]);
           setStatus("error");
+          resetDependentFields();
         }
       }
     }
