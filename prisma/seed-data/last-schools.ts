@@ -76,7 +76,7 @@ export default defineSeed({
     const schoolIds = uniqueStrings(
       rows
         .map((row) => row.schoolId)
-        .filter((schoolId): schoolId is string => schoolId !== null)
+        .filter((schoolId) => schoolId !== null)
     );
 
     if (schoolIds.length === 0) {

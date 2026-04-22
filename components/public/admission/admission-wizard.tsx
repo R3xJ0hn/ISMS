@@ -17,10 +17,17 @@ import CurrentStudentStep, {
   type CurrentStudentStepHandle,
   type CurrentStudentVerification,
 } from "./current-student-step";
+import ProgramStep from "./program-step";
 
 export const initialFormValues = {
   applicant_type: "",
   branch_id: "",
+  program_type: "",
+  program_id: "",
+  program_code: "",
+  program_label: "",
+  academic_level_id: "",
+  academic_level_label: "",
   student_first_name: "",
   student_last_name: "",
   student_middle_name: "",
@@ -121,6 +128,18 @@ function clearCurrentStudentVerification(form: AdmissionFormValues) {
   };
 }
 
+function clearProgramSelection(form: AdmissionFormValues) {
+  return {
+    ...form,
+    program_type: "",
+    program_id: "",
+    program_code: "",
+    program_label: "",
+    academic_level_id: "",
+    academic_level_label: "",
+  };
+}
+
 function getVisibleSteps(applicantType: string) {
   return steps.filter(
     (step) =>
@@ -163,7 +182,9 @@ function stepIsComplete(
     case "applicant":
       return Boolean(form.applicant_type && form.branch_id);
     case "program":
-      return true;
+      return Boolean(
+        form.program_type && form.program_id && form.academic_level_id
+      );
     case "student":
       return Boolean(
         form.student_first_name &&
@@ -345,6 +366,10 @@ export default function AdmissionWizard() {
         return clearCurrentStudentVerification(next);
       }
 
+      if (field === "branch_id") {
+        return clearProgramSelection(clearCurrentStudentVerification(next));
+      }
+
       if (field === "applicant_type" && value !== EXISTING_STUDENT) {
         return clearCurrentStudentVerification(next);
       }
@@ -448,11 +473,11 @@ export default function AdmissionWizard() {
   }
 
   function renderStep() {
-    switch (currentStep.id) {
+      switch (currentStep.id) {
       case "applicant":
         return <ApplicantStep form={form} onChange={updateField} />;
       case "program":
-        return (<h2>Program Step</h2>);
+        return <ProgramStep form={form} onChange={updateField} />;
       case "student":
         return (<h2>Student Step</h2>);    
       case "contact":

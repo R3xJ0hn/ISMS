@@ -1,6 +1,10 @@
 import { defineSeed } from "../_factory";
 import { EnrollmentStatus } from "../../lib/generated/prisma/enums";
-import { findStudentIdsByNumbers, uniqueStrings } from "./_helpers";
+import {
+  assertAcademicLevelAllowedForProgram,
+  findStudentIdsByNumbers,
+  uniqueStrings,
+} from "./_helpers";
 
 type EnrollmentSeedRow = {
   studentKey: string;
@@ -82,8 +86,14 @@ export default defineSeed({
       enrolledAt,
       ...row
     }
-  ) =>
-    prisma.enrollment.create({
+  ) => {
+    assertAcademicLevelAllowedForProgram(
+      programKey,
+      academicLevelKey,
+      `Enrollment for student "${studentKey}"`
+    );
+
+    return prisma.enrollment.create({
       data: {
         ...row,
         studentId: getId("students", studentKey, "student"),
@@ -98,7 +108,8 @@ export default defineSeed({
         schoolYearId: getId("schoolYears", schoolYearKey, "school year"),
         enrolledAt: dateTime(enrolledAt),
       },
-    }),
+    });
+  },
   down: async ({ prisma }, rows) => {
     const studentIds = await findStudentIdsByNumbers(
       prisma,

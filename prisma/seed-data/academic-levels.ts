@@ -32,6 +32,11 @@ export const seedAcademicLevels = [
     label: "Third Year",
     slug: "third-year",
   },
+  {
+    key: "fourth-year",
+    label: "Fourth Year",
+    slug: "fourth-year",
+  },
 ] as const satisfies readonly AcademicLevelSeedRow[];
 
 export default defineSeed({
@@ -40,8 +45,13 @@ export default defineSeed({
   rows: seedAcademicLevels,
   idGroup: "academicLevels",
   getRowKey: (row) => row.key,
-  create: async ({ prisma }, { key: _key, ...data }) =>
-    prisma.academicLevels.create({ data }),
+  create: async ({ prisma }, row) =>
+    prisma.academicLevels.create({
+      data: {
+        label: row.label,
+        slug: row.slug,
+      },
+    }),
   deleteWhere: (rows) => ({
     slug: {
       in: rows.map((row) => row.slug),

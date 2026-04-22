@@ -4,7 +4,12 @@ import {
   ApplicationStatus,
   ProgramType,
 } from "../../lib/generated/prisma/enums";
-import { findStudentIdsByNumbers, uniqueStrings } from "./_helpers";
+import {
+  assertAcademicLevelAllowedForProgramType,
+  assertProgramTypeMatchesSeedProgram,
+  findStudentIdsByNumbers,
+  uniqueStrings,
+} from "./_helpers";
 
 type AdmissionApplicationSeedRow = {
   studentKey: string;
@@ -116,8 +121,19 @@ export default defineSeed({
       submittedAt,
       ...row
     }
-  ) =>
-    prisma.admissionApplication.create({
+  ) => {
+    assertProgramTypeMatchesSeedProgram(
+      programKey,
+      row.programType,
+      `Admission application for student "${studentKey}"`
+    );
+    assertAcademicLevelAllowedForProgramType(
+      row.programType,
+      academicLevelKey,
+      `Admission application for student "${studentKey}"`
+    );
+
+    return prisma.admissionApplication.create({
       data: {
         ...row,
         studentId: getId("students", studentKey, "student"),
@@ -136,7 +152,8 @@ export default defineSeed({
           : null,
         submittedAt: submittedAt ? dateTime(submittedAt) : null,
       },
-    }),
+    });
+  },
   down: async ({ prisma }, rows) => {
     const studentIds = await findStudentIdsByNumbers(
       prisma,

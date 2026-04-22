@@ -1,5 +1,9 @@
 import { defineSeed } from "../_factory";
-import { uniqueStrings } from "./_helpers";
+import {
+  assertAcademicLevelAllowedForProgram,
+  getAllowedAcademicLevelKeysForProgram,
+  uniqueStrings,
+} from "./_helpers";
 import { seedAcademicLevels } from "./academic-levels";
 import { seedBranches } from "./branches";
 import { seedPrograms } from "./programs";
@@ -13,48 +17,90 @@ type SectionSeedRow = {
   sectionName: string;
 };
 
-export const seedSections = [
+type SectionOffering = {
+  keyPrefix: string;
+  codePrefix: string;
+  namePrefix: string;
+  branchKey: string;
+  programKey: string;
+  sectionSuffix: string;
+};
+
+const levelCodeByAcademicLevelKey: Record<string, string> = {
+  "grade-11": "11",
+  "grade-12": "12",
+  "first-year": "1",
+  "second-year": "2",
+  "third-year": "3",
+  "fourth-year": "4",
+};
+
+const seedSectionOfferings = [
   {
-    key: "mey-bsit-2a",
+    keyPrefix: "mey-bsit",
+    codePrefix: "MEY-BSIT",
+    namePrefix: "BSIT",
     branchKey: "meycauayan",
     programKey: "bsit",
-    academicLevelKey: "second-year",
-    sectionCode: "MEY-BSIT-2A",
-    sectionName: "BSIT 2-A",
+    sectionSuffix: "A",
   },
   {
-    key: "fair-bsba-1a",
+    keyPrefix: "fair-bsba",
+    codePrefix: "FAIR-BSBA",
+    namePrefix: "BSBA",
     branchKey: "fairview",
     programKey: "bsba",
-    academicLevelKey: "first-year",
-    sectionCode: "FAIR-BSBA-1A",
-    sectionName: "BSBA 1-A",
+    sectionSuffix: "A",
   },
   {
-    key: "cal-bshm-3a",
+    keyPrefix: "cal-bshm",
+    codePrefix: "CAL-BSHM",
+    namePrefix: "BSHM",
     branchKey: "caloocan",
     programKey: "bshm",
-    academicLevelKey: "third-year",
-    sectionCode: "CAL-BSHM-3A",
-    sectionName: "BSHM 3-A",
+    sectionSuffix: "A",
   },
   {
-    key: "val-stem-11a",
+    keyPrefix: "val-stem",
+    codePrefix: "VAL-STEM",
+    namePrefix: "STEM",
     branchKey: "valenzuela",
     programKey: "shs-stem",
-    academicLevelKey: "grade-11",
-    sectionCode: "VAL-STEM-11A",
-    sectionName: "STEM 11-A",
+    sectionSuffix: "A",
   },
   {
-    key: "mey-act-1b",
+    keyPrefix: "mey-act",
+    codePrefix: "MEY-ACT",
+    namePrefix: "ACT",
     branchKey: "meycauayan",
     programKey: "act",
-    academicLevelKey: "first-year",
-    sectionCode: "MEY-ACT-1B",
-    sectionName: "ACT 1-B",
+    sectionSuffix: "B",
   },
-] as const satisfies readonly SectionSeedRow[];
+] as const satisfies readonly SectionOffering[];
+
+export const seedSections: readonly SectionSeedRow[] = seedSectionOfferings.flatMap(
+  (offering) => {
+    const levelKeys = getAllowedAcademicLevelKeysForProgram(offering.programKey);
+    const sectionSuffix = offering.sectionSuffix.toUpperCase();
+
+    return levelKeys.map((academicLevelKey) => {
+      const levelCode = levelCodeByAcademicLevelKey[academicLevelKey];
+
+      if (!levelCode) {
+        throw new Error(`Missing section level code for ${academicLevelKey}.`);
+      }
+
+      return {
+        key: `${offering.keyPrefix}-${levelCode.toLowerCase()}${sectionSuffix.toLowerCase()}`,
+        branchKey: offering.branchKey,
+        programKey: offering.programKey,
+        academicLevelKey,
+        sectionCode: `${offering.codePrefix}-${levelCode}${sectionSuffix}`,
+        sectionName: `${offering.namePrefix} ${levelCode}-${sectionSuffix}`,
+      };
+    });
+  }
+);
 
 const branchSlugByKey = new Map(
   seedBranches.map((row) => [row.key, row.slug] as const)
@@ -86,8 +132,14 @@ export default defineSeed({
   rows: seedSections,
   idGroup: "sections",
   getRowKey: (row) => row.key,
-  create: async ({ prisma, getId }, row) =>
-    prisma.section.create({
+  create: async ({ prisma, getId }, row) => {
+    assertAcademicLevelAllowedForProgram(
+      row.programKey,
+      row.academicLevelKey,
+      `Section "${row.key}"`
+    );
+
+    return prisma.section.create({
       data: {
         sectionCode: row.sectionCode,
         sectionName: row.sectionName,
@@ -99,7 +151,8 @@ export default defineSeed({
           "academic level"
         ),
       },
-    }),
+    });
+  },
   down: async ({ prisma }, rows) => {
     const branchSlugs = uniqueStrings(
       rows.map((row) =>

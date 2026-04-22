@@ -23,6 +23,9 @@ const storagePath = path.join(
 const requiredFields = [
   "applicant_type",
   "branch_id",
+  "program_type",
+  "program_id",
+  "academic_level_id",
   "student_first_name",
   "student_last_name",
   "student_birth_date",
@@ -61,6 +64,9 @@ const existingStudentRequiredFields = [
 const fieldLabels: Record<string, string> = {
   applicant_type: "Applicant type",
   branch_id: "Branch",
+  program_type: "Program type",
+  program_id: "Course",
+  academic_level_id: "Academic level",
   student_first_name: "Student first name",
   student_last_name: "Student last name",
   student_birth_date: "Student birth date",
