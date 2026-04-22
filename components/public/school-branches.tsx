@@ -1,53 +1,29 @@
 "use client";
 
-import React from "react";
+import * as React from "react";
 import Image from "next/image";
 import { MapPin, Phone, Facebook, ArrowUpRight } from "lucide-react";
 
+type Branch = {
+  id: string;
+  code: string;
+  title: string;
+  image: string | null;
+  phone: string | null;
+  facebookText: string | null;
+  mapLink: string | null;
+  formattedAddress: string;
+};
 
-const branches = [
-  {
-    title: "DCSA Meycauayan",
-    image: "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366051/uploads/ga78teh5pp1tqj9ia0lu.jpg",
-    location:
-      "Datamex bldg., Ngusong Buwaya St., Brgy Saluysoy Meycauayan City Bulacan",
-    mapLink: "https://maps.app.goo.gl/AYHnJy3oRhh6HsfC8",
-    phone: "(0951) 296-5086",
-    facebookLink:
-      "https://www.facebook.com/datamexcollegeofstadelinemeycauayan/",
-    facebookText: "Datamex Meycauayan",
-  },
-  {
-    title: "DCSA FAIRVIEW",
-    image: "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366137/uploads/yk1t8cek6m4jbtvigw0n.jpg",
-    location:
-      "85 Fairview Avenue, Commonwealth Avenue East Park Subdivision 1121 Quezon City",
-    mapLink: "https://maps.app.goo.gl/q5kxX4BBvuLSn9S19",
-    phone: "8921-8350",
-    facebookLink: "https://web.facebook.com/CSAFairview",
-    facebookText: "Datamex Fairview",
-  },
-  {
-    title: "DCSA CALOOCAN",
-    image: "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366095/uploads/uxw5nxc5etqifsznmmp8.jpg",
-    location: "357 J. Teodoro St, Cor 10th Ave, Caloocan",
-    mapLink: "https://maps.app.goo.gl/DRcrQ8X3xjmjWKRV7",
-    phone: "8366-1970",
-    facebookLink:
-      "https://web.facebook.com/datamexcollegeofsaintadelinecaloocan",
-    facebookText: "Datamex CALOOCAN",
-  },
-  {
-    title: "DCSA VALENZUELA",
-    image: "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366252/uploads/u6bhsqs8w9lgiuhrjfyf.jpg",
-    location: "32 GOTACO BLD II MCARTHUR HIGHWAY MARULAS Valenzuela",
-    mapLink: "https://maps.app.goo.gl/1zscBSdHvqhB5dPE6",
-    phone: "8292-7536",
-    facebookLink:
-      "https://web.facebook.com/datamexcollegeofstadelinevalenzuela",
-    facebookText: "Datamex Valenzuela",
-  },
-];
+type BranchesResponse = {
+  branches?: Branch[];
+};
+
+type BranchesStatus = "loading" | "success" | "error";
+
+const fallbackBranchImage =
+  "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366051/uploads/ga78teh5pp1tqj9ia0lu.jpg";
+
 function InfoRow({
   icon,
   children,
@@ -63,7 +39,7 @@ function InfoRow({
   );
 }
 
-const BranchCard = ({ branch }: { branch: (typeof branches)[number] }) => (
+const BranchCard = ({ branch }: { branch: Branch }) => (
   <article
     className="
       group
@@ -77,7 +53,7 @@ const BranchCard = ({ branch }: { branch: (typeof branches)[number] }) => (
     {/* LEFT IMAGE */}
     <div className="relative h-full w-[44%] shrink-0 overflow-hidden">
       <Image
-        src={branch.image}
+        src={branch.image ?? fallbackBranchImage}
         alt={branch.title}
         fill
         className="
@@ -119,57 +95,107 @@ const BranchCard = ({ branch }: { branch: (typeof branches)[number] }) => (
 
       <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
         <InfoRow icon={<MapPin size={16} />}>
-          <a
-            className="
-              line-clamp-2 leading-snug
-              transition-colors duration-200
-              group-hover:text-neutral-900 hover:underline
-            "
-            href={branch.mapLink}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {branch.location}
-          </a>
+          {branch.mapLink ? (
+            <a
+              className="
+                line-clamp-2 leading-snug
+                transition-colors duration-200
+                group-hover:text-neutral-900 hover:underline
+              "
+              href={branch.mapLink}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {branch.formattedAddress || "Address not provided"}
+            </a>
+          ) : (
+            <p className="line-clamp-2 leading-snug">
+              {branch.formattedAddress || "Address not provided"}
+            </p>
+          )}
         </InfoRow>
 
         <InfoRow icon={<Phone size={16} />}>
-          <p className="line-clamp-1">{branch.phone}</p>
+          <p className="line-clamp-1">{branch.phone || "Phone not provided"}</p>
         </InfoRow>
 
         <InfoRow icon={<Facebook size={16} />}>
-          <a
-            className="
-              line-clamp-1
-              transition-colors duration-200
-              group-hover:text-neutral-900 hover:underline
-            "
-            href={branch.facebookLink}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {branch.facebookText}
-          </a>
+          <p className="line-clamp-1">
+            {branch.facebookText || "Facebook page not provided"}
+          </p>
         </InfoRow>
       </div>
     </div>
   </article>
 );
 
-const Branches = () => (
-  <section className="w-full bg-background">
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">
-        School Branches
-      </h1>
+export default function Branches() {
+  const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [status, setStatus] = React.useState<BranchesStatus>("loading");
 
-      <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {branches.map((branch, index) => (
-          <BranchCard key={index} branch={branch} />
-        ))}
+  React.useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadBranches() {
+      try {
+        setStatus("loading");
+
+        const response = await fetch("/api/branches", {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch branches.");
+        }
+
+        const data = (await response.json()) as BranchesResponse;
+
+        setBranches(data.branches ?? []);
+        setStatus("success");
+      } catch {
+        if (!controller.signal.aborted) {
+          setBranches([]);
+          setStatus("error");
+        }
+      }
+    }
+
+    void loadBranches();
+
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <section className="w-full bg-background">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">
+          School Branches
+        </h1>
+
+        {status === "loading" && (
+          <p className="mt-6 text-sm text-neutral-600">Loading branches...</p>
+        )}
+
+        {status === "error" && (
+          <p className="mt-6 text-sm text-red-600">
+            Branches are unavailable right now.
+          </p>
+        )}
+
+        {status === "success" && branches.length === 0 && (
+          <p className="mt-6 text-sm text-neutral-600">
+            No branches are available yet.
+          </p>
+        )}
+
+        {status === "success" && branches.length > 0 && (
+          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {branches.map((branch) => (
+              <BranchCard key={branch.id} branch={branch} />
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  </section>
-);
-
-export default Branches;
+    </section>
+  );
+}

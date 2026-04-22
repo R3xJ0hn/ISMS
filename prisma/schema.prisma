@@ -18,6 +18,12 @@ enum SchoolType {
   Other
 }
 
+enum ProgramType {
+  Bachelor
+  SeniorHigh
+  Associate
+}
+
 enum Gender {
   Male
   Female
@@ -79,7 +85,7 @@ model LastSchool {
   schoolType SchoolType @map("school_type")
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  address      Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
   applications AdmissionApplication[]
 
   @@map("last_schools")
@@ -87,14 +93,16 @@ model LastSchool {
 
 model Branch {
   id           BigInt   @id @default(autoincrement())
-  code         String   @unique @db.Text
+  slug         String   @unique @db.Text
   title        String   @db.Text
   addressId    BigInt?  @map("address_id")
   phone        String?  @db.Text
   facebookText String?  @map("facebook_text") @db.Text
+  mapLink      String?  @map("map_link") @db.Text
+  image        String?  @db.Text
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  address      Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
   sections     Section[]
   enrollments  Enrollment[]
   applications AdmissionApplication[]
@@ -102,17 +110,6 @@ model Branch {
   @@map("branches")
 }
 
-model ProgramType {
-  id        BigInt   @id @default(autoincrement())
-  code      String   @unique @db.Text
-  label     String   @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  programs     Program[]
-  applications AdmissionApplication[]
-
-  @@map("program_types")
-}
 
 model Program {
   id            BigInt   @id @default(autoincrement())
@@ -120,31 +117,27 @@ model Program {
   code          String   @unique @db.Text
   label         String   @db.Text
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  programType   ProgramType  
 
-  programType  ProgramType            @relation(fields: [programTypeId], references: [id], onDelete: Restrict)
-  yearLevels   YearLevel[]
-  sections     Section[]
-  enrollments  Enrollment[]
-  applications AdmissionApplication[]
+  sections      Section[]
+  enrollments   Enrollment[]
+  applications  AdmissionApplication[]
 
   @@map("programs")
 }
 
-model YearLevel {
+model AcademicLevels {
   id        BigInt   @id @default(autoincrement())
-  programId BigInt   @map("program_id")
-  code      String   @db.Text
   label     String   @db.Text
-  sortOrder Int      @default(0) @map("sort_order")
+  slug      String   @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  program      Program                @relation(fields: [programId], references: [id], onDelete: Cascade)
   sections     Section[]
   enrollments  Enrollment[]
   applications AdmissionApplication[]
 
-  @@unique([programId, code])
-  @@map("year_levels")
+  @@unique([slug])
+  @@map("academic_levels")
 }
 
 model SchoolYear {
@@ -180,7 +173,7 @@ model Student {
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  address      Address?       @relation(fields: [addressId], references: [id], onDelete: SetNull)
   guardians    StudentGuardian[]
   applications AdmissionApplication[]
   enrollments  Enrollment[]
@@ -228,38 +221,38 @@ model Section {
   id          BigInt   @id @default(autoincrement())
   branchId    BigInt   @map("branch_id")
   programId   BigInt   @map("program_id")
-  yearLevelId BigInt   @map("year_level_id")
+  academicLevelsId BigInt   @map("academic_levels_id")
   sectionCode String   @map("section_code") @db.Text
   sectionName String   @map("section_name") @db.Text
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  program     Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
-  yearLevel   YearLevel    @relation(fields: [yearLevelId], references: [id], onDelete: Cascade)
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  program     Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  academicLevels   AcademicLevels    @relation(fields: [academicLevelsId], references: [id], onDelete: Cascade)
   enrollments Enrollment[]
 
-  @@unique([branchId, programId, yearLevelId, sectionCode])
+  @@unique([branchId, programId, academicLevelsId, sectionCode])
   @@map("sections")
 }
 
 model Enrollment {
-  id               BigInt           @id @default(autoincrement())
-  studentId        BigInt           @map("student_id")
-  branchId         BigInt           @map("branch_id")
-  programId        BigInt           @map("program_id")
-  yearLevelId      BigInt           @map("year_level_id")
-  sectionId        BigInt?          @map("section_id")
-  schoolYearId     BigInt           @map("school_year_id")
-  enrollmentStatus EnrollmentStatus @default(pending) @map("enrollment_status")
-  enrolledAt       DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                    BigInt           @id @default(autoincrement())
+  studentId             BigInt           @map("student_id")
+  branchId              BigInt           @map("branch_id")
+  programId             BigInt           @map("program_id")
+  academicLevelsId      BigInt           @map("academic_levels_id")
+  sectionId             BigInt?          @map("section_id")
+  schoolYearId          BigInt           @map("school_year_id")
+  enrollmentStatus      EnrollmentStatus @default(pending) @map("enrollment_status")
+  enrolledAt            DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  branch     Branch     @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  program    Program    @relation(fields: [programId], references: [id], onDelete: Restrict)
-  yearLevel  YearLevel  @relation(fields: [yearLevelId], references: [id], onDelete: Restrict)
-  section    Section?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  schoolYear SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
+  student               Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  branch                Branch     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  program               Program    @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicLevels        AcademicLevels    @relation(fields: [academicLevelsId], references: [id], onDelete: Restrict)
+  section               Section?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  schoolYear            SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, schoolYearId])
   @@map("enrollments")
@@ -276,10 +269,10 @@ model AdmissionApplication {
   LSAttainedLevelText String?   @map("ls_year_level_text") @db.Text
   LSGraduationDate    DateTime? @map("ls_graduation_date") @db.Date
 
-  branchId      BigInt @map("branch_id")
-  programTypeId BigInt @map("program_type_id")
-  programId     BigInt @map("program_id")
-  yearLevelId   BigInt @map("year_level_id")
+  branchId            BigInt @map("branch_id")
+  programType         ProgramType
+  programId           BigInt @map("program_id")
+  academicLevelsId    BigInt @map("academic_levels_id")
 
   remarks     String?   @db.Text
   submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
@@ -289,9 +282,8 @@ model AdmissionApplication {
   student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   lastSchool  LastSchool? @relation(fields: [lastSchoolId], references: [id], onDelete: SetNull)
   branch      Branch      @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  programType ProgramType @relation(fields: [programTypeId], references: [id], onDelete: Restrict)
   program     Program     @relation(fields: [programId], references: [id], onDelete: Restrict)
-  yearLevel   YearLevel   @relation(fields: [yearLevelId], references: [id], onDelete: Restrict)
+  academicLevels   AcademicLevels    @relation(fields: [academicLevelsId], references: [id], onDelete: Restrict)
 
   @@map("admission_applications")
 }

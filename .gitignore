@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+/data/admission-submissions.jsonl
 
 # debug
 npm-debug.log*

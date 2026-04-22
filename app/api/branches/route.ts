@@ -1,0 +1,94 @@
+import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
+
+import { prisma } from "@/lib/prisma";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type BranchAddress = {
+  houseNumber: string | null;
+  subdivision: string | null;
+  street: string | null;
+  barangay: string;
+  city: string;
+  province: string;
+  postalCode: string | null;
+};
+
+const branchSelect = {
+  id: true,
+  slug: true,
+  title: true,
+  image: true,
+  phone: true,
+  facebookText: true,
+  mapLink: true,
+  address: {
+    select: {
+      houseNumber: true,
+      subdivision: true,
+      street: true,
+      barangay: true,
+      city: true,
+      province: true,
+      postalCode: true,
+    },
+  },
+} as const;
+
+function formatAddress(address: BranchAddress | null) {
+  if (!address) {
+    return "";
+  }
+
+  return [
+    address.houseNumber,
+    address.street,
+    address.subdivision,
+    address.barangay,
+    address.city,
+    address.province,
+    address.postalCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+const getBranches = unstable_cache(
+  async () => {
+    const branches = await prisma.branch.findMany({
+      orderBy: {
+        title: "asc",
+      },
+      select: branchSelect,
+    });
+
+    return branches.map(({ id, slug, address, ...branch }) => ({
+      ...branch,
+      id: id.toString(),
+      code: slug,
+      address,
+      formattedAddress: formatAddress(address),
+    }));
+  },
+  ["api-branches"],
+  {
+    revalidate: 300,
+  }
+);
+
+export async function GET() {
+  try {
+    return NextResponse.json({
+      branches: await getBranches(),
+    });
+  } catch (error) {
+    console.error("Failed to fetch branches:", error);
+
+    return NextResponse.json(
+      { error: "Failed to fetch branches." },
+      { status: 500 }
+    );
+  }
+}
