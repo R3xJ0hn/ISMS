@@ -23,7 +23,7 @@ export const allowedAcademicLevelKeysByProgramType: Record<
   [ProgramType.Associate]: ["first-year", "second-year"],
 };
 
-const seedProgramTypeByKey = new Map(
+const seedProgramTypeByKey = new Map<string, ProgramTypeValue>(
   seedPrograms.map((row) => [row.key, row.programType] as const)
 );
 

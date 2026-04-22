@@ -13,6 +13,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export type ProgramFieldName =
+  | "branch_code"
+  | "branch_title"
   | "program_type"
   | "program_id"
   | "program_code"
@@ -22,6 +24,8 @@ export type ProgramFieldName =
 
 type ProgramFormValues = {
   branch_id: string;
+  branch_code: string;
+  branch_title: string;
   program_type: string;
   program_id: string;
   program_code: string;
@@ -161,6 +165,12 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
   const [branch, setBranch] = React.useState<BranchSummary | null>(null);
   const [programs, setPrograms] = React.useState<ProgramOption[]>([]);
   const [status, setStatus] = React.useState<ProgramOptionsStatus>("idle");
+  const updateBranchMetadata = React.useEffectEvent(
+    (nextBranch: BranchSummary | null) => {
+      onChange("branch_code", nextBranch?.code ?? "");
+      onChange("branch_title", nextBranch?.title ?? "");
+    }
+  );
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -191,6 +201,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
 
         setBranch(data.branch ?? null);
         setPrograms(data.programs ?? []);
+        updateBranchMetadata(data.branch ?? null);
         setStatus("success");
       } catch {
         if (!controller.signal.aborted) {

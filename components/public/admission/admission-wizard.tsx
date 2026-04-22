@@ -12,16 +12,23 @@ import {
 import { cn } from "@/lib/utils";
 import { steps, type Step, type StepId } from "./config";
 import ApplicantStep from "./applicant-step";
+import ContactStep from "./contact-step";
 import CurrentStudentStep, {
   type CurrentStudentFieldName,
   type CurrentStudentStepHandle,
   type CurrentStudentVerification,
 } from "./current-student-step";
+import GuardianStep from "./guardian-step";
+import LastSchoolStep from "./last-school-step";
 import ProgramStep from "./program-step";
+import ReviewStep from "./review-step";
+import StudentStep from "./student-step";
 
 export const initialFormValues = {
   applicant_type: "",
   branch_id: "",
+  branch_code: "",
+  branch_title: "",
   program_type: "",
   program_id: "",
   program_code: "",
@@ -131,6 +138,8 @@ function clearCurrentStudentVerification(form: AdmissionFormValues) {
 function clearProgramSelection(form: AdmissionFormValues) {
   return {
     ...form,
+    branch_code: "",
+    branch_title: "",
     program_type: "",
     program_id: "",
     program_code: "",
@@ -309,7 +318,7 @@ export default function AdmissionWizard() {
   const [form, setForm] = React.useState<AdmissionFormValues>(
     () => ({ ...initialFormValues })
   );
-  const [consent] = React.useState(false);
+  const [consent, setConsent] = React.useState(false);
   const [verifyingCurrentStudent, setVerifyingCurrentStudent] =
     React.useState(false);
   const [submissionStatus, setSubmissionStatus] =
@@ -359,6 +368,7 @@ export default function AdmissionWizard() {
   function updateField(field: FieldName, value: string) {
     setVerifyingCurrentStudent(false);
     setSubmissionError("");
+    setConsent(false);
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -381,6 +391,7 @@ export default function AdmissionWizard() {
   function handleCurrentStudentVerified(
     verification: CurrentStudentVerification
   ) {
+    setConsent(false);
     setForm((prev) => ({
       ...prev,
       current_student_record_id: verification.recordId,
@@ -400,6 +411,7 @@ export default function AdmissionWizard() {
   function resetWizard() {
     setCurrentIndex(0);
     setForm({ ...initialFormValues });
+    setConsent(false);
     setVerifyingCurrentStudent(false);
     setSubmissionStatus("idle");
     setSubmissionError("");
@@ -473,19 +485,19 @@ export default function AdmissionWizard() {
   }
 
   function renderStep() {
-      switch (currentStep.id) {
+    switch (currentStep.id) {
       case "applicant":
         return <ApplicantStep form={form} onChange={updateField} />;
       case "program":
         return <ProgramStep form={form} onChange={updateField} />;
       case "student":
-        return (<h2>Student Step</h2>);    
+        return <StudentStep form={form} onChange={updateField} />;
       case "contact":
-        return (<h2>Contact Step</h2>);
+        return <ContactStep form={form} onChange={updateField} />;
       case "lastSchool":
-        return (<h2>Last School Step</h2>);
+        return <LastSchoolStep form={form} onChange={updateField} />;
       case "guardian":
-        return (<h2>Guardian Step</h2>);
+        return <GuardianStep form={form} onChange={updateField} />;
       case "currentStudent":
         return (
           <CurrentStudentStep
@@ -496,7 +508,13 @@ export default function AdmissionWizard() {
           />
         );
       case "review":
-        return ( <h2>Review Step</h2>);
+        return (
+          <ReviewStep
+            form={form}
+            consent={consent}
+            onConsentChange={setConsent}
+          />
+        );
       default:
         return null;
     }
@@ -669,7 +687,9 @@ export default function AdmissionWizard() {
                   {currentStep.id === "currentStudent" &&
                   currentStudentInputsComplete(form)
                     ? "Continue will verify your student record before you can proceed."
-                    : "Complete the required fields to continue."}
+                    : currentStep.id === "review"
+                      ? "Review the application details and provide consent before submitting."
+                      : "Complete the required fields to continue."}
                 </p>
               ) : null}
 
