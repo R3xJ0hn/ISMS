@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getAdmissionProgramOptions } from "../actions";
 
 export type ProgramFieldName =
   | "branch_code"
@@ -57,11 +58,6 @@ type ProgramOption = {
   label: string;
   programType: string;
   academicLevels: AcademicLevelOption[];
-};
-
-type ProgramOptionsResponse = {
-  branch?: BranchSummary;
-  programs?: ProgramOption[];
 };
 
 type ProgramOptionsStatus = "idle" | "loading" | "success" | "error";
@@ -183,39 +179,38 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
   );
 
   React.useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
 
     if (!form.branch_id) {
       setBranch(null);
       setPrograms([]);
       setStatus("idle");
       resetDependentFields();
-      return () => controller.abort();
+      return () => {
+        cancelled = true;
+      };
     }
 
     async function loadPrograms() {
       try {
         setStatus("loading");
 
-        const response = await fetch(
-          `/api/admissions/program-options?branchId=${encodeURIComponent(form.branch_id)}`,
-          {
-            signal: controller.signal,
-          }
-        );
+        const data = await getAdmissionProgramOptions(form.branch_id);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch program options.");
+        if (cancelled) {
+          return;
         }
 
-        const data = (await response.json()) as ProgramOptionsResponse;
+        if (data.error) {
+          throw new Error(data.error);
+        }
 
         setBranch(data.branch ?? null);
-        setPrograms(data.programs ?? []);
+        setPrograms(data.programs);
         updateBranchMetadata(data.branch ?? null);
         setStatus("success");
       } catch {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setBranch(null);
           setPrograms([]);
           setStatus("error");
@@ -226,7 +221,9 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
 
     void loadPrograms();
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, [form.branch_id]);
 
   const availableProgramTypes = React.useMemo(

@@ -23,6 +23,7 @@ import LastSchoolStep from "./last-school-step";
 import ProgramStep from "./program-step";
 import ReviewStep from "./review-step";
 import StudentStep from "./student-step";
+import { submitAdmissionApplication } from "../actions";
 
 export const initialFormValues = {
   applicant_type: "",
@@ -95,12 +96,6 @@ export const initialFormValues = {
 type FieldName = keyof typeof initialFormValues;
 type AdmissionFormValues = typeof initialFormValues;
 type SubmissionStatus = "idle" | "submitting" | "submitted";
-type AdmissionSubmissionResponse = {
-  submitted?: boolean;
-  submissionId?: string;
-  submittedAt?: string;
-  message?: string;
-};
 type AdmissionConfirmation = {
   message: string;
   submissionId: string;
@@ -279,21 +274,9 @@ async function submitAdmission(
   form: AdmissionFormValues,
   consent: boolean
 ) {
-  const response = await fetch("/api/admissions/submit", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      form,
-      consent,
-    }),
-  });
-
-  const data = (await response.json()) as AdmissionSubmissionResponse;
+  const data = await submitAdmissionApplication(form, consent);
 
   if (
-    !response.ok ||
     !data.submitted ||
     !data.submissionId ||
     !data.submittedAt
