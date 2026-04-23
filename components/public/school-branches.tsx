@@ -47,17 +47,23 @@ const BranchCard = ({ branch }: { branch: Branch }) => (
   >
     {/* LEFT IMAGE */}
     <div className="relative h-full w-[44%] shrink-0 overflow-hidden">
-      <Image
-        src={branch.image ?? ""}
-        alt={branch.title}
-        fill
-        className="
-          object-cover
-          transition-transform duration-500 ease-out
-          group-hover:scale-[1.06]
-        "
-        sizes="(max-width: 1024px) 50vw, 25vw"
-      />
+      {branch.image ? (
+        <Image
+          src={branch.image}
+          alt={branch.title}
+          fill
+          className="
+            object-cover
+            transition-transform duration-500 ease-out
+            group-hover:scale-[1.06]
+          "
+          sizes="(max-width: 1024px) 50vw, 25vw"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-400">
+          <MapPin size={24} aria-hidden="true" />
+        </div>
+      )}
 
       {/* subtle overlay on hover */}
       <div

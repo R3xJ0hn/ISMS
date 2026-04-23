@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 
-import AdmissionWizard from "@/app/(public)/admission/componets/admission-wizard";
+import AdmissionWizard from "@/app/(public)/admission/components/admission-wizard";
 import Footer from "@/components/public/footer";
 
 export const metadata: Metadata = {

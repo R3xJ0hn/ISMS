@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir } from "node:fs/promises";
-import path from "node:path";
 
 import { unstable_cache } from "next/cache";
 
+import {
+  CivilStatus,
+  Gender,
+  SchoolType,
+  type ProgramType,
+} from "@/lib/generated/prisma/enums";
+import {
+  saveAdmissionSubmission,
+  type CanonicalAdmissionProgramSelection,
+} from "@/lib/admission/submission-store";
 import { prisma } from "@/lib/prisma";
 
 type BranchAddress = {
@@ -104,11 +112,7 @@ const EXISTING_STUDENT = "Existing Student";
 const NEW_STUDENT = "New Student";
 const MISSING_FIELDS_MESSAGE =
   "Complete all verification fields before checking the record.";
-const storagePath = path.join(
-  process.cwd(),
-  "data",
-  "admission-submissions.jsonl"
-);
+const VERIFICATION_FAILED_MESSAGE = "Verification failed.";
 
 const branchSelect = {
   id: true,
@@ -186,6 +190,74 @@ const existingStudentRequiredFields = [
   "current_student_record_id",
 ] as const;
 
+const allowedSubmissionFields = [
+  "applicant_type",
+  "branch_id",
+  "branch_code",
+  "branch_title",
+  "program_type",
+  "program_id",
+  "program_code",
+  "program_label",
+  "academic_level_id",
+  "academic_level_label",
+  "student_first_name",
+  "student_last_name",
+  "student_middle_name",
+  "student_suffix",
+  "student_birth_date",
+  "student_gender",
+  "student_civil_status",
+  "student_citizenship",
+  "student_birthplace",
+  "student_religion",
+  "contact_email",
+  "contact_phone",
+  "contact_facebook",
+  "address_house_number",
+  "address_subdivision",
+  "address_street",
+  "address_barangay",
+  "address_city",
+  "address_province",
+  "address_postal_code",
+  "last_school_name",
+  "last_school_id",
+  "last_school_short_name",
+  "last_school_type",
+  "last_school_house_number",
+  "last_school_subdivision",
+  "last_school_street",
+  "last_school_barangay",
+  "last_school_city",
+  "last_school_province",
+  "last_school_postal_code",
+  "last_school_year",
+  "last_school_graduation_date",
+  "last_school_year_level",
+  "guardian_last_name",
+  "guardian_first_name",
+  "guardian_middle_name",
+  "guardian_suffix",
+  "guardian_relationship",
+  "guardian_contact_number",
+  "guardian_occupation",
+  "current_student_number",
+  "current_student_email",
+  "current_student_first_name",
+  "current_student_last_name",
+  "current_student_birth_date",
+  "current_last_school_year_attended",
+  "current_student_record_id",
+  "current_student_verified_name",
+  "current_student_verified_school_year",
+  "current_student_verified_program",
+  "current_student_verified_branch",
+  "current_year_level",
+  "current_section",
+  "current_school_year",
+] as const;
+
 const fieldLabels: Record<string, string> = {
   applicant_type: "Applicant type",
   branch_id: "Branch",
@@ -258,8 +330,8 @@ function normalizeName(value: unknown) {
 function normalizeForm(form: Record<string, unknown>) {
   const normalized: Record<string, string> = {};
 
-  for (const [key, value] of Object.entries(form)) {
-    normalized[key] = normalizeText(value);
+  for (const field of allowedSubmissionFields) {
+    normalized[field] = normalizeText(form[field]);
   }
 
   return normalized;
@@ -334,6 +406,13 @@ function isValidSchoolYear(value: string) {
   return endYear === startYear + 1;
 }
 
+function enumIncludes<T extends Record<string, string>>(
+  values: T,
+  value: string
+) {
+  return Object.values(values).includes(value);
+}
+
 function firstInvalidField(
   form: Record<string, string>,
   applicantType: string
@@ -358,6 +437,18 @@ function firstInvalidField(
     {
       field: "student_birth_date",
       validate: (value) => parseDateRange(value) !== null,
+    },
+    {
+      field: "student_gender",
+      validate: (value) => enumIncludes(Gender, value),
+    },
+    {
+      field: "student_civil_status",
+      validate: (value) => enumIncludes(CivilStatus, value),
+    },
+    {
+      field: "last_school_type",
+      validate: (value) => enumIncludes(SchoolType, value),
     },
     {
       field: "last_school_year",
@@ -649,6 +740,87 @@ export async function getAdmissionProgramOptions(
   }
 }
 
+async function getCanonicalAdmissionProgramSelection(
+  form: Record<string, string>
+): Promise<CanonicalAdmissionProgramSelection | null> {
+  const branchId = form.branch_id;
+  const programId = form.program_id;
+  const academicLevelsId = form.academic_level_id;
+
+  if (
+    !/^\d+$/.test(branchId) ||
+    !/^\d+$/.test(programId) ||
+    !/^\d+$/.test(academicLevelsId)
+  ) {
+    return null;
+  }
+
+  const section = await prisma.section.findFirst({
+    where: {
+      branchId: BigInt(branchId),
+      programId: BigInt(programId),
+      academicLevelsId: BigInt(academicLevelsId),
+    },
+    select: {
+      branch: {
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+        },
+      },
+      program: {
+        select: {
+          id: true,
+          code: true,
+          label: true,
+          programType: true,
+        },
+      },
+      academicLevels: {
+        select: {
+          id: true,
+          label: true,
+        },
+      },
+    },
+  });
+
+  if (!section || section.program.programType !== form.program_type) {
+    return null;
+  }
+
+  return {
+    branchId: section.branch.id,
+    branchCode: section.branch.slug,
+    branchTitle: section.branch.title,
+    programId: section.program.id,
+    programCode: section.program.code,
+    programLabel: section.program.label,
+    programType: section.program.programType satisfies ProgramType,
+    academicLevelsId: section.academicLevels.id,
+    academicLevelLabel: section.academicLevels.label,
+  };
+}
+
+function applyCanonicalProgramSelection(
+  form: Record<string, string>,
+  selection: CanonicalAdmissionProgramSelection
+) {
+  return {
+    ...form,
+    branch_id: selection.branchId.toString(),
+    branch_code: selection.branchCode,
+    branch_title: selection.branchTitle,
+    program_type: selection.programType,
+    program_id: selection.programId.toString(),
+    program_code: selection.programCode,
+    program_label: selection.programLabel,
+    academic_level_id: selection.academicLevelsId.toString(),
+    academic_level_label: selection.academicLevelLabel,
+  };
+}
+
 export async function verifyCurrentStudent(
   input: VerifyCurrentStudentInput
 ): Promise<VerifyCurrentStudentResult> {
@@ -745,26 +917,37 @@ export async function verifyCurrentStudent(
     });
 
     if (!student) {
+      console.info("Current student verification failed", {
+        reason: "student_not_found",
+      });
+
       return {
         verified: false,
-        message: "No matching student record was found.",
+        message: VERIFICATION_FAILED_MESSAGE,
       };
     }
 
     const latestEnrollment = student.enrollments[0];
 
     if (!latestEnrollment) {
+      console.info("Current student verification failed", {
+        reason: "latest_enrollment_not_found",
+      });
+
       return {
         verified: false,
-        message:
-          "The student record exists, but no enrollment history is available for verification.",
+        message: VERIFICATION_FAILED_MESSAGE,
       };
     }
 
     if (latestEnrollment.schoolYear.name !== lastSchoolYearAttended) {
+      console.info("Current student verification failed", {
+        reason: "latest_school_year_mismatch",
+      });
+
       return {
         verified: false,
-        message: "The latest school year attended does not match our records.",
+        message: VERIFICATION_FAILED_MESSAGE,
       };
     }
 
@@ -846,6 +1029,35 @@ export async function submitAdmissionApplication(
     };
   }
 
+  let programSelection: CanonicalAdmissionProgramSelection;
+
+  try {
+    const canonicalSelection =
+      await getCanonicalAdmissionProgramSelection(normalizedForm);
+
+    if (!canonicalSelection) {
+      return {
+        submitted: false,
+        message: "Select a valid branch and program before submitting.",
+      };
+    }
+
+    programSelection = canonicalSelection;
+  } catch (error) {
+    console.error("Failed to validate admission program selection:", error);
+
+    return {
+      submitted: false,
+      message:
+        "We could not validate your selected program right now. Please try again.",
+    };
+  }
+
+  const canonicalForm = applyCanonicalProgramSelection(
+    normalizedForm,
+    programSelection
+  );
+
   if (applicantType === EXISTING_STUDENT) {
     const missingExistingField = missingRequiredField(
       form,
@@ -863,7 +1075,7 @@ export async function submitAdmissionApplication(
     }
 
     try {
-      const verified = await existingStudentVerificationMatches(normalizedForm);
+      const verified = await existingStudentVerificationMatches(canonicalForm);
 
       if (!verified) {
         return {
@@ -889,18 +1101,12 @@ export async function submitAdmissionApplication(
   const submittedAt = new Date().toISOString();
 
   try {
-    await mkdir(path.dirname(storagePath), { recursive: true });
-    await appendFile(
-      storagePath,
-      `${JSON.stringify({
-        submissionId,
-        submittedAt,
-        status: "submitted",
-        consent,
-        form: normalizedForm,
-      })}\n`,
-      "utf8"
-    );
+    await saveAdmissionSubmission({
+      submissionId,
+      submittedAt: new Date(submittedAt),
+      form: canonicalForm,
+      programSelection,
+    });
 
     return {
       submitted: true,
