@@ -21,6 +21,7 @@ export type CurrentStudentVerification = {
   schoolYear: string;
   program: string;
   branch: string;
+  message?: string;
 };
 
 export type CurrentStudentStepHandle = {
@@ -247,6 +248,9 @@ const CurrentStudentStep = React.forwardRef<
           section: latestEnrollment?.section,
         }),
         branch: latestEnrollment?.branch ?? "",
+        message:
+          data.message ??
+          "Student record verified. Please check your email inbox or spam folder for the update link.",
       });
 
       if (verifyRequestIdRef.current !== requestId) {
@@ -254,7 +258,9 @@ const CurrentStudentStep = React.forwardRef<
       }
 
       setStatus("verified");
-      setMessage("Student record verified. You can continue.");
+      setMessage(
+        data.message ?? "Student record verified. You can continue."
+      );
       return true;
     } catch (error) {
       if (verifyRequestIdRef.current !== requestId) {

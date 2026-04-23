@@ -12,7 +12,10 @@ import {
   saveAdmissionSubmission,
   type CanonicalAdmissionProgramSelection,
 } from "@/lib/admission/submission-store";
+import { sendStudentUpdateLinkEmail } from "@/lib/admission/resend";
+import { createStudentUpdateUrl } from "@/lib/admission/student-update";
 import { prisma } from "@/lib/prisma";
+import { normalizeName, normalizeText } from "@/lib/utils";
 
 type BranchAddress = {
   houseNumber: string | null;
@@ -317,14 +320,6 @@ function formatAddress(address: BranchAddress | null) {
   ]
     .filter(Boolean)
     .join(", ");
-}
-
-function normalizeText(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeName(value: unknown) {
-  return normalizeText(value).replace(/\s+/g, " ");
 }
 
 function normalizeForm(form: Record<string, unknown>) {
@@ -877,6 +872,7 @@ export async function verifyCurrentStudent(
       },
       select: {
         id: true,
+        email: true,
         firstName: true,
         middleName: true,
         lastName: true,
@@ -951,8 +947,24 @@ export async function verifyCurrentStudent(
       };
     }
 
+    let verificationMessage =
+      "Student record verified. We sent a secure update link to your email.";
+
+    try {
+      await sendStudentUpdateLinkEmail({
+        to: student.email,
+        studentName: formatDisplayName(student),
+        updateUrl: createStudentUpdateUrl(student.id.toString()),
+      });
+    } catch (error) {
+      console.error("Failed to send student update link email:", error);
+      verificationMessage =
+        "Student record verified. We could not send the update link right now.";
+    }
+
     return {
       verified: true,
+      message: verificationMessage,
       student: {
         id: student.id.toString(),
         displayName: formatDisplayName(student),
