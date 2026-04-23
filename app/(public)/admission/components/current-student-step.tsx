@@ -5,6 +5,7 @@ import * as React from "react";
 import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { verifyCurrentStudent } from "../actions";
 
 export type CurrentStudentFieldName =
   | "current_student_number"
@@ -20,6 +21,7 @@ export type CurrentStudentVerification = {
   schoolYear: string;
   program: string;
   branch: string;
+  message?: string;
 };
 
 export type CurrentStudentStepHandle = {
@@ -44,22 +46,6 @@ type CurrentStudentStepProps = {
 };
 
 type VerificationStatus = "idle" | "verifying" | "failed" | "verified";
-
-type VerifyStudentResponse = {
-  verified?: boolean;
-  message?: string;
-  student?: {
-    id: string;
-    displayName: string;
-    latestEnrollment?: {
-      schoolYear: string | null;
-      branch: string | null;
-      program: string | null;
-      yearLevel: string | null;
-      section: string | null;
-    } | null;
-  };
-};
 
 const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
@@ -167,7 +153,6 @@ const CurrentStudentStep = React.forwardRef<
   const [status, setStatus] = React.useState<VerificationStatus>("idle");
   const [message, setMessage] = React.useState("");
   const verifyRequestIdRef = React.useRef(0);
-  const verifyAbortRef = React.useRef<AbortController | null>(null);
   const activeVerificationSignatureRef = React.useRef<string | null>(null);
 
   const requiredComplete = Boolean(
@@ -193,8 +178,6 @@ const CurrentStudentStep = React.forwardRef<
   const cancelPendingVerification = React.useCallback(() => {
     verifyRequestIdRef.current += 1;
     activeVerificationSignatureRef.current = null;
-    verifyAbortRef.current?.abort();
-    verifyAbortRef.current = null;
   }, []);
 
   function handleChange(field: CurrentStudentFieldName, value: string) {
@@ -221,41 +204,27 @@ const CurrentStudentStep = React.forwardRef<
 
     const requestId = verifyRequestIdRef.current + 1;
     verifyRequestIdRef.current = requestId;
-    const controller = new AbortController();
-    verifyAbortRef.current = controller;
     activeVerificationSignatureRef.current = verificationSignature;
 
     try {
       setStatus("verifying");
       setMessage("");
 
-      const response = await fetch("/api/students/verify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          branchId: form.branch_id,
-          studentNumber: form.current_student_number,
-          studentEmail: form.current_student_email,
-          firstName: form.current_student_first_name,
-          lastName: form.current_student_last_name,
-          birthDate: form.current_student_birth_date,
-          lastSchoolYearAttended: form.current_last_school_year_attended,
-        }),
-        signal: controller.signal,
+      const data = await verifyCurrentStudent({
+        branchId: form.branch_id,
+        studentNumber: form.current_student_number,
+        studentEmail: form.current_student_email,
+        firstName: form.current_student_first_name,
+        lastName: form.current_student_last_name,
+        birthDate: form.current_student_birth_date,
+        lastSchoolYearAttended: form.current_last_school_year_attended,
       });
 
-      const data = (await response.json()) as VerifyStudentResponse;
-
-      if (
-        controller.signal.aborted ||
-        verifyRequestIdRef.current !== requestId
-      ) {
+      if (verifyRequestIdRef.current !== requestId) {
         return false;
       }
 
-      if (!response.ok || !data.verified || !data.student) {
+      if (!data.verified || !data.student) {
         throw new Error(
           data.message ?? "No matching student record was found."
         );
@@ -263,10 +232,7 @@ const CurrentStudentStep = React.forwardRef<
 
       const latestEnrollment = data.student.latestEnrollment;
 
-      if (
-        controller.signal.aborted ||
-        verifyRequestIdRef.current !== requestId
-      ) {
+      if (verifyRequestIdRef.current !== requestId) {
         return false;
       }
 
@@ -282,23 +248,22 @@ const CurrentStudentStep = React.forwardRef<
           section: latestEnrollment?.section,
         }),
         branch: latestEnrollment?.branch ?? "",
+        message:
+          data.message ??
+          "Student record verified. Please check your email inbox or spam folder for the update link.",
       });
 
-      if (
-        controller.signal.aborted ||
-        verifyRequestIdRef.current !== requestId
-      ) {
+      if (verifyRequestIdRef.current !== requestId) {
         return false;
       }
 
       setStatus("verified");
-      setMessage("Student record verified. You can continue.");
+      setMessage(
+        data.message ?? "Student record verified. You can continue."
+      );
       return true;
     } catch (error) {
-      if (
-        controller.signal.aborted ||
-        verifyRequestIdRef.current !== requestId
-      ) {
+      if (verifyRequestIdRef.current !== requestId) {
         return false;
       }
 
@@ -310,10 +275,6 @@ const CurrentStudentStep = React.forwardRef<
       );
       return false;
     } finally {
-      if (verifyAbortRef.current === controller) {
-        verifyAbortRef.current = null;
-      }
-
       if (verifyRequestIdRef.current === requestId) {
         activeVerificationSignatureRef.current = null;
       }

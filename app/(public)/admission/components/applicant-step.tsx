@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Check, Facebook, MapPin, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getAdmissionBranches } from "../actions";
 
 export type ApplicantFieldName = "applicant_type" | "branch_id";
 
@@ -34,10 +35,6 @@ type Branch = {
 };
 
 type BranchesStatus = "loading" | "success" | "error";
-
-type BranchesResponse = {
-  branches?: Branch[];
-};
 
 const applicantTypes: ApplicantType[] = [
   {
@@ -302,26 +299,26 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
     React.useState<BranchesStatus>("loading");
 
   React.useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
 
     async function loadBranches() {
       try {
         setBranchesStatus("loading");
 
-        const response = await fetch("/api/branches", {
-          signal: controller.signal,
-        });
+        const data = await getAdmissionBranches();
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch branches.");
+        if (cancelled) {
+          return;
         }
 
-        const data = (await response.json()) as BranchesResponse;
+        if (data.error) {
+          throw new Error(data.error);
+        }
 
-        setBranches(data.branches ?? []);
+        setBranches(data.branches);
         setBranchesStatus("success");
       } catch {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setBranches([]);
           setBranchesStatus("error");
         }
@@ -330,7 +327,9 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
 
     void loadBranches();
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectedBranch = branches.find((branch) => branch.id === form.branch_id);

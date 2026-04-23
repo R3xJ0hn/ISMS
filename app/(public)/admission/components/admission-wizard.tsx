@@ -23,6 +23,7 @@ import LastSchoolStep from "./last-school-step";
 import ProgramStep from "./program-step";
 import ReviewStep from "./review-step";
 import StudentStep from "./student-step";
+import { submitAdmissionApplication } from "../actions";
 
 export const initialFormValues = {
   applicant_type: "",
@@ -95,16 +96,13 @@ export const initialFormValues = {
 type FieldName = keyof typeof initialFormValues;
 type AdmissionFormValues = typeof initialFormValues;
 type SubmissionStatus = "idle" | "submitting" | "submitted";
-type AdmissionSubmissionResponse = {
-  submitted?: boolean;
-  submissionId?: string;
-  submittedAt?: string;
-  message?: string;
-};
 type AdmissionConfirmation = {
   message: string;
   submissionId: string;
   submittedAt: string;
+};
+type ExistingStudentNotice = {
+  message: string;
 };
 
 const EXISTING_STUDENT = "Existing Student";
@@ -150,10 +148,13 @@ function clearProgramSelection(form: AdmissionFormValues) {
 }
 
 function getVisibleSteps(applicantType: string) {
-  return steps.filter(
-    (step) =>
-      step.id !== "currentStudent" || applicantType === EXISTING_STUDENT
-  );
+  if (applicantType === EXISTING_STUDENT) {
+    return steps.filter(
+      (step) => step.id === "applicant" || step.id === "currentStudent"
+    );
+  }
+
+  return steps.filter((step) => step.id !== "currentStudent");
 }
 
 function StepHeader({
@@ -279,21 +280,9 @@ async function submitAdmission(
   form: AdmissionFormValues,
   consent: boolean
 ) {
-  const response = await fetch("/api/admissions/submit", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      form,
-      consent,
-    }),
-  });
-
-  const data = (await response.json()) as AdmissionSubmissionResponse;
+  const data = await submitAdmissionApplication(form, consent);
 
   if (
-    !response.ok ||
     !data.submitted ||
     !data.submissionId ||
     !data.submittedAt
@@ -326,9 +315,12 @@ export default function AdmissionWizard() {
   const [submissionError, setSubmissionError] = React.useState("");
   const [confirmation, setConfirmation] =
     React.useState<AdmissionConfirmation | null>(null);
+  const [existingStudentNotice, setExistingStudentNotice] =
+    React.useState<ExistingStudentNotice | null>(null);
   const currentStudentStepRef =
     React.useRef<CurrentStudentStepHandle | null>(null);
 
+  const existingStudentFlow = form.applicant_type === EXISTING_STUDENT;
   const visibleSteps = React.useMemo(
     () => getVisibleSteps(form.applicant_type),
     [form.applicant_type]
@@ -338,8 +330,12 @@ export default function AdmissionWizard() {
   const isFirstStep = safeCurrentIndex === 0;
   const isLastStep = safeCurrentIndex === visibleSteps.length - 1;
   const currentStepComplete = stepIsComplete(currentStep.id, form, consent);
+  const showingExistingStudentNotice =
+    existingStudentFlow && Boolean(existingStudentNotice);
   const currentStepReadyToContinue =
-    currentStep.id === "currentStudent"
+    showingExistingStudentNotice
+      ? false
+      : currentStep.id === "currentStudent"
       ? currentStudentInputsComplete(form)
       : currentStepComplete;
   const incompleteStepIndex = firstIncompleteStepIndex(
@@ -369,6 +365,7 @@ export default function AdmissionWizard() {
     setVerifyingCurrentStudent(false);
     setSubmissionError("");
     setConsent(false);
+    setExistingStudentNotice(null);
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -392,6 +389,11 @@ export default function AdmissionWizard() {
     verification: CurrentStudentVerification
   ) {
     setConsent(false);
+    setExistingStudentNotice({
+      message:
+        verification.message ??
+        "Student record verified. Please check your email inbox or spam folder for the update link.",
+    });
     setForm((prev) => ({
       ...prev,
       current_student_record_id: verification.recordId,
@@ -416,6 +418,7 @@ export default function AdmissionWizard() {
     setSubmissionStatus("idle");
     setSubmissionError("");
     setConfirmation(null);
+    setExistingStudentNotice(null);
   }
 
   async function goNext() {
@@ -441,6 +444,10 @@ export default function AdmissionWizard() {
       } finally {
         setVerifyingCurrentStudent(false);
       }
+
+      if (existingStudentFlow) {
+        return;
+      }
     }
 
     setCurrentIndex(nextIndex);
@@ -453,6 +460,13 @@ export default function AdmissionWizard() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmissionError("");
+
+    if (existingStudentFlow) {
+      if (!showingExistingStudentNotice) {
+        await goNext();
+      }
+      return;
+    }
 
     const invalidStepIndex = firstIncompleteStepIndex(
       form,
@@ -499,6 +513,35 @@ export default function AdmissionWizard() {
       case "guardian":
         return <GuardianStep form={form} onChange={updateField} />;
       case "currentStudent":
+        if (showingExistingStudentNotice && existingStudentNotice) {
+          return (
+            <div className="mx-auto flex h-full max-w-2xl items-center">
+              <div className="w-full rounded-2xl border border-emerald-200 bg-emerald-50/70 p-6 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
+                    <Check size={18} aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                      Record verified
+                    </p>
+                    <h3 className="mt-1 text-2xl font-bold text-gray-950">
+                      Check your email for the update link.
+                    </h3>
+                    <p className="mt-3 text-sm leading-6 text-gray-700">
+                      {existingStudentNotice.message}
+                    </p>
+                    <p className="mt-4 text-sm leading-6 text-gray-600">
+                      If you do not see the message right away, check your spam
+                      or junk folder.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <CurrentStudentStep
             ref={currentStudentStepRef}
@@ -553,7 +596,8 @@ export default function AdmissionWizard() {
                       disabled={
                         !canNavigate ||
                         submissionStatus === "submitting" ||
-                        Boolean(confirmation)
+                        Boolean(confirmation) ||
+                        showingExistingStudentNotice
                       }
                       className={cn(
                         "flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/25",
@@ -682,6 +726,11 @@ export default function AdmissionWizard() {
                 <p className="text-sm font-medium text-red-700">
                   {submissionError}
                 </p>
+              ) : showingExistingStudentNotice ? (
+                <p className="text-sm font-medium text-emerald-700">
+                  Your record was verified. Check your email inbox or spam
+                  folder for the secure update link.
+                </p>
               ) : !confirmation && !currentStepComplete ? (
                 <p className="text-sm font-medium text-secondary">
                   {currentStep.id === "currentStudent" &&
@@ -696,14 +745,14 @@ export default function AdmissionWizard() {
               <div className="flex flex-col gap-3 sm:ml-auto sm:flex-row">
                 <button
                   type="button"
-                  onClick={confirmation ? resetWizard : goBack}
+                  onClick={confirmation || showingExistingStudentNotice ? resetWizard : goBack}
                   disabled={
                     submissionStatus === "submitting" ||
-                    (!confirmation && isFirstStep)
+                    (!(confirmation || showingExistingStudentNotice) && isFirstStep)
                   }
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {confirmation ? (
+                  {confirmation || showingExistingStudentNotice ? (
                     <>
                       <ArrowLeft size={16} aria-hidden="true" />
                       Start another application
@@ -716,7 +765,7 @@ export default function AdmissionWizard() {
                   )}
                 </button>
 
-                {!confirmation && isLastStep ? (
+                {!confirmation && !showingExistingStudentNotice && !existingStudentFlow && isLastStep ? (
                   <button
                     type="submit"
                     disabled={!formComplete || submissionStatus === "submitting"}

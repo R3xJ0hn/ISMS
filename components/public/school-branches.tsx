@@ -4,6 +4,8 @@ import * as React from "react";
 import Image from "next/image";
 import { MapPin, Phone, Facebook, ArrowUpRight } from "lucide-react";
 
+import { getSchoolBranches } from "@/app/(public)/actions";
+
 type Branch = {
   id: string;
   code: string;
@@ -15,14 +17,7 @@ type Branch = {
   formattedAddress: string;
 };
 
-type BranchesResponse = {
-  branches?: Branch[];
-};
-
 type BranchesStatus = "loading" | "success" | "error";
-
-const fallbackBranchImage =
-  "https://res.cloudinary.com/dghjtnxjw/image/upload/v1772366051/uploads/ga78teh5pp1tqj9ia0lu.jpg";
 
 function InfoRow({
   icon,
@@ -52,17 +47,23 @@ const BranchCard = ({ branch }: { branch: Branch }) => (
   >
     {/* LEFT IMAGE */}
     <div className="relative h-full w-[44%] shrink-0 overflow-hidden">
-      <Image
-        src={branch.image ?? fallbackBranchImage}
-        alt={branch.title}
-        fill
-        className="
-          object-cover
-          transition-transform duration-500 ease-out
-          group-hover:scale-[1.06]
-        "
-        sizes="(max-width: 1024px) 50vw, 25vw"
-      />
+      {branch.image ? (
+        <Image
+          src={branch.image}
+          alt={branch.title}
+          fill
+          className="
+            object-cover
+            transition-transform duration-500 ease-out
+            group-hover:scale-[1.06]
+          "
+          sizes="(max-width: 1024px) 50vw, 25vw"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-400">
+          <MapPin size={24} aria-hidden="true" />
+        </div>
+      )}
 
       {/* subtle overlay on hover */}
       <div
@@ -134,26 +135,26 @@ export default function Branches() {
   const [status, setStatus] = React.useState<BranchesStatus>("loading");
 
   React.useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
 
     async function loadBranches() {
       try {
         setStatus("loading");
 
-        const response = await fetch("/api/branches", {
-          signal: controller.signal,
-        });
+        const data = await getSchoolBranches();
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch branches.");
+        if (cancelled) {
+          return;
         }
 
-        const data = (await response.json()) as BranchesResponse;
+        if (data.error) {
+          throw new Error(data.error);
+        }
 
-        setBranches(data.branches ?? []);
+        setBranches(data.branches);
         setStatus("success");
       } catch {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setBranches([]);
           setStatus("error");
         }
@@ -162,7 +163,9 @@ export default function Branches() {
 
     void loadBranches();
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
