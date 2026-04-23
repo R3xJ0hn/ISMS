@@ -1,6 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { CivilStatus, Gender } from "@/lib/generated/prisma/enums";
+import {
+  ApplicantType,
+  ApplicationStatus,
+  CivilStatus,
+  Gender,
+  ProgramType,
+  SchoolType,
+} from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { normalizeText } from "@/lib/utils";
 
@@ -37,6 +44,33 @@ export type StudentUpdateRecord = {
   addressCity: string;
   addressProvince: string;
   addressPostalCode: string;
+  guardianFirstName: string;
+  guardianLastName: string;
+  guardianMiddleName: string;
+  guardianSuffix: string;
+  guardianRelationship: string;
+  guardianContactNumber: string;
+  guardianOccupation: string;
+  lastSchoolName: string;
+  lastSchoolId: string;
+  lastSchoolShortName: string;
+  lastSchoolType: string;
+  lastSchoolHouseNumber: string;
+  lastSchoolSubdivision: string;
+  lastSchoolStreet: string;
+  lastSchoolBarangay: string;
+  lastSchoolCity: string;
+  lastSchoolProvince: string;
+  lastSchoolPostalCode: string;
+  lastSchoolYear: string;
+  lastSchoolGraduationDate: string;
+  lastSchoolYearLevel: string;
+  latestEnrollmentStatus: string;
+  latestEnrollmentSchoolYear: string;
+  latestEnrollmentBranch: string;
+  latestEnrollmentProgram: string;
+  latestEnrollmentYearLevel: string;
+  latestEnrollmentSection: string;
 };
 
 export type UpdateStudentRecordInput = {
@@ -60,6 +94,27 @@ export type UpdateStudentRecordInput = {
   addressCity: string;
   addressProvince: string;
   addressPostalCode: string;
+  guardianFirstName: string;
+  guardianLastName: string;
+  guardianMiddleName: string;
+  guardianSuffix: string;
+  guardianRelationship: string;
+  guardianContactNumber: string;
+  guardianOccupation: string;
+  lastSchoolName: string;
+  lastSchoolId: string;
+  lastSchoolShortName: string;
+  lastSchoolType: string;
+  lastSchoolHouseNumber: string;
+  lastSchoolSubdivision: string;
+  lastSchoolStreet: string;
+  lastSchoolBarangay: string;
+  lastSchoolCity: string;
+  lastSchoolProvince: string;
+  lastSchoolPostalCode: string;
+  lastSchoolYear: string;
+  lastSchoolGraduationDate: string;
+  lastSchoolYearLevel: string;
 };
 
 type StudentUpdateQueryResult = {
@@ -86,6 +141,67 @@ type StudentUpdateQueryResult = {
     province: string;
     postalCode: string | null;
   } | null;
+  guardians: Array<{
+    relationship: string;
+    isPrimary: boolean;
+    guardian: {
+      firstName: string;
+      lastName: string;
+      middleName: string | null;
+      suffix: string | null;
+      contactNumber: string;
+      occupation: string | null;
+    };
+  }>;
+  applications: Array<{
+    id: bigint;
+    branchId: bigint;
+    programId: bigint;
+    academicLevelsId: bigint;
+    programType: (typeof ProgramType)[keyof typeof ProgramType];
+    lastSchoolId: bigint | null;
+    LSSchoolYearEnd: string | null;
+    LSAttainedLevelText: string | null;
+    LSGraduationDate: Date | null;
+    lastSchool: {
+      schoolName: string;
+      schoolId: string | null;
+      shortName: string | null;
+      schoolType: (typeof SchoolType)[keyof typeof SchoolType];
+      address: {
+        houseNumber: string | null;
+        subdivision: string | null;
+        street: string | null;
+        barangay: string;
+        city: string;
+        province: string;
+        postalCode: string | null;
+      } | null;
+    } | null;
+  }>;
+  enrollments: Array<{
+    branchId: bigint;
+    programId: bigint;
+    academicLevelsId: bigint;
+    enrollmentStatus: string;
+    schoolYear: {
+      name: string;
+    };
+    branch: {
+      title: string;
+    };
+    program: {
+      label: string;
+      programType: (typeof ProgramType)[keyof typeof ProgramType];
+    };
+    academicLevels: {
+      label: string;
+    };
+    section: {
+      sectionName: string;
+      sectionCode: string;
+    } | null;
+  }>;
 };
 
 function optionalText(value: string) {
@@ -226,6 +342,27 @@ function normalizeStudentUpdateInput(
     addressCity: normalizeText(input.addressCity),
     addressProvince: normalizeText(input.addressProvince),
     addressPostalCode: normalizeText(input.addressPostalCode),
+    guardianFirstName: normalizeText(input.guardianFirstName),
+    guardianLastName: normalizeText(input.guardianLastName),
+    guardianMiddleName: normalizeText(input.guardianMiddleName),
+    guardianSuffix: normalizeText(input.guardianSuffix),
+    guardianRelationship: normalizeText(input.guardianRelationship),
+    guardianContactNumber: normalizeText(input.guardianContactNumber),
+    guardianOccupation: normalizeText(input.guardianOccupation),
+    lastSchoolName: normalizeText(input.lastSchoolName),
+    lastSchoolId: normalizeText(input.lastSchoolId),
+    lastSchoolShortName: normalizeText(input.lastSchoolShortName),
+    lastSchoolType: normalizeText(input.lastSchoolType),
+    lastSchoolHouseNumber: normalizeText(input.lastSchoolHouseNumber),
+    lastSchoolSubdivision: normalizeText(input.lastSchoolSubdivision),
+    lastSchoolStreet: normalizeText(input.lastSchoolStreet),
+    lastSchoolBarangay: normalizeText(input.lastSchoolBarangay),
+    lastSchoolCity: normalizeText(input.lastSchoolCity),
+    lastSchoolProvince: normalizeText(input.lastSchoolProvince),
+    lastSchoolPostalCode: normalizeText(input.lastSchoolPostalCode),
+    lastSchoolYear: normalizeText(input.lastSchoolYear),
+    lastSchoolGraduationDate: normalizeText(input.lastSchoolGraduationDate),
+    lastSchoolYearLevel: normalizeText(input.lastSchoolYearLevel),
   };
 }
 
@@ -243,6 +380,17 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     ["addressBarangay", !input.addressBarangay],
     ["addressCity", !input.addressCity],
     ["addressProvince", !input.addressProvince],
+    ["guardianFirstName", !input.guardianFirstName],
+    ["guardianLastName", !input.guardianLastName],
+    ["guardianRelationship", !input.guardianRelationship],
+    ["guardianContactNumber", !input.guardianContactNumber],
+    ["lastSchoolName", !input.lastSchoolName],
+    ["lastSchoolType", !input.lastSchoolType],
+    ["lastSchoolBarangay", !input.lastSchoolBarangay],
+    ["lastSchoolCity", !input.lastSchoolCity],
+    ["lastSchoolProvince", !input.lastSchoolProvince],
+    ["lastSchoolYear", !input.lastSchoolYear],
+    ["lastSchoolYearLevel", !input.lastSchoolYearLevel],
   ];
 
   const missingField = requiredFields.find(([, missing]) => missing)?.[0];
@@ -275,6 +423,18 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "phone";
   }
 
+  if (!isValidPhone(input.guardianContactNumber)) {
+    return "guardianContactNumber";
+  }
+
+  if (
+    !Object.values(SchoolType).includes(
+      input.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType]
+    )
+  ) {
+    return "lastSchoolType";
+  }
+
   return null;
 }
 
@@ -282,6 +442,13 @@ function mapStudentRecord(
   token: string,
   student: StudentUpdateQueryResult
 ): StudentUpdateRecord {
+  const primaryGuardian =
+    student.guardians.find((guardian) => guardian.isPrimary) ??
+    student.guardians[0];
+  const latestApplication = student.applications[0];
+  const lastSchool = latestApplication?.lastSchool;
+  const latestEnrollment = student.enrollments[0];
+
   return {
     token,
     studentId: student.id.toString(),
@@ -305,6 +472,37 @@ function mapStudentRecord(
     addressCity: student.address?.city ?? "",
     addressProvince: student.address?.province ?? "",
     addressPostalCode: student.address?.postalCode ?? "",
+    guardianFirstName: primaryGuardian?.guardian.firstName ?? "",
+    guardianLastName: primaryGuardian?.guardian.lastName ?? "",
+    guardianMiddleName: primaryGuardian?.guardian.middleName ?? "",
+    guardianSuffix: primaryGuardian?.guardian.suffix ?? "",
+    guardianRelationship: primaryGuardian?.relationship ?? "",
+    guardianContactNumber: primaryGuardian?.guardian.contactNumber ?? "",
+    guardianOccupation: primaryGuardian?.guardian.occupation ?? "",
+    lastSchoolName: lastSchool?.schoolName ?? "",
+    lastSchoolId: lastSchool?.schoolId ?? "",
+    lastSchoolShortName: lastSchool?.shortName ?? "",
+    lastSchoolType: lastSchool?.schoolType ?? "",
+    lastSchoolHouseNumber: lastSchool?.address?.houseNumber ?? "",
+    lastSchoolSubdivision: lastSchool?.address?.subdivision ?? "",
+    lastSchoolStreet: lastSchool?.address?.street ?? "",
+    lastSchoolBarangay: lastSchool?.address?.barangay ?? "",
+    lastSchoolCity: lastSchool?.address?.city ?? "",
+    lastSchoolProvince: lastSchool?.address?.province ?? "",
+    lastSchoolPostalCode: lastSchool?.address?.postalCode ?? "",
+    lastSchoolYear: latestApplication?.LSSchoolYearEnd ?? "",
+    lastSchoolGraduationDate:
+      latestApplication?.LSGraduationDate?.toISOString().slice(0, 10) ?? "",
+    lastSchoolYearLevel: latestApplication?.LSAttainedLevelText ?? "",
+    latestEnrollmentStatus: latestEnrollment?.enrollmentStatus ?? "",
+    latestEnrollmentSchoolYear: latestEnrollment?.schoolYear.name ?? "",
+    latestEnrollmentBranch: latestEnrollment?.branch.title ?? "",
+    latestEnrollmentProgram: latestEnrollment?.program.label ?? "",
+    latestEnrollmentYearLevel: latestEnrollment?.academicLevels.label ?? "",
+    latestEnrollmentSection:
+      latestEnrollment?.section?.sectionName ??
+      latestEnrollment?.section?.sectionCode ??
+      "",
   };
 }
 
@@ -355,6 +553,95 @@ export async function getStudentUpdateRecord(token: string) {
           city: true,
           province: true,
           postalCode: true,
+        },
+      },
+      guardians: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          relationship: true,
+          isPrimary: true,
+          guardian: {
+            select: {
+              firstName: true,
+              lastName: true,
+              middleName: true,
+              suffix: true,
+              contactNumber: true,
+              occupation: true,
+            },
+          },
+        },
+      },
+      applications: {
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          id: true,
+          branchId: true,
+          programId: true,
+          academicLevelsId: true,
+          programType: true,
+          lastSchoolId: true,
+          LSSchoolYearEnd: true,
+          LSAttainedLevelText: true,
+          LSGraduationDate: true,
+          lastSchool: {
+            select: {
+              schoolName: true,
+              schoolId: true,
+              shortName: true,
+              schoolType: true,
+              address: {
+                select: {
+                  houseNumber: true,
+                  subdivision: true,
+                  street: true,
+                  barangay: true,
+                  city: true,
+                  province: true,
+                  postalCode: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      enrollments: {
+        orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
+        take: 1,
+        select: {
+          branchId: true,
+          programId: true,
+          academicLevelsId: true,
+          enrollmentStatus: true,
+          schoolYear: {
+            select: {
+              name: true,
+            },
+          },
+          branch: {
+            select: {
+              title: true,
+            },
+          },
+          program: {
+            select: {
+              label: true,
+              programType: true,
+            },
+          },
+          academicLevels: {
+            select: {
+              label: true,
+            },
+          },
+          section: {
+            select: {
+              sectionName: true,
+              sectionCode: true,
+            },
+          },
         },
       },
     },
@@ -408,6 +695,46 @@ export async function updateStudentRecordFromToken(
         select: {
           id: true,
           addressId: true,
+          guardians: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+            take: 1,
+            select: {
+              id: true,
+              guardianId: true,
+            },
+          },
+          applications: {
+            orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+            take: 1,
+            select: {
+              id: true,
+              branchId: true,
+              programId: true,
+              academicLevelsId: true,
+              programType: true,
+              lastSchoolId: true,
+              lastSchool: {
+                select: {
+                  id: true,
+                  addressId: true,
+                },
+              },
+            },
+          },
+          enrollments: {
+            orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
+            take: 1,
+            select: {
+              branchId: true,
+              programId: true,
+              academicLevelsId: true,
+              program: {
+                select: {
+                  programType: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -439,6 +766,157 @@ export async function updateStudentRecordFromToken(
           data: addressData,
         });
         addressId = address.id;
+      }
+
+      const primaryGuardianLink = student.guardians[0];
+
+      if (primaryGuardianLink) {
+        await tx.guardian.update({
+          where: {
+            id: primaryGuardianLink.guardianId,
+          },
+          data: {
+            firstName: normalizedInput.guardianFirstName,
+            lastName: normalizedInput.guardianLastName,
+            middleName: optionalText(normalizedInput.guardianMiddleName),
+            suffix: optionalText(normalizedInput.guardianSuffix),
+            contactNumber: normalizedInput.guardianContactNumber,
+            occupation: optionalText(normalizedInput.guardianOccupation),
+          },
+        });
+
+        await tx.studentGuardian.update({
+          where: {
+            id: primaryGuardianLink.id,
+          },
+          data: {
+            relationship: normalizedInput.guardianRelationship,
+            isPrimary: true,
+          },
+        });
+      } else {
+        const guardian = await tx.guardian.create({
+          data: {
+            firstName: normalizedInput.guardianFirstName,
+            lastName: normalizedInput.guardianLastName,
+            middleName: optionalText(normalizedInput.guardianMiddleName),
+            suffix: optionalText(normalizedInput.guardianSuffix),
+            contactNumber: normalizedInput.guardianContactNumber,
+            occupation: optionalText(normalizedInput.guardianOccupation),
+            email: null,
+            addressId: null,
+            facebookAccount: null,
+          },
+        });
+
+        await tx.studentGuardian.create({
+          data: {
+            studentId: student.id,
+            guardianId: guardian.id,
+            relationship: normalizedInput.guardianRelationship,
+            isPrimary: true,
+          },
+        });
+      }
+
+      const lastSchoolAddressData = {
+        houseNumber: optionalText(normalizedInput.lastSchoolHouseNumber),
+        subdivision: optionalText(normalizedInput.lastSchoolSubdivision),
+        street: optionalText(normalizedInput.lastSchoolStreet),
+        barangay: normalizedInput.lastSchoolBarangay,
+        city: normalizedInput.lastSchoolCity,
+        province: normalizedInput.lastSchoolProvince,
+        postalCode: optionalText(normalizedInput.lastSchoolPostalCode),
+      };
+
+      const latestApplication = student.applications[0];
+      const latestEnrollment = student.enrollments[0];
+      let lastSchoolId = latestApplication?.lastSchoolId ?? null;
+      let lastSchoolAddressId = latestApplication?.lastSchool?.addressId ?? null;
+
+      if (latestApplication?.lastSchool?.addressId) {
+        await tx.address.update({
+          where: {
+            id: latestApplication.lastSchool.addressId,
+          },
+          data: lastSchoolAddressData,
+        });
+      } else if (lastSchoolId) {
+        const lastSchoolAddress = await tx.address.create({
+          data: lastSchoolAddressData,
+        });
+
+        lastSchoolAddressId = lastSchoolAddress.id;
+      }
+
+      if (lastSchoolId) {
+        await tx.lastSchool.update({
+          where: {
+            id: lastSchoolId,
+          },
+          data: {
+            schoolName: normalizedInput.lastSchoolName,
+            schoolId: optionalText(normalizedInput.lastSchoolId),
+            shortName: optionalText(normalizedInput.lastSchoolShortName),
+            schoolType:
+              normalizedInput.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
+            addressId: lastSchoolAddressId,
+          },
+        });
+      } else {
+        const lastSchoolAddress = await tx.address.create({
+          data: lastSchoolAddressData,
+        });
+
+        const lastSchool = await tx.lastSchool.create({
+          data: {
+            schoolName: normalizedInput.lastSchoolName,
+            schoolId: optionalText(normalizedInput.lastSchoolId),
+            shortName: optionalText(normalizedInput.lastSchoolShortName),
+            schoolType:
+              normalizedInput.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
+            addressId: lastSchoolAddress.id,
+          },
+        });
+
+        lastSchoolId = lastSchool.id;
+        lastSchoolAddressId = lastSchoolAddress.id;
+      }
+
+      if (latestApplication) {
+        await tx.admissionApplication.update({
+          where: {
+            id: latestApplication.id,
+          },
+          data: {
+            lastSchoolId,
+            LSSchoolYearEnd: normalizedInput.lastSchoolYear,
+            LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
+            LSGraduationDate: normalizedInput.lastSchoolGraduationDate
+              ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
+              : null,
+          },
+        });
+      } else if (latestEnrollment && lastSchoolId) {
+        await tx.admissionApplication.create({
+          data: {
+            studentId: student.id,
+            applicantType: ApplicantType.existing,
+            applicationStatus: ApplicationStatus.draft,
+            lastSchoolId,
+            LSSchoolYearEnd: normalizedInput.lastSchoolYear,
+            LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
+            LSGraduationDate: normalizedInput.lastSchoolGraduationDate
+              ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
+              : null,
+            branchId: latestEnrollment.branchId,
+            programType: latestEnrollment.program.programType,
+            programId: latestEnrollment.programId,
+            academicLevelsId: latestEnrollment.academicLevelsId,
+            remarks: "Created from secure student update link.",
+            submittedAt: null,
+          },
+        });
       }
 
       await tx.student.update({

@@ -10,6 +10,8 @@ import type { StudentUpdateRecord } from "@/lib/admission/student-update";
 
 const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+const readOnlyInputClass =
+  "h-11 w-full rounded-md border border-gray-200 bg-gray-100 px-3 text-sm text-gray-500 placeholder:text-gray-400";
 
 const selectClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
@@ -72,6 +74,62 @@ export default function UpdateStudentForm({
       </div>
 
       <div className="space-y-8 px-5 py-6 sm:px-7">
+        <section className="space-y-5">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-700">
+            Current school status
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="Enrollment status" htmlFor="latestEnrollmentStatus">
+              <input
+                id="latestEnrollmentStatus"
+                value={student.latestEnrollmentStatus || "Not available"}
+                readOnly
+                className={readOnlyInputClass}
+              />
+            </Field>
+            <Field label="Latest school year" htmlFor="latestEnrollmentSchoolYear">
+              <input
+                id="latestEnrollmentSchoolYear"
+                value={student.latestEnrollmentSchoolYear || "Not available"}
+                readOnly
+                className={readOnlyInputClass}
+              />
+            </Field>
+            <Field label="Branch" htmlFor="latestEnrollmentBranch">
+              <input
+                id="latestEnrollmentBranch"
+                value={student.latestEnrollmentBranch || "Not available"}
+                readOnly
+                className={readOnlyInputClass}
+              />
+            </Field>
+            <Field label="Program" htmlFor="latestEnrollmentProgram">
+              <input
+                id="latestEnrollmentProgram"
+                value={student.latestEnrollmentProgram || "Not available"}
+                readOnly
+                className={readOnlyInputClass}
+              />
+            </Field>
+            <Field label="Year level" htmlFor="latestEnrollmentYearLevel">
+              <input
+                id="latestEnrollmentYearLevel"
+                value={student.latestEnrollmentYearLevel || "Not available"}
+                readOnly
+                className={readOnlyInputClass}
+              />
+            </Field>
+            <Field label="Section" htmlFor="latestEnrollmentSection">
+              <input
+                id="latestEnrollmentSection"
+                value={student.latestEnrollmentSection || "Not available"}
+                readOnly
+                className={readOnlyInputClass}
+              />
+            </Field>
+          </div>
+        </section>
+
         <section className="space-y-5">
           <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-700">
             Personal details
@@ -271,6 +329,210 @@ export default function UpdateStudentForm({
                 id="addressPostalCode"
                 name="addressPostalCode"
                 defaultValue={student.addressPostalCode}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section className="space-y-5">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-700">
+            Parent or guardian
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="First name" htmlFor="guardianFirstName" required>
+              <input
+                id="guardianFirstName"
+                name="guardianFirstName"
+                defaultValue={student.guardianFirstName}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Last name" htmlFor="guardianLastName" required>
+              <input
+                id="guardianLastName"
+                name="guardianLastName"
+                defaultValue={student.guardianLastName}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Middle name" htmlFor="guardianMiddleName">
+              <input
+                id="guardianMiddleName"
+                name="guardianMiddleName"
+                defaultValue={student.guardianMiddleName}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Suffix" htmlFor="guardianSuffix">
+              <input
+                id="guardianSuffix"
+                name="guardianSuffix"
+                defaultValue={student.guardianSuffix}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Relationship to student" htmlFor="guardianRelationship" required>
+              <input
+                id="guardianRelationship"
+                name="guardianRelationship"
+                defaultValue={student.guardianRelationship}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Contact number" htmlFor="guardianContactNumber" required>
+              <input
+                id="guardianContactNumber"
+                name="guardianContactNumber"
+                type="tel"
+                defaultValue={student.guardianContactNumber}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Occupation" htmlFor="guardianOccupation">
+              <input
+                id="guardianOccupation"
+                name="guardianOccupation"
+                defaultValue={student.guardianOccupation}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section className="space-y-5">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-700">
+            Last school attended
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="School name" htmlFor="lastSchoolName" required>
+              <input
+                id="lastSchoolName"
+                name="lastSchoolName"
+                defaultValue={student.lastSchoolName}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Short name" htmlFor="lastSchoolShortName">
+              <input
+                id="lastSchoolShortName"
+                name="lastSchoolShortName"
+                defaultValue={student.lastSchoolShortName}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="School ID" htmlFor="lastSchoolId">
+              <input
+                id="lastSchoolId"
+                name="lastSchoolId"
+                defaultValue={student.lastSchoolId}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="School type" htmlFor="lastSchoolType" required>
+              <select
+                id="lastSchoolType"
+                name="lastSchoolType"
+                defaultValue={student.lastSchoolType}
+                required
+                className={selectClass}
+              >
+                <option value="" disabled>
+                  Select school type
+                </option>
+                <option value="Public">Public</option>
+                <option value="Private">Private</option>
+                <option value="Other">Other</option>
+              </select>
+            </Field>
+            <Field label="House number / unit" htmlFor="lastSchoolHouseNumber">
+              <input
+                id="lastSchoolHouseNumber"
+                name="lastSchoolHouseNumber"
+                defaultValue={student.lastSchoolHouseNumber}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Subdivision / village" htmlFor="lastSchoolSubdivision">
+              <input
+                id="lastSchoolSubdivision"
+                name="lastSchoolSubdivision"
+                defaultValue={student.lastSchoolSubdivision}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Street" htmlFor="lastSchoolStreet">
+              <input
+                id="lastSchoolStreet"
+                name="lastSchoolStreet"
+                defaultValue={student.lastSchoolStreet}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Barangay" htmlFor="lastSchoolBarangay" required>
+              <input
+                id="lastSchoolBarangay"
+                name="lastSchoolBarangay"
+                defaultValue={student.lastSchoolBarangay}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="City / municipality" htmlFor="lastSchoolCity" required>
+              <input
+                id="lastSchoolCity"
+                name="lastSchoolCity"
+                defaultValue={student.lastSchoolCity}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Province" htmlFor="lastSchoolProvince" required>
+              <input
+                id="lastSchoolProvince"
+                name="lastSchoolProvince"
+                defaultValue={student.lastSchoolProvince}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Postal code" htmlFor="lastSchoolPostalCode">
+              <input
+                id="lastSchoolPostalCode"
+                name="lastSchoolPostalCode"
+                defaultValue={student.lastSchoolPostalCode}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Last school year attended" htmlFor="lastSchoolYear" required>
+              <input
+                id="lastSchoolYear"
+                name="lastSchoolYear"
+                defaultValue={student.lastSchoolYear}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Year level completed" htmlFor="lastSchoolYearLevel" required>
+              <input
+                id="lastSchoolYearLevel"
+                name="lastSchoolYearLevel"
+                defaultValue={student.lastSchoolYearLevel}
+                required
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Graduation date" htmlFor="lastSchoolGraduationDate">
+              <input
+                id="lastSchoolGraduationDate"
+                name="lastSchoolGraduationDate"
+                type="date"
+                defaultValue={student.lastSchoolGraduationDate}
                 className={inputClass}
               />
             </Field>
