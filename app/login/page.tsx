@@ -1,14 +1,25 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole, UserRound } from "lucide-react";
+import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+
+import { getCurrentSession } from "@/lib/auth";
+
+import LoginForm from "./login-form";
 
 export const metadata: Metadata = {
   title: "Login | MyDCSAePortal",
   description: "Sign in page for MyDCSAePortal.",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await getCurrentSession();
+
+  if (session) {
+    redirect("/portal");
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#f8f4ea] text-[#17133c]">
       <section className="relative grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
@@ -97,59 +108,7 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <form className="space-y-5">
-                <label className="block">
-                  <span className="text-sm font-bold text-gray-700">
-                   Email
-                  </span>
-                  <span className="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
-                    <UserRound className="size-5 text-gray-400" />
-                    <input
-                      type="text"
-                      name="identifier"
-                      autoComplete="username"
-                      placeholder="Enter your account"
-                      className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                    />
-                  </span>
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-bold text-gray-700">
-                    Password
-                  </span>
-                  <span className="mt-2 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
-                    <LockKeyhole className="size-5 text-gray-400" />
-                    <input
-                      type="password"
-                      name="password"
-                      autoComplete="current-password"
-                      placeholder="Enter your password"
-                      className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                    />
-                  </span>
-                </label>
-
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <label className="flex items-center gap-2 text-gray-600">
-                    <input
-                      type="checkbox"
-                      className="size-4 rounded border-gray-300 accent-primary"
-                    />
-                    Remember me
-                  </label>
-                  <a className="font-semibold text-secondary" href="mailto:datamex_registrar@stadeline.edu.ph">
-                    Need help?
-                  </a>
-                </div>
-
-                <button
-                  type="button"
-                  className="w-full rounded-2xl bg-secondary px-5 py-3.5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-secondary/20 transition hover:-translate-y-0.5 hover:bg-primary"
-                >
-                  Sign in
-                </button>
-              </form>
+              <LoginForm />
             </div>
           </div>
         </div>
