@@ -12,6 +12,16 @@ const initialState: LoginFormState = {
   email: "",
 };
 
+/**
+ * Render a client-side login form wired to the `loginAction` action state.
+ *
+ * The form includes email and password inputs, a "Remember me" checkbox, a help mailto link,
+ * and a submit button. The email input is prefilled from the action state; a live status/error
+ * message is shown when `state.message` is non-empty; the submit button is disabled while the
+ * action is pending and its label changes to indicate progress.
+ *
+ * @returns The JSX element for the login form
+ */
 export default function LoginForm() {
   const [state, formAction, pending] = React.useActionState(loginAction, initialState);
 

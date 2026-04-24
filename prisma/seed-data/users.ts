@@ -16,6 +16,12 @@ type UserSeedRow = {
   emailVerified: boolean;
 };
 
+/**
+ * Generate a bcrypt hash for a seed password.
+ *
+ * @param password - The plaintext password to hash
+ * @returns The bcrypt hash of `password` using `BCRYPT_ROUNDS`
+ */
 function hashSeedPassword(password: string) {
   return hash(password, BCRYPT_ROUNDS);
 }

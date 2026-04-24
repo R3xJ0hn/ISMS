@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   description: "Sign in page for MyDCSAePortal.",
 };
 
+/**
+ * Render the login page UI and redirect authenticated users to the portal.
+ *
+ * @returns The login page React element; if a current session exists the function redirects to "/portal" and does not render the page UI.
+ */
 export default async function LoginPage() {
   const session = await getCurrentSession();
 

@@ -132,6 +132,13 @@ async function runSeedData(ctx: SeedContext, modules: SeedModule[]) {
   }
 }
 
+/**
+ * Execute configured seed modules to reset and populate sample data.
+ *
+ * Creates a SeedContext, loads seed modules from the project, runs reversible
+ * teardown hooks (if present) in reverse order, then runs seed hooks to insert
+ * sample records and logs completion.
+ */
 async function seed() {
   const ctx = createSeedContext();
   const modules = await loadSeedModules();
@@ -142,6 +149,15 @@ async function seed() {
   console.info("Seeded sample records.");
 }
 
+/**
+ * Log a seeding error and emit targeted guidance when the database is missing required Prisma tables.
+ *
+ * If the error is a `Prisma.PrismaClientKnownRequestError` with code `P2021`, logs a concise message
+ * explaining that the database schema is out of sync and suggests running `npx prisma db push` or
+ * applying the missing migration. For all other errors, logs the error object.
+ *
+ * @param error - The caught error to inspect and log
+ */
 function logSeedError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2021") {
@@ -159,6 +175,12 @@ function logSeedError(error: unknown) {
   console.error(error);
 }
 
+/**
+ * Execute the seed process, ensure errors are reported, and always disconnect the Prisma client.
+ *
+ * If an error occurs while running the seeds, it is reported via `logSeedError` and `process.exitCode`
+ * is set to `1`. The Prisma client is disconnected in all cases.
+ */
 async function main() {
   try {
     await seed();

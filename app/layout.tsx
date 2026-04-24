@@ -20,6 +20,12 @@ export const metadata: Metadata = {
   description: "Student Information Management System",
 };
 
+/**
+ * Root layout that applies global fonts, base styles, and includes Vercel Analytics.
+ *
+ * @param children - The page content to render inside the layout's <body>.
+ * @returns The root HTML structure containing the configured font classes, styled <body> wrapping `children`, and the Analytics component.
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

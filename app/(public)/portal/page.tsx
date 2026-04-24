@@ -11,6 +11,14 @@ export const metadata: Metadata = {
   description: "Protected portal home for authenticated users.",
 };
 
+/**
+ * Render the portal UI for authenticated users and redirect to /login when no session is present.
+ *
+ * Displays the signed-in account information (email, formatted role, user ID, email verification status)
+ * and provides a sign-out form.
+ *
+ * @returns The portal page React element for authenticated users. If no session exists, the handler triggers a redirect to "/login".
+ */
 export default async function PortalPage() {
   const session = await getCurrentSession();
 
