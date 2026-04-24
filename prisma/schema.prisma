@@ -69,6 +69,7 @@ model User {
   passwordHash  String          @map("password_hash") @db.Text
   role          UserRole
   emailVerified Boolean         @default(false) @map("email_verified")
+  userImage     String?         @map("user_image") @db.Text
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -37,10 +37,29 @@ type UserSeedRow = {
   password: string;
   role: (typeof UserRole)[keyof typeof UserRole];
   emailVerified: boolean;
+  userImage: string;
 };
 
 function hashSeedPassword(password: string) {
   return hash(password, BCRYPT_ROUNDS);
+}
+
+function createSeedUserImage(label: string, backgroundColor: string) {
+  const initials = label
+    .split(/\s+/)
+    .map((part) => part[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="${label}">
+      <rect width="128" height="128" rx="24" fill="${backgroundColor}" />
+      <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="44" font-weight="700">${initials}</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 export const seedUsers = [
@@ -50,6 +69,7 @@ export const seedUsers = [
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.superAdmin,
     emailVerified: true,
+    userImage: createSeedUserImage("Super Admin", "#0f766e"),
   },
   {
     key: "admin",
@@ -57,6 +77,7 @@ export const seedUsers = [
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.admin,
     emailVerified: true,
+    userImage: createSeedUserImage("Admin", "#1d4ed8"),
   },
   {
     key: "registrar",
@@ -64,6 +85,7 @@ export const seedUsers = [
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.registrar,
     emailVerified: true,
+    userImage: createSeedUserImage("Registrar", "#7c3aed"),
   },
   {
     key: "teacher",
@@ -71,6 +93,7 @@ export const seedUsers = [
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.teacher,
     emailVerified: true,
+    userImage: createSeedUserImage("Teacher", "#ea580c"),
   },
   {
     key: "student",
@@ -78,6 +101,7 @@ export const seedUsers = [
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.student,
     emailVerified: false,
+    userImage: createSeedUserImage("Student", "#be123c"),
   },
 ] as const satisfies readonly UserSeedRow[];
 
