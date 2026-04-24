@@ -1,5 +1,8 @@
 "use server";
 
+import { createHash } from "node:crypto";
+import { isIP } from "node:net";
+
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -9,12 +12,21 @@ import {
   createSession,
   normalizeEmail,
 } from "@/lib/auth";
+import { Prisma } from "@/lib/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
 
 const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX_EMAIL_ATTEMPTS = 5;
 const LOGIN_RATE_LIMIT_MAX_IP_ATTEMPTS = 20;
 const INVALID_CREDENTIALS_MESSAGE = "Invalid email or password.";
-const loginAttemptStore = new Map<string, number[]>();
+
+type RateLimitScope = "email" | "ip";
+
+type RateLimitTarget = {
+  scope: RateLimitScope;
+  identifierHash: string;
+  limit: number;
+};
 
 export type LoginFormState = {
   status: "idle" | "error";
@@ -37,63 +49,137 @@ function getRateLimitKey(scope: "email" | "ip", value: string) {
   return `${scope}:${value}`;
 }
 
-function getFreshAttempts(key: string, now: number) {
-  const attempts =
-    loginAttemptStore.get(key)?.filter(
-      (timestamp) => now - timestamp < LOGIN_RATE_LIMIT_WINDOW_MS
-    ) ?? [];
+function hashRateLimitIdentifier(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
 
-  if (attempts.length === 0) {
-    loginAttemptStore.delete(key);
-  } else {
-    loginAttemptStore.set(key, attempts);
+function createRateLimitTarget(scope: RateLimitScope, value: string, limit: number): RateLimitTarget {
+  return {
+    scope,
+    identifierHash: hashRateLimitIdentifier(getRateLimitKey(scope, value)),
+    limit,
+  };
+}
+
+function getRateLimitTargetId(target: { scope: string; identifierHash: string }) {
+  return `${target.scope}:${target.identifierHash}`;
+}
+
+function getRateLimitWindowExpiration() {
+  return new Date(Date.now() + LOGIN_RATE_LIMIT_WINDOW_MS);
+}
+
+function normalizeIpCandidate(value: string | null) {
+  const candidate = value?.trim();
+
+  if (!candidate || isIP(candidate) === 0) {
+    return null;
   }
 
-  return attempts;
+  return candidate;
 }
 
 function extractClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
-  const forwardedFor = headerStore.get("x-forwarded-for");
+  const forwardedForEntries =
+    headerStore
+      .get("x-forwarded-for")
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean) ?? [];
 
-  if (forwardedFor) {
-    const [firstIp] = forwardedFor.split(",");
+  // If you only trust specific proxy hops in production, prefer an env-configured
+  // trusted-proxy count here instead of blindly trusting every x-forwarded-for entry.
+  const forwardedIp = [...forwardedForEntries]
+    .reverse()
+    .find((value) => isIP(value) !== 0);
 
-    if (firstIp) {
-      return firstIp.trim();
-    }
+  if (forwardedIp) {
+    return forwardedIp;
   }
 
-  return headerStore.get("x-real-ip") ?? "unknown";
+  return normalizeIpCandidate(headerStore.get("x-real-ip")) ?? "unknown";
 }
 
-async function consumeLoginRateLimit(email: string) {
+async function getRateLimitTargets(email: string) {
   const headerStore = await headers();
   const ipAddress = extractClientIp(headerStore);
-  const now = Date.now();
-  const reservations = [
-    {
-      key: getRateLimitKey("email", email),
-      limit: LOGIN_RATE_LIMIT_MAX_EMAIL_ATTEMPTS,
+
+  return [
+    createRateLimitTarget("email", email, LOGIN_RATE_LIMIT_MAX_EMAIL_ATTEMPTS),
+    createRateLimitTarget("ip", ipAddress, LOGIN_RATE_LIMIT_MAX_IP_ATTEMPTS),
+  ];
+}
+
+async function checkLoginRateLimit(email: string) {
+  const targets = await getRateLimitTargets(email);
+  const now = new Date();
+  const buckets = await prisma.loginRateLimitBucket.findMany({
+    where: {
+      OR: targets.map((target) => ({
+        scope: target.scope,
+        identifierHash: target.identifierHash,
+      })),
     },
-    {
-      key: getRateLimitKey("ip", ipAddress),
-      limit: LOGIN_RATE_LIMIT_MAX_IP_ATTEMPTS,
+    select: {
+      scope: true,
+      identifierHash: true,
+      attempts: true,
+      expiresAt: true,
     },
-  ].map(({ key, limit }) => ({
-    key,
-    limit,
-    attempts: getFreshAttempts(key, now),
-  }));
+  });
 
-  if (reservations.some(({ attempts, limit }) => attempts.length >= limit)) {
-    return false;
-  }
+  const bucketLookup = new Map(
+    buckets.map((bucket) => [getRateLimitTargetId(bucket), bucket])
+  );
 
-  for (const { key, attempts } of reservations) {
-    loginAttemptStore.set(key, [...attempts, now]);
-  }
+  return targets.every((target) => {
+    const bucket = bucketLookup.get(getRateLimitTargetId(target));
 
-  return true;
+    if (!bucket || bucket.expiresAt <= now) {
+      return true;
+    }
+
+    return bucket.attempts < target.limit;
+  });
+}
+
+async function recordFailedLoginAttempt(email: string) {
+  const targets = await getRateLimitTargets(email);
+  const expiresAt = getRateLimitWindowExpiration();
+
+  await Promise.all(
+    targets.map((target) =>
+      prisma.$executeRaw(Prisma.sql`
+        INSERT INTO "login_rate_limit_buckets" (
+          "scope",
+          "identifier_hash",
+          "attempts",
+          "expires_at",
+          "created_at",
+          "updated_at"
+        )
+        VALUES (
+          ${target.scope},
+          ${target.identifierHash},
+          1,
+          ${expiresAt},
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT ("scope", "identifier_hash") DO UPDATE
+        SET
+          "attempts" = CASE
+            WHEN "login_rate_limit_buckets"."expires_at" <= NOW() THEN 1
+            ELSE "login_rate_limit_buckets"."attempts" + 1
+          END,
+          "expires_at" = CASE
+            WHEN "login_rate_limit_buckets"."expires_at" <= NOW() THEN ${expiresAt}
+            ELSE "login_rate_limit_buckets"."expires_at"
+          END,
+          "updated_at" = NOW()
+      `)
+    )
+  );
 }
 
 export async function loginAction(
@@ -114,7 +200,9 @@ export async function loginAction(
     };
   }
 
-  if (!(await consumeLoginRateLimit(normalizeEmail(email)))) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!(await checkLoginRateLimit(normalizedEmail))) {
     return {
       status: "error",
       message: INVALID_CREDENTIALS_MESSAGE,
@@ -125,6 +213,8 @@ export async function loginAction(
   const result = await authenticateUser(email, password);
 
   if (!result.success) {
+    await recordFailedLoginAttempt(normalizedEmail);
+
     return {
       status: "error",
       message: INVALID_CREDENTIALS_MESSAGE,

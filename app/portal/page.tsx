@@ -17,6 +17,8 @@ import { getCurrentSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import type { CSSProperties } from "react"
 
+// The public site keeps the branded global tokens from app/globals.css.
+// The portal intentionally opts into a scoped neutral shadcn palette instead.
 const portalTheme = {
   "--background": "oklch(1 0 0)",
   "--foreground": "oklch(0.145 0 0)",

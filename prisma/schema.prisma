@@ -76,6 +76,20 @@ model User {
   @@map("users")
 }
 
+model LoginRateLimitBucket {
+  id             BigInt   @id @default(autoincrement())
+  scope          String   @db.Text
+  identifierHash String   @map("identifier_hash") @db.Char(64)
+  attempts       Int      @default(0)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([scope, identifierHash])
+  @@index([expiresAt])
+  @@map("login_rate_limit_buckets")
+}
+
 model Address {
   id          BigInt  @id @default(autoincrement())
   houseNumber String? @map("house_number") @db.Text

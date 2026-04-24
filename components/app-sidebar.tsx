@@ -1,45 +1,27 @@
 import type { ComponentProps } from "react";
-import {
-  ClipboardList,
-  GraduationCap,
-  LogOut,
-  PanelsTopLeft,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import { logoutAction } from "@/app/login/actions";
+import { AppSidebarNav } from "@/components/app-sidebar-nav";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { formatRoleLabel } from "@/lib/auth";
-import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
+import type { UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 type AppSidebarProps = ComponentProps<typeof Sidebar> & {
   session: {
+    id: string;
     email: string;
     role: UserRoleValue;
   };
-};
-
-type SidebarItem = {
-  title: string;
-  href: string;
-  icon: LucideIcon;
-  isActive?: boolean;
 };
 
 function toTitleCase(value: string) {
@@ -82,57 +64,21 @@ function getInitials(name: string) {
   return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
 }
 
-function getSidebarItems(role: UserRoleValue): SidebarItem[] {
-  if (role === UserRole.student) {
-    return [
-      {
-        title: "Grades",
-        href: "/portal",
-        icon: GraduationCap,
-        isActive: true,
-      },
-    ];
-  }
-
-  if (role === UserRole.superAdmin) {
-    return [
-      {
-        title: "Admission",
-        href: "#",
-        icon: ClipboardList,
-      },
-      {
-        title: "Students Enrolled",
-        href: "#",
-        icon: Users,
-        isActive: true,
-      },
-    ];
-  }
-
-  return [
-    {
-      title: "Portal",
-      href: "/portal",
-      icon: PanelsTopLeft,
-      isActive: true,
-    },
-  ];
-}
-
 export async function AppSidebar({ session, ...props }: AppSidebarProps) {
-  const user = await prisma.user.findUnique({
-    where: {
-      email: session.email,
-    },
-    select: {
-      userImage: true,
-    },
-  });
+  const userId = /^\d+$/.test(session.id) ? BigInt(session.id) : null;
+  const user = userId
+    ? await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+        select: {
+          userImage: true,
+        },
+      })
+    : null;
 
   const displayName = getDisplayName(session.email, session.role);
   const initials = getInitials(displayName);
-  const navigationItems = getSidebarItems(session.role);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -156,23 +102,7 @@ export async function AppSidebar({ session, ...props }: AppSidebarProps) {
         <SidebarSeparator />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigationItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
-                    <a href={item.href}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <AppSidebarNav role={session.role} />
       </SidebarContent>
       <SidebarFooter>
         <div className="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 p-3">
