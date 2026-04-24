@@ -24,6 +24,7 @@ export default function LoginForm() {
           <input
             type="email"
             name="email"
+            required
             autoComplete="username"
             defaultValue={state.email}
             placeholder="Enter your email"
@@ -39,6 +40,7 @@ export default function LoginForm() {
           <input
             type="password"
             name="password"
+            required
             autoComplete="current-password"
             placeholder="Enter your password"
             className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
@@ -72,6 +74,7 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={pending}
+        aria-busy={pending}
         className="w-full rounded-2xl bg-secondary px-5 py-3.5 text-sm font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-secondary/20 transition hover:-translate-y-0.5 hover:bg-primary disabled:cursor-not-allowed disabled:opacity-70"
       >
         {pending ? "Signing in..." : "Sign in"}

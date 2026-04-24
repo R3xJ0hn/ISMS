@@ -1,10 +1,33 @@
+import { randomBytes } from "node:crypto";
+
 import { hash } from "bcryptjs";
 
 import { defineSeed } from "../_factory";
 import { UserRole } from "../../lib/generated/prisma/enums";
 
-const DEFAULT_SEED_PASSWORD =
-  process.env.SEED_USER_PASSWORD ?? "ChangeMe123!";
+function getDefaultSeedPassword() {
+  const configuredPassword = process.env.SEED_USER_PASSWORD;
+
+  if (configuredPassword) {
+    return configuredPassword;
+  }
+
+  if (process.env.NODE_ENV !== "development") {
+    throw new Error(
+      "SEED_USER_PASSWORD must be set when NODE_ENV is not development."
+    );
+  }
+
+  const generatedPassword = randomBytes(24).toString("base64url");
+
+  console.info(
+    `SEED_USER_PASSWORD is not set. Generated development seed password: ${generatedPassword}`
+  );
+
+  return generatedPassword;
+}
+
+const DEFAULT_SEED_PASSWORD = getDefaultSeedPassword();
 
 const BCRYPT_ROUNDS = 12;
 

@@ -1,4 +1,4 @@
-import { scryptSync, timingSafeEqual } from "node:crypto";
+import { scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 
 import { compare, hash } from "bcryptjs";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
@@ -11,11 +11,16 @@ const SESSION_COOKIE_NAME = "isms_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const REMEMBER_ME_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const PASSWORD_HASH_ROUNDS = 12;
+const JWT_SECRET_MIN_BYTES = 32;
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$w0LkwL5Dj1mh2EDkETZjS.uYL2Z1vq5Wm1QX/YTDtzG3wNAvWo6N6";
+const STRICT_INTEGER_PATTERN = /^\d+$/;
 
 const LEGACY_SCRYPT_KEY_LENGTH = 64;
 const LEGACY_SCRYPT_COST = 16384;
 const LEGACY_SCRYPT_BLOCK_SIZE = 8;
 const LEGACY_SCRYPT_PARALLELIZATION = 1;
+const textEncoder = new TextEncoder();
 
 type SessionUser = {
   id: string;
@@ -37,18 +42,63 @@ function getJwtSecret() {
     throw new Error("JWT_SECRET is not set.");
   }
 
-  return new TextEncoder().encode(secret);
+  const encodedSecret = textEncoder.encode(secret);
+
+  if (encodedSecret.length < JWT_SECRET_MIN_BYTES) {
+    throw new Error("JWT_SECRET is too short. It must be at least 32 bytes.");
+  }
+
+  return encodedSecret;
 }
 
-function normalizeEmail(email: string) {
+const JWT_SECRET = getJwtSecret();
+
+export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function scrypt(
+  password: string,
+  salt: Buffer,
+  keyLength: number,
+  options: {
+    N: number;
+    r: number;
+    p: number;
+    maxmem: number;
+  }
+) {
+  return new Promise<Buffer>((resolve, reject) => {
+    scryptCallback(password, salt, keyLength, options, (error, derivedKey) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(Buffer.from(derivedKey));
+    });
+  });
 }
 
 function isBcryptHash(value: string) {
   return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
 }
 
-function verifyLegacyScryptHash(password: string, storedHash: string) {
+function parseStrictInteger(value: string) {
+  if (!STRICT_INTEGER_PATTERN.test(value)) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function verifyLegacyScryptHash(password: string, storedHash: string) {
   const [algorithm, costText, blockSizeText, parallelizationText, saltHex, derivedKeyHex] =
     storedHash.split("$");
 
@@ -63,11 +113,14 @@ function verifyLegacyScryptHash(password: string, storedHash: string) {
     return false;
   }
 
-  const cost = Number.parseInt(costText, 10);
-  const blockSize = Number.parseInt(blockSizeText, 10);
-  const parallelization = Number.parseInt(parallelizationText, 10);
+  const cost = parseStrictInteger(costText);
+  const blockSize = parseStrictInteger(blockSizeText);
+  const parallelization = parseStrictInteger(parallelizationText);
 
   if (
+    cost === null ||
+    blockSize === null ||
+    parallelization === null ||
     !Number.isFinite(cost) ||
     !Number.isFinite(blockSize) ||
     !Number.isFinite(parallelization)
@@ -76,12 +129,17 @@ function verifyLegacyScryptHash(password: string, storedHash: string) {
   }
 
   const expectedKey = Buffer.from(derivedKeyHex, "hex");
-  const actualKey = scryptSync(password, Buffer.from(saltHex, "hex"), expectedKey.length, {
-    N: cost,
-    r: blockSize,
-    p: parallelization,
-    maxmem: 32 * 1024 * 1024,
-  });
+  const actualKey = await scrypt(
+    password,
+    Buffer.from(saltHex, "hex"),
+    expectedKey.length,
+    {
+      N: cost,
+      r: blockSize,
+      p: parallelization,
+      maxmem: 32 * 1024 * 1024,
+    }
+  );
 
   return timingSafeEqual(actualKey, expectedKey);
 }
@@ -114,16 +172,12 @@ export async function authenticateUser(email: string, password: string) {
     },
   });
 
-  if (!user) {
-    return {
-      success: false as const,
-      message: "Invalid email or password.",
-    };
-  }
+  const passwordMatches = await verifyPassword(
+    password,
+    user?.passwordHash ?? DUMMY_PASSWORD_HASH
+  );
 
-  const passwordMatches = await verifyPassword(password, user.passwordHash);
-
-  if (!passwordMatches) {
+  if (!user || !passwordMatches) {
     return {
       success: false as const,
       message: "Invalid email or password.",
@@ -171,7 +225,7 @@ export async function createSession(
     .setSubject(user.id)
     .setIssuedAt()
     .setExpirationTime(`${maxAge}s`)
-    .sign(getJwtSecret());
+    .sign(JWT_SECRET);
 
   const cookieStore = await cookies();
 
@@ -192,7 +246,7 @@ export async function clearSession() {
 
 async function verifySessionToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify<SessionTokenPayload>(token, getJwtSecret(), {
+    const { payload } = await jwtVerify<SessionTokenPayload>(token, JWT_SECRET, {
       algorithms: ["HS256"],
     });
 

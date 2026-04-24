@@ -31,8 +31,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased w-screen bg-gray-50 overflow-x-hidden`}
       >
         {children}
+        <Analytics />
       </body>
-      <Analytics/> 
     </html>
   );
 }

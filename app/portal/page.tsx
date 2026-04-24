@@ -21,7 +21,7 @@ export default async function PortalPage() {
   return (
     <main className="min-h-screen bg-[#f7f3e8] px-5 py-10 text-[#17133c] sm:px-8 lg:px-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <section className="overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-xl shadow-primary/10">
+        <section className="overflow-hidden rounded-4xl border border-white/80 bg-white shadow-xl shadow-primary/10">
           <div className="border-b border-[#ece5d7] bg-linear-to-r from-primary via-primary/90 to-secondary px-6 py-8 text-white sm:px-8">
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/70">
               JWT authenticated
