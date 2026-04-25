@@ -48,7 +48,7 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
     return [
       {
         title: "Grades",
-        href: "/portal",
+        href: "/portal/grades",
         icon: GraduationCap,
       },
     ];
