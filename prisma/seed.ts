@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../lib/generated/prisma/client";
+import { Prisma, PrismaClient } from "../lib/generated/prisma/client";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -142,11 +142,28 @@ async function seed() {
   console.info("Seeded sample records.");
 }
 
+function logSeedError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2021") {
+      console.error(
+        [
+          "Seed failed because the database schema is not in sync with prisma/schema.prisma.",
+          "Prisma could not find a required table in the current database.",
+          'Run "npx prisma db push" or apply the missing migration first, then rerun the seed.',
+        ].join("\n")
+      );
+      return;
+    }
+  }
+
+  console.error(error);
+}
+
 async function main() {
   try {
     await seed();
   } catch (error) {
-    console.error(error);
+    logSeedError(error);
     process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
@@ -154,6 +171,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  logSeedError(error);
   process.exit(1);
 });

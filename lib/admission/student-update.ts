@@ -15,7 +15,7 @@ const STUDENT_UPDATE_LINK_TTL_MS = 1000 * 60 * 60;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
 
-type StudentUpdateTokenPayload = {
+export type StudentUpdateTokenPayload = {
   scope: "student-update";
   studentId: string;
   exp: number;
@@ -265,7 +265,7 @@ function signStudentUpdateToken(encodedPayload: string) {
     .digest("base64url");
 }
 
-function verifyStudentUpdateToken(token: string) {
+export function verifyStudentUpdateToken(token: string) {
   const [encodedPayload, signature] = token.split(".");
 
   if (!encodedPayload || !signature) {
