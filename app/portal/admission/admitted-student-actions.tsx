@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Eye, Pencil, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   AdmissionReviewDetails,
@@ -64,11 +64,64 @@ export function AdmittedStudentActions({
   student: PortalAdmittedStudentRecord;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
+  const viewButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!viewOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const triggerElement = viewButtonRef.current;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setViewOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      triggerElement?.focus();
+    };
+  }, [viewOpen]);
 
   return (
     <>
       <div className="flex items-center gap-2">
         <Button
+          ref={viewButtonRef}
           type="button"
           variant="outline"
           size="icon-sm"
@@ -85,11 +138,28 @@ export function AdmittedStudentActions({
       </div>
 
       {viewOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg border border-border bg-background shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setViewOpen(false);
+            }
+          }}
+        >
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="view-student-dialog-title"
+            tabIndex={-1}
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg border border-border bg-background shadow-xl outline-none"
+          >
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h2 className="text-base font-semibold text-foreground">
+                <h2
+                  id="view-student-dialog-title"
+                  className="text-base font-semibold text-foreground"
+                >
                   View Student
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">

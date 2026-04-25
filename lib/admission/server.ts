@@ -15,6 +15,11 @@ import {
 } from "@/lib/admission/submission-store";
 import { sendStudentUpdateLinkEmail } from "@/lib/admission/resend";
 import { createStudentUpdateUrl } from "@/lib/admission/student-update";
+import {
+  validateEmail,
+  validatePhone,
+  validateSchoolYear,
+} from "@/lib/admission/validation";
 import { prisma } from "@/lib/prisma";
 import { normalizeName, normalizeText } from "@/lib/utils";
 
@@ -310,10 +315,6 @@ const fieldLabels: Record<string, string> = {
   current_student_record_id: "Verified student record",
 };
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
-const schoolYearPattern = /^(\d{4})(?:\s*-\s*(\d{4}))?$/;
-
 function formatAddress(address: BranchAddress | null) {
   if (!address) {
     return "";
@@ -377,40 +378,6 @@ function parseDateRange(value: string) {
   return { start, end };
 }
 
-function isValidEmail(value: string) {
-  return emailPattern.test(value);
-}
-
-function isValidPhone(value: string) {
-  if (!phonePattern.test(value)) {
-    return false;
-  }
-
-  const digits = value.replace(/\D/g, "");
-  return digits.length >= 7 && digits.length <= 15;
-}
-
-function isValidSchoolYear(value: string) {
-  const match = schoolYearPattern.exec(value);
-
-  if (!match) {
-    return false;
-  }
-
-  const startYear = Number.parseInt(match[1], 10);
-  const endYear = match[2] ? Number.parseInt(match[2], 10) : null;
-
-  if (Number.isNaN(startYear) || startYear < 1900 || startYear > 2100) {
-    return false;
-  }
-
-  if (endYear === null) {
-    return true;
-  }
-
-  return endYear === startYear + 1;
-}
-
 function enumIncludes<T extends Record<string, string>>(
   values: T,
   value: string
@@ -429,15 +396,15 @@ function firstInvalidField(
   }> = [
     {
       field: "contact_email",
-      validate: isValidEmail,
+      validate: validateEmail,
     },
     {
       field: "contact_phone",
-      validate: isValidPhone,
+      validate: validatePhone,
     },
     {
       field: "guardian_contact_number",
-      validate: isValidPhone,
+      validate: validatePhone,
     },
     {
       field: "student_birth_date",
@@ -457,7 +424,7 @@ function firstInvalidField(
     },
     {
       field: "last_school_year",
-      validate: isValidSchoolYear,
+      validate: validateSchoolYear,
     },
     {
       field: "last_school_graduation_date",
@@ -466,7 +433,7 @@ function firstInvalidField(
     },
     {
       field: "current_student_email",
-      validate: isValidEmail,
+      validate: validateEmail,
       when: applicantType === EXISTING_STUDENT,
     },
     {

@@ -45,6 +45,7 @@ export function AddAdmittedStudentModal({
     addAdmittedStudentAction,
     initialState
   );
+  const [showActionMessage, setShowActionMessage] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -53,11 +54,28 @@ export function AddAdmittedStudentModal({
     }
 
     formRef.current?.reset();
+    const closeTimer = window.setTimeout(() => {
+      setOpen(false);
+      setShowActionMessage(false);
+    }, 0);
+
+    return () => window.clearTimeout(closeTimer);
   }, [state.success]);
+
+  function openModal() {
+    formRef.current?.reset();
+    setShowActionMessage(false);
+    setOpen(true);
+  }
+
+  function closeModal() {
+    setOpen(false);
+    setShowActionMessage(false);
+  }
 
   return (
     <>
-      <Button type="button" onClick={() => setOpen(true)}>
+      <Button type="button" onClick={openModal}>
         <Plus />
         Add Student
       </Button>
@@ -78,7 +96,7 @@ export function AddAdmittedStudentModal({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => setOpen(false)}
+                onClick={closeModal}
                 aria-label="Close"
               >
                 <X />
@@ -88,6 +106,7 @@ export function AddAdmittedStudentModal({
             <form
               ref={formRef}
               action={formAction}
+              onSubmit={() => setShowActionMessage(true)}
               className="space-y-4 overflow-y-auto p-5"
             >
               <div className="grid gap-4 md:grid-cols-2">
@@ -190,9 +209,23 @@ export function AddAdmittedStudentModal({
                   </select>
                 </label>
 
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Birthplace
+                  </span>
+                  <Input name="birthplace" required />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Phone
+                  </span>
+                  <Input name="phone" required />
+                </label>
+
               </div>
 
-              {state.message ? (
+              {showActionMessage && state.message ? (
                 <p
                   className={
                     state.success
@@ -208,7 +241,7 @@ export function AddAdmittedStudentModal({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setOpen(false)}
+                  onClick={closeModal}
                 >
                   Cancel
                 </Button>

@@ -31,7 +31,7 @@ export const seedPrograms = [
     label: "Bachelor of Science in Hospitality Management",
     programType: ProgramType.Bachelor,
   },
-    {
+  {
     key: "bstm",
     programTypeId: 1n,
     code: "BSTM",
@@ -45,7 +45,7 @@ export const seedPrograms = [
     label: "Information and Communications Technology",
     programType: ProgramType.SeniorHigh,
   },
-    {
+  {
     key: "shs-he",
     programTypeId: 2n,
     code: "SHS-HE",
@@ -75,6 +75,8 @@ export const seedPrograms = [
   },
 ] as const satisfies readonly ProgramSeedRow[];
 
+const legacyProgramCodes = ["BSBA", "SHS-STEM"] as const;
+
 export default defineSeed({
   table: "program",
   order: 40,
@@ -85,7 +87,7 @@ export default defineSeed({
     prisma.program.create({ data }),
   deleteWhere: (rows) => ({
     code: {
-      in: rows.map((row) => row.code),
+      in: [...rows.map((row) => row.code), ...legacyProgramCodes],
     },
   }),
 });

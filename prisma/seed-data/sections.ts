@@ -43,11 +43,11 @@ const seedSectionOfferings = [
     sectionSuffix: "A",
   },
   {
-    keyPrefix: "fair-bsba",
-    codePrefix: "FAIR-BSBA",
-    namePrefix: "BSBA",
+    keyPrefix: "fair-bsoa",
+    codePrefix: "FAIR-BSOA",
+    namePrefix: "BSOA",
     branchKey: "fairview",
-    programKey: "bsba",
+    programKey: "bsoa",
     sectionSuffix: "A",
   },
   {
@@ -59,11 +59,11 @@ const seedSectionOfferings = [
     sectionSuffix: "A",
   },
   {
-    keyPrefix: "val-stem",
-    codePrefix: "VAL-STEM",
-    namePrefix: "STEM",
+    keyPrefix: "val-gas",
+    codePrefix: "VAL-GAS",
+    namePrefix: "GAS",
     branchKey: "valenzuela",
-    programKey: "shs-stem",
+    programKey: "shs-gas",
     sectionSuffix: "A",
   },
   {

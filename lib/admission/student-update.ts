@@ -163,6 +163,7 @@ type StudentUpdateQueryResult = {
     LSSchoolYearEnd: string | null;
     LSAttainedLevelText: string | null;
     LSGraduationDate: Date | null;
+    applicationStatus: (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
     submittedAt: Date | null;
     lastSchool: {
       schoolName: string;
@@ -587,6 +588,7 @@ export async function getStudentUpdateRecord(token: string) {
           LSSchoolYearEnd: true,
           LSAttainedLevelText: true,
           LSGraduationDate: true,
+          applicationStatus: true,
           submittedAt: true,
           lastSchool: {
             select: {
@@ -715,6 +717,7 @@ export async function updateStudentRecordFromToken(
               academicLevelsId: true,
               programType: true,
               lastSchoolId: true,
+              applicationStatus: true,
               submittedAt: true,
               lastSchool: {
                 select: {
@@ -758,12 +761,25 @@ export async function updateStudentRecordFromToken(
       let addressId = student.addressId;
 
       if (addressId) {
-        await tx.address.update({
+        const addressStudentCount = await tx.student.count({
           where: {
-            id: addressId,
+            addressId,
           },
-          data: addressData,
         });
+
+        if (addressStudentCount > 1) {
+          const address = await tx.address.create({
+            data: addressData,
+          });
+          addressId = address.id;
+        } else {
+          await tx.address.update({
+            where: {
+              id: addressId,
+            },
+            data: addressData,
+          });
+        }
       } else {
         const address = await tx.address.create({
           data: addressData,
@@ -774,25 +790,43 @@ export async function updateStudentRecordFromToken(
       const primaryGuardianLink = student.guardians[0];
 
       if (primaryGuardianLink) {
-        await tx.guardian.update({
+        const guardianData = {
+          firstName: normalizedInput.guardianFirstName,
+          lastName: normalizedInput.guardianLastName,
+          middleName: optionalText(normalizedInput.guardianMiddleName),
+          suffix: optionalText(normalizedInput.guardianSuffix),
+          contactNumber: normalizedInput.guardianContactNumber,
+          occupation: optionalText(normalizedInput.guardianOccupation),
+        };
+        const guardianLinkCount = await tx.studentGuardian.count({
           where: {
-            id: primaryGuardianLink.guardianId,
-          },
-          data: {
-            firstName: normalizedInput.guardianFirstName,
-            lastName: normalizedInput.guardianLastName,
-            middleName: optionalText(normalizedInput.guardianMiddleName),
-            suffix: optionalText(normalizedInput.guardianSuffix),
-            contactNumber: normalizedInput.guardianContactNumber,
-            occupation: optionalText(normalizedInput.guardianOccupation),
+            guardianId: primaryGuardianLink.guardianId,
           },
         });
+
+        const guardian =
+          guardianLinkCount > 1
+            ? await tx.guardian.create({
+                data: {
+                  ...guardianData,
+                  email: null,
+                  addressId: null,
+                  facebookAccount: null,
+                },
+              })
+            : await tx.guardian.update({
+                where: {
+                  id: primaryGuardianLink.guardianId,
+                },
+                data: guardianData,
+              });
 
         await tx.studentGuardian.update({
           where: {
             id: primaryGuardianLink.id,
           },
           data: {
+            guardianId: guardian.id,
             relationship: normalizedInput.guardianRelationship,
             isPrimary: true,
           },
@@ -887,6 +921,8 @@ export async function updateStudentRecordFromToken(
       }
 
       if (latestApplication) {
+        const shouldMarkReviewing =
+          latestApplication.applicationStatus === ApplicationStatus.draft;
         await tx.admissionApplication.update({
           where: {
             id: latestApplication.id,
@@ -895,8 +931,12 @@ export async function updateStudentRecordFromToken(
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
-            applicationStatus: ApplicationStatus.reviewing,
-            submittedAt: latestApplication.submittedAt ?? new Date(),
+            ...(shouldMarkReviewing
+              ? {
+                  applicationStatus: ApplicationStatus.reviewing,
+                  submittedAt: latestApplication.submittedAt ?? new Date(),
+                }
+              : {}),
             LSGraduationDate: normalizedInput.lastSchoolGraduationDate
               ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
               : null,

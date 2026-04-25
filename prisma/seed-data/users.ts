@@ -28,6 +28,8 @@ function getDefaultSeedPassword() {
 }
 
 const DEFAULT_SEED_PASSWORD = getDefaultSeedPassword();
+const SUPER_ADMIN_SEED_EMAIL =
+  process.env.SUPER_ADMIN_SEED_EMAIL ?? "superadmin@dcsa.example";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -65,7 +67,7 @@ function createSeedUserImage(label: string, backgroundColor: string) {
 export const seedUsers = [
   {
     key: "super-admin",
-    email: "pogirawsirex@gmail.com",
+    email: SUPER_ADMIN_SEED_EMAIL,
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.superAdmin,
     emailVerified: true,

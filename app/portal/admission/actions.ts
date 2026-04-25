@@ -13,6 +13,7 @@ import {
   SchoolType,
   UserRole,
 } from "@/lib/generated/prisma/enums";
+import { validateEmail, validatePhone, validateSchoolYear } from "@/lib/admission/validation";
 import { prisma } from "@/lib/prisma";
 
 export type AddAdmittedStudentState = {
@@ -21,6 +22,11 @@ export type AddAdmittedStudentState = {
 };
 
 export type EditAdmittedStudentState = AddAdmittedStudentState;
+export type UpdateApplicationStatusState = {
+  success: boolean;
+  message: string;
+  status: string;
+};
 type ApplicationStatusValue =
   (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
 
@@ -29,24 +35,25 @@ const initialState = {
   message: "",
 } satisfies AddAdmittedStudentState;
 
-function getRequiredValue(formData: FormData, key: string) {
-  const value = formData.get(key);
-
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim();
-}
-
 function parseBirthDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
     return null;
   }
 
-  const date = new Date(`${value}T00:00:00.000Z`);
+  const [, yearText, monthText, dayText] = match;
+  const year = Number.parseInt(yearText, 10);
+  const month = Number.parseInt(monthText, 10);
+  const day = Number.parseInt(dayText, 10);
+  const date = new Date(Date.UTC(year, month - 1, day));
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
     return null;
   }
 
@@ -89,16 +96,18 @@ export async function addAdmittedStudentAction(
 
   await requireAdmin();
 
-  const studentNumber = getRequiredValue(formData, "studentNumber");
-  const email = getRequiredValue(formData, "email").toLowerCase();
-  const firstName = getRequiredValue(formData, "firstName");
-  const lastName = getRequiredValue(formData, "lastName");
-  const birthDate = parseBirthDate(getRequiredValue(formData, "birthDate"));
-  const gender = getRequiredValue(formData, "gender");
-  const applicantType = getRequiredValue(formData, "applicantType");
-  const branchId = parseId(getRequiredValue(formData, "branchId"));
-  const programId = parseId(getRequiredValue(formData, "programId"));
-  const academicLevelsId = parseId(getRequiredValue(formData, "academicLevelsId"));
+  const studentNumber = readFormText(formData, "studentNumber");
+  const email = readFormText(formData, "email").toLowerCase();
+  const firstName = readFormText(formData, "firstName");
+  const lastName = readFormText(formData, "lastName");
+  const birthDate = parseBirthDate(readFormText(formData, "birthDate"));
+  const gender = readFormText(formData, "gender");
+  const birthplace = readFormText(formData, "birthplace");
+  const phone = readFormText(formData, "phone");
+  const applicantType = readFormText(formData, "applicantType");
+  const branchId = parseId(readFormText(formData, "branchId"));
+  const programId = parseId(readFormText(formData, "programId"));
+  const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
 
   if (
     !studentNumber ||
@@ -107,6 +116,8 @@ export async function addAdmittedStudentAction(
     !lastName ||
     !birthDate ||
     !gender ||
+    !birthplace ||
+    !phone ||
     !applicantType ||
     !branchId ||
     !programId ||
@@ -120,7 +131,9 @@ export async function addAdmittedStudentAction(
 
   if (
     !Object.values(ApplicantType).includes(applicantType as ApplicantTypeValue) ||
-    !Object.values(Gender).includes(gender as (typeof Gender)[keyof typeof Gender])
+    !Object.values(Gender).includes(gender as (typeof Gender)[keyof typeof Gender]) ||
+    !validateEmail(email) ||
+    !validatePhone(phone)
   ) {
     return {
       success: false,
@@ -203,8 +216,8 @@ export async function addAdmittedStudentAction(
         gender: gender as (typeof Gender)[keyof typeof Gender],
         civilStatus: null,
         citizenship: null,
-        birthplace: "Not specified",
-        phone: "Not provided",
+        birthplace,
+        phone,
       },
       select: {
         id: true,
@@ -234,7 +247,10 @@ export async function addAdmittedStudentAction(
   };
 }
 
-export async function updateApplicationStatusAction(formData: FormData) {
+export async function updateApplicationStatusAction(
+  previousState: UpdateApplicationStatusState,
+  formData: FormData
+): Promise<UpdateApplicationStatusState> {
   await requireAdmin();
 
   const applicationId = parseId(readFormText(formData, "applicationId"));
@@ -244,7 +260,11 @@ export async function updateApplicationStatusAction(formData: FormData) {
     !applicationId ||
     !Object.values(ApplicationStatus).includes(status as ApplicationStatusValue)
   ) {
-    return;
+    return {
+      success: false,
+      message: "Select a valid application status.",
+      status: previousState.status,
+    };
   }
 
   const application = await prisma.admissionApplication.findUnique({
@@ -258,7 +278,11 @@ export async function updateApplicationStatusAction(formData: FormData) {
   });
 
   if (!application || application.applicationStatus === ApplicationStatus.draft) {
-    return;
+    return {
+      success: false,
+      message: "Draft applications cannot be changed from this table.",
+      status: application?.applicationStatus ?? previousState.status,
+    };
   }
 
   await prisma.admissionApplication.update({
@@ -275,6 +299,12 @@ export async function updateApplicationStatusAction(formData: FormData) {
   });
 
   revalidatePath("/portal/admission");
+
+  return {
+    success: true,
+    message: "Application status updated.",
+    status: status as ApplicationStatusValue,
+  };
 }
 
 export async function editAdmittedStudentAction(
@@ -387,6 +417,10 @@ export async function editAdmittedStudentAction(
     !Object.values(SchoolType).includes(
       lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType]
     ) ||
+    !validateEmail(email) ||
+    !validatePhone(phone) ||
+    !validatePhone(guardianContactNumber) ||
+    !validateSchoolYear(lastSchoolYear) ||
     (lastSchoolGraduationDate && !parsedLastSchoolGraduationDate)
   ) {
     return {
@@ -506,38 +540,71 @@ export async function editAdmittedStudentAction(
       province: addressProvince,
       postalCode: optionalText(addressPostalCode),
     };
-    const address = student.addressId
-      ? await transaction.address.update({
+    let addressId: bigint;
+
+    if (student.addressId) {
+      const addressStudentCount = await transaction.student.count({
+        where: {
+          addressId: student.addressId,
+        },
+      });
+
+      if (addressStudentCount > 1) {
+        const address = await transaction.address.create({
+          data: addressData,
+        });
+        addressId = address.id;
+      } else {
+        const address = await transaction.address.update({
           where: {
             id: student.addressId,
           },
           data: addressData,
-        })
-      : await transaction.address.create({
-          data: addressData,
         });
+        addressId = address.id;
+      }
+    } else {
+      const address = await transaction.address.create({
+        data: addressData,
+      });
+      addressId = address.id;
+    }
 
     const primaryGuardianLink = student.guardians[0];
 
     if (primaryGuardianLink) {
-      await transaction.guardian.update({
+      const guardianData = {
+        firstName: guardianFirstName,
+        lastName: guardianLastName,
+        middleName: optionalText(guardianMiddleName),
+        suffix: optionalText(guardianSuffix),
+        contactNumber: guardianContactNumber,
+        occupation: optionalText(guardianOccupation),
+      };
+      const guardianLinkCount = await transaction.studentGuardian.count({
         where: {
-          id: primaryGuardianLink.guardianId,
-        },
-        data: {
-          firstName: guardianFirstName,
-          lastName: guardianLastName,
-          middleName: optionalText(guardianMiddleName),
-          suffix: optionalText(guardianSuffix),
-          contactNumber: guardianContactNumber,
-          occupation: optionalText(guardianOccupation),
+          guardianId: primaryGuardianLink.guardianId,
         },
       });
+
+      const guardian =
+        guardianLinkCount > 1
+          ? await transaction.guardian.create({
+              data: guardianData,
+            })
+          : await transaction.guardian.update({
+              where: {
+                id: primaryGuardianLink.guardianId,
+              },
+              data: guardianData,
+            });
+
       await transaction.studentGuardian.update({
         where: {
           id: primaryGuardianLink.id,
         },
         data: {
+          guardianId: guardian.id,
           relationship: guardianRelationship,
           isPrimary: true,
         },
@@ -638,7 +705,7 @@ export async function editAdmittedStudentAction(
         email,
         phone,
         facebookAccount: optionalText(facebookAccount),
-        addressId: address.id,
+        addressId,
       },
     });
   });
