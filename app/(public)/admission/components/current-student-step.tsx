@@ -12,8 +12,7 @@ export type CurrentStudentFieldName =
   | "current_student_email"
   | "current_student_first_name"
   | "current_student_last_name"
-  | "current_student_birth_date"
-  | "current_last_school_year_attended";
+  | "current_student_birth_date";
 
 export type CurrentStudentVerification = {
   recordId: string;
@@ -157,11 +156,10 @@ const CurrentStudentStep = React.forwardRef<
 
   const requiredComplete = Boolean(
     form.current_student_number &&
-      form.current_student_email &&
+    form.current_student_email &&
       form.current_student_first_name &&
       form.current_student_last_name &&
-      form.current_student_birth_date &&
-      form.current_last_school_year_attended
+      form.current_student_birth_date
   );
   const verified = Boolean(form.current_student_record_id);
   const verifying = status === "verifying";
@@ -172,7 +170,6 @@ const CurrentStudentStep = React.forwardRef<
     form.current_student_first_name,
     form.current_student_last_name,
     form.current_student_birth_date,
-    form.current_last_school_year_attended,
   ].join("\u0000");
 
   const cancelPendingVerification = React.useCallback(() => {
@@ -217,7 +214,6 @@ const CurrentStudentStep = React.forwardRef<
         firstName: form.current_student_first_name,
         lastName: form.current_student_last_name,
         birthDate: form.current_student_birth_date,
-        lastSchoolYearAttended: form.current_last_school_year_attended,
       });
 
       if (verifyRequestIdRef.current !== requestId) {
@@ -239,9 +235,7 @@ const CurrentStudentStep = React.forwardRef<
       onVerified({
         recordId: data.student.id,
         displayName: data.student.displayName,
-        schoolYear:
-          latestEnrollment?.schoolYear ??
-          form.current_last_school_year_attended,
+        schoolYear: latestEnrollment?.schoolYear ?? "",
         program: formatProgramSummary({
           program: latestEnrollment?.program,
           yearLevel: latestEnrollment?.yearLevel,
@@ -387,16 +381,6 @@ const CurrentStudentStep = React.forwardRef<
           value={form.current_student_birth_date}
           onChange={handleChange}
           autoComplete="bday"
-          required
-          disabled={verifying}
-        />
-        <TextField
-          id="current_last_school_year_attended"
-          label="Last school year attended"
-          value={form.current_last_school_year_attended}
-          onChange={handleChange}
-          placeholder="Example: 2025-2026"
-          hint="Use the school year from your latest DCSA enrollment."
           required
           disabled={verifying}
         />

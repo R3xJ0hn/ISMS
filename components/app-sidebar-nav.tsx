@@ -17,13 +17,21 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 
 type SidebarItem = {
   title: string;
-  href: string;
+  href?: string;
   icon: LucideIcon;
+  children?: {
+    title: string;
+    href: string;
+    icon: LucideIcon;
+  }[];
 };
 
 function getSidebarItems(role: UserRoleValue): SidebarItem[] {
@@ -37,17 +45,23 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
     ];
   }
 
-  if (role === UserRole.superAdmin) {
+  if (role === UserRole.admin || role === UserRole.superAdmin) {
     return [
       {
-        title: "Admission",
-        href: "/admission",
-        icon: ClipboardList,
-      },
-      {
-        title: "Students Enrolled",
-        href: "/portal",
+        title: "Student",
         icon: Users,
+        children: [
+          {
+            title: "Admission",
+            href: "/portal/admission",
+            icon: ClipboardList,
+          },
+          {
+            title: "Enrolled",
+            href: "/portal",
+            icon: GraduationCap,
+          },
+        ],
       },
     ];
   }
@@ -76,12 +90,42 @@ export function AppSidebarNav({ role }: { role: UserRoleValue }) {
         <SidebarMenu>
           {navigationItems.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={isItemActive(pathname, item.href)}>
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
+              {item.href ? (
+                <SidebarMenuButton asChild isActive={isItemActive(pathname, item.href)}>
+                  <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              ) : (
+                <>
+                  <SidebarMenuButton
+                    isActive={item.children?.some((child) =>
+                      isItemActive(pathname, child.href)
+                    )}
+                  >
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                  {item.children ? (
+                    <SidebarMenuSub>
+                      {item.children.map((child) => (
+                        <SidebarMenuSubItem key={child.title}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={isItemActive(pathname, child.href)}
+                          >
+                            <Link href={child.href}>
+                              <child.icon />
+                              <span>{child.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  ) : null}
+                </>
+              )}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>

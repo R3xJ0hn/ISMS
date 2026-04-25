@@ -125,8 +125,8 @@ type StudentUpdateQueryResult = {
   suffix: string | null;
   birthDate: Date;
   gender: string;
-  civilStatus: string;
-  citizenship: string;
+  civilStatus: string | null;
+  citizenship: string | null;
   birthplace: string;
   religion: string | null;
   email: string;
@@ -163,6 +163,7 @@ type StudentUpdateQueryResult = {
     LSSchoolYearEnd: string | null;
     LSAttainedLevelText: string | null;
     LSGraduationDate: Date | null;
+    submittedAt: Date | null;
     lastSchool: {
       schoolName: string;
       schoolId: string | null;
@@ -458,8 +459,8 @@ function mapStudentRecord(
     suffix: student.suffix ?? "",
     birthDate: student.birthDate.toISOString().slice(0, 10),
     gender: student.gender,
-    civilStatus: student.civilStatus,
-    citizenship: student.citizenship,
+    civilStatus: student.civilStatus ?? "",
+    citizenship: student.citizenship ?? "",
     birthplace: student.birthplace,
     religion: student.religion ?? "",
     email: student.email,
@@ -586,6 +587,7 @@ export async function getStudentUpdateRecord(token: string) {
           LSSchoolYearEnd: true,
           LSAttainedLevelText: true,
           LSGraduationDate: true,
+          submittedAt: true,
           lastSchool: {
             select: {
               schoolName: true,
@@ -713,6 +715,7 @@ export async function updateStudentRecordFromToken(
               academicLevelsId: true,
               programType: true,
               lastSchoolId: true,
+              submittedAt: true,
               lastSchool: {
                 select: {
                   id: true,
@@ -892,6 +895,8 @@ export async function updateStudentRecordFromToken(
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
+            applicationStatus: ApplicationStatus.reviewing,
+            submittedAt: latestApplication.submittedAt ?? new Date(),
             LSGraduationDate: normalizedInput.lastSchoolGraduationDate
               ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
               : null,
@@ -902,7 +907,7 @@ export async function updateStudentRecordFromToken(
           data: {
             studentId: student.id,
             applicantType: ApplicantType.existing,
-            applicationStatus: ApplicationStatus.draft,
+            applicationStatus: ApplicationStatus.reviewing,
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
@@ -914,7 +919,7 @@ export async function updateStudentRecordFromToken(
             programId: latestEnrollment.programId,
             academicLevelsId: latestEnrollment.academicLevelsId,
             remarks: "Created from secure student update link.",
-            submittedAt: null,
+            submittedAt: new Date(),
           },
         });
       }

@@ -5,7 +5,7 @@ import { ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-type ReviewFormValues = {
+export type ReviewFormValues = {
   applicant_type: string;
   branch_id: string;
   branch_code: string;
@@ -144,11 +144,19 @@ function ResumeRows({
   );
 }
 
-export default function ReviewStep({
+export function AdmissionReviewDetails({
   form,
-  consent,
+  consent = false,
   onConsentChange,
-}: ReviewStepProps) {
+  showConsent = true,
+  className,
+}: {
+  form: ReviewFormValues;
+  consent?: boolean;
+  onConsentChange?: (value: boolean) => void;
+  showConsent?: boolean;
+  className?: string;
+}) {
   const homeAddress = joinValues([
     form.address_house_number,
     form.address_street,
@@ -200,7 +208,12 @@ export default function ReviewStep({
         </p>
       </div>
 
-      <div className="max-h-[58vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-7">
+      <div
+        className={cn(
+          "max-h-[58vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-7",
+          className
+        )}
+      >
         <article>
           <header className="pb-6">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
@@ -398,6 +411,7 @@ export default function ReviewStep({
             </ResumeSection>
           ) : null}
 
+          {showConsent ? (
           <ResumeSection title="Declaration and consent" eyebrow="Final check">
             <div className="space-y-4">
               <div className="flex items-start gap-3">
@@ -426,7 +440,7 @@ export default function ReviewStep({
                 <input
                   type="checkbox"
                   checked={consent}
-                  onChange={(event) => onConsentChange(event.target.checked)}
+                  onChange={(event) => onConsentChange?.(event.target.checked)}
                   className="mt-1 size-4 rounded border-gray-300 text-primary focus:ring-primary"
                 />
                 <span className="text-sm leading-6 text-gray-700">
@@ -436,8 +450,23 @@ export default function ReviewStep({
               </label>
             </div>
           </ResumeSection>
+          ) : null}
         </article>
       </div>
     </div>
+  );
+}
+
+export default function ReviewStep({
+  form,
+  consent,
+  onConsentChange,
+}: ReviewStepProps) {
+  return (
+    <AdmissionReviewDetails
+      form={form}
+      consent={consent}
+      onConsentChange={onConsentChange}
+    />
   );
 }

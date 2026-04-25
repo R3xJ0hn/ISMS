@@ -154,7 +154,6 @@ model Program {
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   programType   ProgramType
 
-  sections     Section[]
   enrollments  Enrollment[]
   applications AdmissionApplication[]
 
@@ -167,7 +166,6 @@ model AcademicLevels {
   slug      String   @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  sections     Section[]
   enrollments  Enrollment[]
   applications AdmissionApplication[]
 
@@ -197,8 +195,8 @@ model Student {
   suffix          String?     @db.Text
   birthDate       DateTime    @map("birth_date") @db.Date
   gender          Gender
-  civilStatus     CivilStatus @map("civil_status")
-  citizenship     String      @db.Text
+  civilStatus     CivilStatus? @map("civil_status")
+  citizenship     String?      @db.Text
   birthplace      String      @db.Text
   religion        String?     @db.Text
   email           String      @unique @db.Text
@@ -255,18 +253,14 @@ model StudentGuardian {
 model Section {
   id               BigInt   @id @default(autoincrement())
   branchId         BigInt   @map("branch_id")
-  programId        BigInt   @map("program_id")
-  academicLevelsId BigInt   @map("academic_levels_id")
   sectionCode      String   @map("section_code") @db.Text
   sectionName      String   @map("section_name") @db.Text
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  program        Program        @relation(fields: [programId], references: [id], onDelete: Cascade)
-  academicLevels AcademicLevels @relation(fields: [academicLevelsId], references: [id], onDelete: Cascade)
   enrollments    Enrollment[]
 
-  @@unique([branchId, programId, academicLevelsId, sectionCode])
+  @@unique([branchId, sectionCode])
   @@map("sections")
 }
 

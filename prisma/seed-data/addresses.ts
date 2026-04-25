@@ -52,16 +52,6 @@ export const seedAddresses = [
     province: "Metro Manila",
     postalCode: "1440",
   },
-  {
-    key: "malabon",
-    houseNumber: "418",
-    subdivision: null,
-    street: "Gov. Pascual Avenue",
-    barangay: "Catmon",
-    city: "Malabon City",
-    province: "Metro Manila",
-    postalCode: "1470",
-  },
 ] as const satisfies readonly AddressSeedRow[];
 
 function getAddressData(row: AddressSeedRow) {

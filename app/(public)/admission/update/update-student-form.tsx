@@ -450,30 +450,6 @@ export default function UpdateStudentForm({
                 <option value="Other">Other</option>
               </select>
             </Field>
-            <Field label="House number / unit" htmlFor="lastSchoolHouseNumber">
-              <input
-                id="lastSchoolHouseNumber"
-                name="lastSchoolHouseNumber"
-                defaultValue={student.lastSchoolHouseNumber}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Subdivision / village" htmlFor="lastSchoolSubdivision">
-              <input
-                id="lastSchoolSubdivision"
-                name="lastSchoolSubdivision"
-                defaultValue={student.lastSchoolSubdivision}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Street" htmlFor="lastSchoolStreet">
-              <input
-                id="lastSchoolStreet"
-                name="lastSchoolStreet"
-                defaultValue={student.lastSchoolStreet}
-                className={inputClass}
-              />
-            </Field>
             <Field label="Barangay" htmlFor="lastSchoolBarangay" required>
               <input
                 id="lastSchoolBarangay"
