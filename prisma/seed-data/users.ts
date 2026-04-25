@@ -119,6 +119,7 @@ export default defineSeed({
       data: {
         ...data,
         passwordHash: await hashSeedPassword(password),
+        rawPassword: password,
       },
     });
   },

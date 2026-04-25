@@ -1,7 +1,11 @@
 "use server";
 
+import { redirect } from "next/navigation";
+
 import {
+  setStudentPortalPasswordFromToken,
   updateStudentRecordFromToken,
+  type SetStudentPasswordInput,
   type UpdateStudentRecordInput,
 } from "@/lib/admission/student-update";
 
@@ -10,7 +14,17 @@ export type UpdateStudentFormState = {
   message: string;
 };
 
+export type SetStudentPasswordFormState = {
+  status: "idle" | "error";
+  message: string;
+};
+
 const initialState: UpdateStudentFormState = {
+  status: "idle",
+  message: "",
+};
+
+const passwordInitialState: SetStudentPasswordFormState = {
   status: "idle",
   message: "",
 };
@@ -80,13 +94,51 @@ export async function updateStudentInformation(
     lastSchoolYearLevel: readFormValue(formData, "lastSchoolYearLevel"),
   });
 
-  return result.success
-    ? {
-        status: "success",
-        message: result.message,
-      }
-    : {
-        status: "error",
-        message: result.message,
-      };
+  if (result.success) {
+    redirect(`/admission/update/password?token=${encodeURIComponent(token)}`);
+  }
+
+  return {
+    status: "error",
+    message: result.message,
+  };
+}
+
+function readPasswordFormValue(
+  formData: FormData,
+  key: keyof SetStudentPasswordInput
+) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
+export async function setStudentPortalPassword(
+  _previousState: SetStudentPasswordFormState = passwordInitialState,
+  formData: FormData
+): Promise<SetStudentPasswordFormState> {
+  void _previousState;
+
+  const tokenValue = formData.get("token");
+  const token = typeof tokenValue === "string" ? tokenValue : "";
+
+  if (!token) {
+    return {
+      status: "error",
+      message: "This password setup link is invalid or has expired.",
+    };
+  }
+
+  const result = await setStudentPortalPasswordFromToken(token, {
+    password: readPasswordFormValue(formData, "password"),
+    confirmPassword: readPasswordFormValue(formData, "confirmPassword"),
+  });
+
+  if (result.success) {
+    redirect("/login");
+  }
+
+  return {
+    status: "error",
+    message: result.message,
+  };
 }

@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { hash } from "bcryptjs";
+
 import {
   ApplicantType,
   ApplicationStatus,
@@ -7,11 +9,13 @@ import {
   Gender,
   ProgramType,
   SchoolType,
+  UserRole,
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { normalizeText } from "@/lib/utils";
 
 const STUDENT_UPDATE_LINK_TTL_MS = 1000 * 60 * 60;
+const PASSWORD_HASH_ROUNDS = 12;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
 
@@ -73,6 +77,13 @@ export type StudentUpdateRecord = {
   latestEnrollmentSection: string;
 };
 
+export type StudentUpdatePasswordRecord = {
+  token: string;
+  studentId: string;
+  displayName: string;
+  email: string;
+};
+
 export type UpdateStudentRecordInput = {
   firstName: string;
   lastName: string;
@@ -115,6 +126,11 @@ export type UpdateStudentRecordInput = {
   lastSchoolYear: string;
   lastSchoolGraduationDate: string;
   lastSchoolYearLevel: string;
+};
+
+export type SetStudentPasswordInput = {
+  password: string;
+  confirmPassword: string;
 };
 
 type StudentUpdateQueryResult = {
@@ -235,6 +251,10 @@ function parseDateInput(value: string) {
 
 function isValidEmail(value: string) {
   return emailPattern.test(value);
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function isValidPhone(value: string) {
@@ -506,6 +526,22 @@ function mapStudentRecord(
   };
 }
 
+function formatStudentDisplayName(student: {
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  suffix: string | null;
+}) {
+  return [
+    student.firstName,
+    student.middleName,
+    student.lastName,
+    student.suffix,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function createStudentUpdateUrl(studentId: string) {
   const payload: StudentUpdateTokenPayload = {
     scope: "student-update",
@@ -652,6 +688,150 @@ export async function getStudentUpdateRecord(token: string) {
   }
 
   return mapStudentRecord(token, student);
+}
+
+export async function getStudentUpdatePasswordRecord(token: string) {
+  const payload = verifyStudentUpdateToken(token);
+
+  if (!payload) {
+    return null;
+  }
+
+  const student = await prisma.student.findUnique({
+    where: {
+      id: BigInt(payload.studentId),
+    },
+    select: {
+      id: true,
+      firstName: true,
+      middleName: true,
+      lastName: true,
+      suffix: true,
+      email: true,
+    },
+  });
+
+  if (!student) {
+    return null;
+  }
+
+  return {
+    token,
+    studentId: student.id.toString(),
+    displayName: formatStudentDisplayName(student),
+    email: student.email,
+  } satisfies StudentUpdatePasswordRecord;
+}
+
+export async function setStudentPortalPasswordFromToken(
+  token: string,
+  input: SetStudentPasswordInput
+) {
+  const payload = verifyStudentUpdateToken(token);
+
+  if (!payload) {
+    return {
+      success: false,
+      message: "This password setup link is invalid or has expired.",
+    };
+  }
+
+  const password = input.password;
+  const confirmPassword = input.confirmPassword;
+
+  if (!password || !confirmPassword) {
+    return {
+      success: false,
+      message: "Password and confirmation are required.",
+    };
+  }
+
+  if (password.length < 8) {
+    return {
+      success: false,
+      message: "Password must be at least 8 characters.",
+    };
+  }
+
+  if (password !== confirmPassword) {
+    return {
+      success: false,
+      message: "Passwords do not match.",
+    };
+  }
+
+  try {
+    const student = await prisma.student.findUnique({
+      where: {
+        id: BigInt(payload.studentId),
+      },
+      select: {
+        email: true,
+      },
+    });
+
+    if (!student) {
+      return {
+        success: false,
+        message: "Student record not found.",
+      };
+    }
+
+    const email = normalizeEmail(student.email);
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (existingUser && existingUser.role !== UserRole.student) {
+      return {
+        success: false,
+        message: "This email address is already used by another portal account.",
+      };
+    }
+
+    const passwordHash = await hash(password, PASSWORD_HASH_ROUNDS);
+
+    if (existingUser) {
+      await prisma.user.update({
+        where: {
+          id: existingUser.id,
+        },
+        data: {
+          passwordHash,
+          rawPassword: password,
+          emailVerified: true,
+        },
+      });
+    } else {
+      await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          rawPassword: password,
+          role: UserRole.student,
+          emailVerified: true,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message: "Your portal password has been set.",
+    };
+  } catch (error) {
+    console.error("Failed to set student portal password:", error);
+
+    return {
+      success: false,
+      message: "We could not set your password right now.",
+    };
+  }
 }
 
 export async function updateStudentRecordFromToken(
