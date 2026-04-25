@@ -114,12 +114,12 @@ export default defineSeed({
   create: async ({ prisma }, row) => {
     const { key, password, ...data } = row;
     void key;
+    const passwordHash = await hashSeedPassword(password);
 
     return prisma.user.create({
       data: {
         ...data,
-        passwordHash: await hashSeedPassword(password),
-        rawPassword: password,
+        passwordHash,
       },
     });
   },

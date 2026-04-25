@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 
 import {
   setStudentPortalPasswordFromToken,
-  updateStudentRecordFromToken,
   type SetStudentPasswordInput,
+} from "@/lib/admission/student-password-reset";
+import {
+  updateStudentRecordFromToken,
   type UpdateStudentRecordInput,
 } from "@/lib/admission/student-update";
 

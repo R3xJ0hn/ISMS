@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import Footer from "@/components/public/footer";
-import { getStudentUpdatePasswordRecord } from "@/lib/admission/student-update";
+import { getStudentUpdatePasswordRecord } from "@/lib/admission/student-password-reset";
 
 import SetStudentPasswordForm from "./set-student-password-form";
 

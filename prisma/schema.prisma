@@ -67,7 +67,7 @@ model User {
   id            BigInt   @id @default(autoincrement())
   email         String   @unique @db.VarChar(320)
   passwordHash  String   @map("password_hash") @db.Text
-  rawPassword   String?  @map("raw_password") @db.Text
+  key           String?  @db.Text
   role          UserRole
   emailVerified Boolean  @default(false) @map("email_verified")
   userImage     String?  @map("user_image") @db.Text

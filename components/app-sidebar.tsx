@@ -13,7 +13,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { formatRoleLabel } from "@/lib/auth";
-import type { UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
+import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 type AppSidebarProps = ComponentProps<typeof Sidebar> & {
@@ -50,6 +50,22 @@ function getDisplayName(email: string, role: UserRoleValue) {
   return toTitleCase(normalizedEmailName.toLowerCase());
 }
 
+function formatStudentName(student: {
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  suffix: string | null;
+}) {
+  return [
+    student.firstName,
+    student.middleName,
+    student.lastName,
+    student.suffix,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function getInitials(name: string) {
   const words = name.split(/\s+/).filter(Boolean);
 
@@ -66,18 +82,35 @@ function getInitials(name: string) {
 
 export async function AppSidebar({ session, ...props }: AppSidebarProps) {
   const userId = /^\d+$/.test(session.id) ? BigInt(session.id) : null;
-  const user = userId
-    ? await prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-        select: {
-          userImage: true,
-        },
-      })
-    : null;
+  const [user, student] = await Promise.all([
+    userId
+      ? prisma.user.findUnique({
+          where: {
+            id: userId,
+          },
+          select: {
+            userImage: true,
+          },
+        })
+      : null,
+    session.role === UserRole.student
+      ? prisma.student.findUnique({
+          where: {
+            email: session.email,
+          },
+          select: {
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            suffix: true,
+          },
+        })
+      : null,
+  ]);
 
-  const displayName = getDisplayName(session.email, session.role);
+  const displayName = student
+    ? formatStudentName(student)
+    : getDisplayName(session.email, session.role);
   const initials = getInitials(displayName);
 
   return (
