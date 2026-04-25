@@ -125,8 +125,8 @@ type StudentUpdateQueryResult = {
   suffix: string | null;
   birthDate: Date;
   gender: string;
-  civilStatus: string;
-  citizenship: string;
+  civilStatus: string | null;
+  citizenship: string | null;
   birthplace: string;
   religion: string | null;
   email: string;
@@ -163,6 +163,8 @@ type StudentUpdateQueryResult = {
     LSSchoolYearEnd: string | null;
     LSAttainedLevelText: string | null;
     LSGraduationDate: Date | null;
+    applicationStatus: (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
+    submittedAt: Date | null;
     lastSchool: {
       schoolName: string;
       schoolId: string | null;
@@ -458,8 +460,8 @@ function mapStudentRecord(
     suffix: student.suffix ?? "",
     birthDate: student.birthDate.toISOString().slice(0, 10),
     gender: student.gender,
-    civilStatus: student.civilStatus,
-    citizenship: student.citizenship,
+    civilStatus: student.civilStatus ?? "",
+    citizenship: student.citizenship ?? "",
     birthplace: student.birthplace,
     religion: student.religion ?? "",
     email: student.email,
@@ -586,6 +588,8 @@ export async function getStudentUpdateRecord(token: string) {
           LSSchoolYearEnd: true,
           LSAttainedLevelText: true,
           LSGraduationDate: true,
+          applicationStatus: true,
+          submittedAt: true,
           lastSchool: {
             select: {
               schoolName: true,
@@ -713,6 +717,8 @@ export async function updateStudentRecordFromToken(
               academicLevelsId: true,
               programType: true,
               lastSchoolId: true,
+              applicationStatus: true,
+              submittedAt: true,
               lastSchool: {
                 select: {
                   id: true,
@@ -755,12 +761,25 @@ export async function updateStudentRecordFromToken(
       let addressId = student.addressId;
 
       if (addressId) {
-        await tx.address.update({
+        const addressStudentCount = await tx.student.count({
           where: {
-            id: addressId,
+            addressId,
           },
-          data: addressData,
         });
+
+        if (addressStudentCount > 1) {
+          const address = await tx.address.create({
+            data: addressData,
+          });
+          addressId = address.id;
+        } else {
+          await tx.address.update({
+            where: {
+              id: addressId,
+            },
+            data: addressData,
+          });
+        }
       } else {
         const address = await tx.address.create({
           data: addressData,
@@ -771,25 +790,43 @@ export async function updateStudentRecordFromToken(
       const primaryGuardianLink = student.guardians[0];
 
       if (primaryGuardianLink) {
-        await tx.guardian.update({
+        const guardianData = {
+          firstName: normalizedInput.guardianFirstName,
+          lastName: normalizedInput.guardianLastName,
+          middleName: optionalText(normalizedInput.guardianMiddleName),
+          suffix: optionalText(normalizedInput.guardianSuffix),
+          contactNumber: normalizedInput.guardianContactNumber,
+          occupation: optionalText(normalizedInput.guardianOccupation),
+        };
+        const guardianLinkCount = await tx.studentGuardian.count({
           where: {
-            id: primaryGuardianLink.guardianId,
-          },
-          data: {
-            firstName: normalizedInput.guardianFirstName,
-            lastName: normalizedInput.guardianLastName,
-            middleName: optionalText(normalizedInput.guardianMiddleName),
-            suffix: optionalText(normalizedInput.guardianSuffix),
-            contactNumber: normalizedInput.guardianContactNumber,
-            occupation: optionalText(normalizedInput.guardianOccupation),
+            guardianId: primaryGuardianLink.guardianId,
           },
         });
+
+        const guardian =
+          guardianLinkCount > 1
+            ? await tx.guardian.create({
+                data: {
+                  ...guardianData,
+                  email: null,
+                  addressId: null,
+                  facebookAccount: null,
+                },
+              })
+            : await tx.guardian.update({
+                where: {
+                  id: primaryGuardianLink.guardianId,
+                },
+                data: guardianData,
+              });
 
         await tx.studentGuardian.update({
           where: {
             id: primaryGuardianLink.id,
           },
           data: {
+            guardianId: guardian.id,
             relationship: normalizedInput.guardianRelationship,
             isPrimary: true,
           },
@@ -884,6 +921,8 @@ export async function updateStudentRecordFromToken(
       }
 
       if (latestApplication) {
+        const shouldMarkReviewing =
+          latestApplication.applicationStatus === ApplicationStatus.draft;
         await tx.admissionApplication.update({
           where: {
             id: latestApplication.id,
@@ -892,6 +931,12 @@ export async function updateStudentRecordFromToken(
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
+            ...(shouldMarkReviewing
+              ? {
+                  applicationStatus: ApplicationStatus.reviewing,
+                  submittedAt: latestApplication.submittedAt ?? new Date(),
+                }
+              : {}),
             LSGraduationDate: normalizedInput.lastSchoolGraduationDate
               ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
               : null,
@@ -902,7 +947,7 @@ export async function updateStudentRecordFromToken(
           data: {
             studentId: student.id,
             applicantType: ApplicantType.existing,
-            applicationStatus: ApplicationStatus.draft,
+            applicationStatus: ApplicationStatus.reviewing,
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
@@ -914,7 +959,7 @@ export async function updateStudentRecordFromToken(
             programId: latestEnrollment.programId,
             academicLevelsId: latestEnrollment.academicLevelsId,
             remarks: "Created from secure student update link.",
-            submittedAt: null,
+            submittedAt: new Date(),
           },
         });
       }

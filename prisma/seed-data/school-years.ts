@@ -10,6 +10,13 @@ type SchoolYearSeedRow = {
 
 export const seedSchoolYears = [
   {
+    key: "2022-2023",
+    name: "2022-2023",
+    startDate: "2022-08-01",
+    endDate: "2023-05-31",
+    isActive: false,
+  },
+  {
     key: "2023-2024",
     name: "2023-2024",
     startDate: "2023-08-07",

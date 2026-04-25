@@ -82,7 +82,6 @@ export const initialFormValues = {
   current_student_first_name: "",
   current_student_last_name: "",
   current_student_birth_date: "",
-  current_last_school_year_attended: "",
   current_student_record_id: "",
   current_student_verified_name: "",
   current_student_verified_school_year: "",
@@ -113,7 +112,6 @@ const currentStudentInputFields = new Set<FieldName>([
   "current_student_first_name",
   "current_student_last_name",
   "current_student_birth_date",
-  "current_last_school_year_attended",
 ]);
 
 function isCurrentStudentInputField(
@@ -241,7 +239,6 @@ function stepIsComplete(
           form.current_student_first_name &&
           form.current_student_last_name &&
           form.current_student_birth_date &&
-          form.current_last_school_year_attended &&
           form.current_student_record_id
       );
     case "review":
@@ -261,8 +258,7 @@ function currentStudentInputsComplete(form: AdmissionFormValues) {
       form.current_student_email &&
       form.current_student_first_name &&
       form.current_student_last_name &&
-      form.current_student_birth_date &&
-      form.current_last_school_year_attended
+      form.current_student_birth_date
   );
 }
 
