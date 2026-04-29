@@ -891,7 +891,7 @@ export async function verifyCurrentStudent(
 
     const latestEnrollment = student.enrollments[0];
 
-    let verificationMessage =
+    const verificationMessage =
       "Student record verified. We sent a secure update link to your email.";
 
     try {
@@ -902,8 +902,12 @@ export async function verifyCurrentStudent(
       });
     } catch (error) {
       console.error("Failed to send student update link email:", error);
-      verificationMessage =
-        "Student record verified. We could not send the update link right now.";
+
+      return {
+        verified: false,
+        message:
+          "Student record was found, but we could not send the update link email. Please contact the registrar or try again later.",
+      };
     }
 
     return {

@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
 type SendStudentUpdateLinkEmailInput = {
@@ -17,18 +18,43 @@ function getResendClient() {
 }
 
 function getFromEmail() {
-  return process.env.RESEND_FROM_EMAIL ?? "DCSA Admissions <onboarding@resend.dev>";
+  return (
+    process.env.SMTP_FROM_EMAIL ??
+    process.env.RESEND_FROM_EMAIL ??
+    "Portal <onboarding@resend.dev>"
+  );
 }
 
-export async function sendStudentUpdateLinkEmail({
-  to,
-  studentName,
-  updateUrl,
-}: SendStudentUpdateLinkEmailInput) {
-  const resend = getResendClient();
-  const { error } = await resend.emails.send({
-    from: getFromEmail(),
-    to,
+function shouldUseSmtp() {
+  return Boolean(process.env.SMTP_HOST);
+}
+
+function getSmtpTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = Number.parseInt(process.env.SMTP_PORT ?? "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass || Number.isNaN(port)) {
+    throw new Error(
+      "SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS must be configured for SMTP email."
+    );
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465, 
+    auth: {
+      user,
+      pass,
+    },
+  });
+
+}
+
+function buildStudentUpdateEmail(studentName: string, updateUrl: string) {
+  return {
     subject: "Update your DCSA student information",
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
@@ -39,8 +65,6 @@ export async function sendStudentUpdateLinkEmail({
             Update student information
           </a>
         </p>
-        <p>If the button does not work, copy and open this link:</p>
-        <p><a href="${updateUrl}">${updateUrl}</a></p>
         <p>This link expires in 1 hour.</p>
       </div>
     `,
@@ -53,6 +77,33 @@ export async function sendStudentUpdateLinkEmail({
       "",
       "This link expires in 1 hour.",
     ].join("\n"),
+  };
+}
+
+export async function sendStudentUpdateLinkEmail({
+  to,
+  studentName,
+  updateUrl,
+}: SendStudentUpdateLinkEmailInput) {
+  const message = buildStudentUpdateEmail(studentName, updateUrl);
+
+  if (shouldUseSmtp()) {
+    const transporter = getSmtpTransporter();
+
+    await transporter.sendMail({
+      from: getFromEmail(),
+      to,
+      ...message,
+    });
+
+    return;
+  }
+
+  const resend = getResendClient();
+  const { error } = await resend.emails.send({
+    from: getFromEmail(),
+    to,
+    ...message,
   });
 
   if (error) {

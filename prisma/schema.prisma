@@ -187,24 +187,24 @@ model SchoolYear {
 }
 
 model Student {
-  id              BigInt      @id @default(autoincrement())
-  studentNumber   String?     @unique @map("student_number") @db.Text
-  firstName       String      @map("first_name") @db.Text
-  lastName        String      @map("last_name") @db.Text
-  middleName      String?     @map("middle_name") @db.Text
-  suffix          String?     @db.Text
-  birthDate       DateTime    @map("birth_date") @db.Date
-  gender          Gender
+  id              BigInt       @id @default(autoincrement())
+  studentNumber   String?      @unique @map("student_number") @db.Text
+  firstName       String       @map("first_name") @db.Text
+  lastName        String       @map("last_name") @db.Text
+  middleName      String?      @map("middle_name") @db.Text
+  suffix          String?      @db.Text
+  birthDate       DateTime     @map("birth_date") @db.Date
+  gender          Gender?
   civilStatus     CivilStatus? @map("civil_status")
   citizenship     String?      @db.Text
-  birthplace      String      @db.Text
-  religion        String?     @db.Text
-  email           String      @unique @db.Text
-  phone           String      @db.Text
-  facebookAccount String?     @map("facebook_account") @db.Text
-  addressId       BigInt?     @map("address_id")
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  birthplace      String?      @db.Text
+  religion        String?      @db.Text
+  email           String       @unique @db.Text
+  phone           String?      @db.Text
+  facebookAccount String?      @map("facebook_account") @db.Text
+  addressId       BigInt?      @map("address_id")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
   guardians    StudentGuardian[]
@@ -251,14 +251,14 @@ model StudentGuardian {
 }
 
 model Section {
-  id               BigInt   @id @default(autoincrement())
-  branchId         BigInt   @map("branch_id")
-  sectionCode      String   @map("section_code") @db.Text
-  sectionName      String   @map("section_name") @db.Text
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id          BigInt   @id @default(autoincrement())
+  branchId    BigInt   @map("branch_id")
+  sectionCode String   @map("section_code") @db.Text
+  sectionName String   @map("section_name") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  enrollments    Enrollment[]
+  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
 
   @@unique([branchId, sectionCode])
   @@map("sections")

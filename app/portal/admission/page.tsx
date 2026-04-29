@@ -4,6 +4,7 @@ import { AddAdmittedStudentModal } from "@/app/portal/admission/add-admitted-stu
 import { AdmittedStudentActions } from "@/app/portal/admission/admitted-student-actions";
 import { AdmissionBranchFilter } from "@/app/portal/admission/admission-branch-filter";
 import { ApplicationStatusSelect } from "@/app/portal/admission/application-status-select";
+import { BulkAdmitStudentsModal } from "@/app/portal/admission/bulk-admit-students-modal";
 import { getCurrentSession } from "@/lib/auth";
 import { ApplicationStatus, UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -259,6 +260,7 @@ export default async function AdmissionPage({
               </span>{" "}
               applications
             </div>
+            <BulkAdmitStudentsModal options={addStudentOptions} />
             <AddAdmittedStudentModal options={addStudentOptions} />
           </div>
         </div>
@@ -309,7 +311,7 @@ export default async function AdmissionPage({
                     </td>
                     <td className="px-4 py-4 align-top">
                       <div className="text-muted-foreground">
-                        {application.student.phone}
+                        {optionalValue(application.student.phone) || "Pending"}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         {application.student.email}
@@ -373,13 +375,16 @@ export default async function AdmissionPage({
                               optionalValue(application.student.civilStatus),
                             student_citizenship:
                               optionalValue(application.student.citizenship),
-                            student_birthplace:
-                              application.student.birthplace,
+                            student_birthplace: optionalValue(
+                              application.student.birthplace
+                            ),
                             student_religion: optionalValue(
                               application.student.religion
                             ),
                             contact_email: application.student.email,
-                            contact_phone: application.student.phone,
+                            contact_phone: optionalValue(
+                              application.student.phone
+                            ),
                             contact_facebook: optionalValue(
                               application.student.facebookAccount
                             ),
@@ -478,12 +483,14 @@ export default async function AdmissionPage({
                             citizenship: optionalValue(
                               application.student.citizenship
                             ),
-                            birthplace: application.student.birthplace,
+                            birthplace: optionalValue(
+                              application.student.birthplace
+                            ),
                             religion: optionalValue(
                               application.student.religion
                             ),
                             email: application.student.email,
-                            phone: application.student.phone,
+                            phone: optionalValue(application.student.phone),
                             facebookAccount: optionalValue(
                               application.student.facebookAccount
                             ),

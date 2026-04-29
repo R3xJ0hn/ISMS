@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import * as XLSX from "xlsx";
 
 import { getCurrentSession } from "@/lib/auth";
 import {
@@ -22,6 +23,7 @@ export type AddAdmittedStudentState = {
 };
 
 export type EditAdmittedStudentState = AddAdmittedStudentState;
+export type BulkAdmitStudentsState = AddAdmittedStudentState;
 export type UpdateApplicationStatusState = {
   success: boolean;
   message: string;
@@ -75,6 +77,95 @@ function parseId(value: string) {
   }
 
   return BigInt(value);
+}
+
+function normalizeHeader(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function readRowText(row: unknown[], columnIndex: number | undefined) {
+  if (columnIndex === undefined) {
+    return "";
+  }
+
+  const value = row[columnIndex];
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return String(value ?? "").trim();
+}
+
+function parseExcelDate(value: unknown) {
+  if (value instanceof Date) {
+    return parseBirthDate(value.toISOString().slice(0, 10));
+  }
+
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+
+    if (!parsed) {
+      return null;
+    }
+
+    return parseBirthDate(
+      `${parsed.y.toString().padStart(4, "0")}-${parsed.m
+        .toString()
+        .padStart(2, "0")}-${parsed.d.toString().padStart(2, "0")}`
+    );
+  }
+
+  const text = String(value ?? "").trim();
+
+  if (!text) {
+    return null;
+  }
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+
+  if (isoMatch) {
+    return parseBirthDate(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`);
+  }
+
+  const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(text);
+
+  if (!slashMatch) {
+    return parseBirthDate(text);
+  }
+
+  const month = Number.parseInt(slashMatch[1], 10);
+  const day = Number.parseInt(slashMatch[2], 10);
+  const yearText = slashMatch[3];
+  const parsedYear = Number.parseInt(yearText, 10);
+  const year = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+
+  return parseBirthDate(
+    `${year.toString().padStart(4, "0")}-${month
+      .toString()
+      .padStart(2, "0")}-${day.toString().padStart(2, "0")}`
+  );
+}
+
+function parseGender(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "male" || normalized === "m") {
+    return Gender.Male;
+  }
+
+  if (normalized === "female" || normalized === "f") {
+    return Gender.Female;
+  }
+
+  return null;
+}
+
+function findColumn(headers: string[], aliases: string[]) {
+  return headers.findIndex((header) => aliases.includes(header));
 }
 
 async function requireAdmin() {
@@ -244,6 +335,316 @@ export async function addAdmittedStudentAction(
   return {
     success: true,
     message: "Student added to admitted list.",
+  };
+}
+
+export async function bulkAdmitStudentsAction(
+  previousState: BulkAdmitStudentsState = initialState,
+  formData: FormData
+): Promise<BulkAdmitStudentsState> {
+  void previousState;
+
+  await requireAdmin();
+
+  const applicantType = readFormText(formData, "applicantType");
+  const branchId = parseId(readFormText(formData, "branchId"));
+  const programId = parseId(readFormText(formData, "programId"));
+  const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
+  const file = formData.get("studentsFile");
+
+  if (
+    !applicantType ||
+    !branchId ||
+    !programId ||
+    !academicLevelsId ||
+    !(file instanceof File) ||
+    file.size === 0
+  ) {
+    return {
+      success: false,
+      message: "Select applicant/program details and upload an Excel file.",
+    };
+  }
+
+  if (!Object.values(ApplicantType).includes(applicantType as ApplicantTypeValue)) {
+    return {
+      success: false,
+      message: "Select a valid applicant type.",
+    };
+  }
+
+  const [branch, program, academicLevel] = await Promise.all([
+    prisma.branch.findUnique({
+      where: {
+        id: branchId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.program.findUnique({
+      where: {
+        id: programId,
+      },
+      select: {
+        id: true,
+        programType: true,
+      },
+    }),
+    prisma.academicLevels.findUnique({
+      where: {
+        id: academicLevelsId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+  ]);
+
+  if (!branch || !program || !academicLevel) {
+    return {
+      success: false,
+      message: "Select a valid branch, program, and academic level.",
+    };
+  }
+
+  let rows: unknown[][];
+
+  try {
+    const workbook = XLSX.read(await file.arrayBuffer(), {
+      cellDates: false,
+      type: "array",
+    });
+    const firstSheet = workbook.SheetNames[0];
+
+    if (!firstSheet) {
+      return {
+        success: false,
+        message: "The uploaded workbook does not contain any sheets.",
+      };
+    }
+
+    rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], {
+      header: 1,
+      raw: true,
+      defval: "",
+    }) as unknown[][];
+  } catch {
+    return {
+      success: false,
+      message: "We could not read the uploaded Excel file.",
+    };
+  }
+
+  const headerRowIndex = rows.findIndex((row) =>
+    row.some((cell) => normalizeHeader(cell) === "studentnumber")
+  );
+
+  if (headerRowIndex < 0) {
+    return {
+      success: false,
+      message:
+        "The file must include headers for Student Number, Email Address, First Name, Last Name, and Birth date.",
+    };
+  }
+
+  const headers = rows[headerRowIndex].map(normalizeHeader);
+  const columns = {
+    studentNumber: findColumn(headers, ["studentnumber", "studentno", "studentid"]),
+    email: findColumn(headers, ["emailaddress", "studentemail", "email"]),
+    firstName: findColumn(headers, ["firstname", "givenname"]),
+    lastName: findColumn(headers, ["lastname", "surname", "familyname"]),
+    birthDate: findColumn(headers, ["birthdate", "birthdate", "dateofbirth", "birthday"]),
+    gender: findColumn(headers, ["gender", "sex"]),
+  };
+
+  if (
+    columns.studentNumber < 0 ||
+    columns.email < 0 ||
+    columns.firstName < 0 ||
+    columns.lastName < 0 ||
+    columns.birthDate < 0
+  ) {
+    return {
+      success: false,
+      message:
+        "The file must include Student Number, Email Address, First Name, Last Name, and Birth date columns.",
+    };
+  }
+
+  const errors: string[] = [];
+  const parsedStudents = rows
+    .slice(headerRowIndex + 1)
+    .map((row, index) => {
+      const rowNumber = headerRowIndex + index + 2;
+      const studentNumber = readRowText(row, columns.studentNumber);
+      const email = readRowText(row, columns.email).toLowerCase();
+      const firstName = readRowText(row, columns.firstName);
+      const lastName = readRowText(row, columns.lastName);
+      const birthDate = parseExcelDate(row[columns.birthDate]);
+      const genderText = readRowText(row, columns.gender);
+      const gender = genderText ? parseGender(genderText) : null;
+
+      if (!studentNumber && !email && !firstName && !lastName && !birthDate) {
+        return null;
+      }
+
+      if (!studentNumber || !email || !firstName || !lastName || !birthDate) {
+        errors.push(`Row ${rowNumber}: complete all required student columns.`);
+      } else if (!validateEmail(email)) {
+        errors.push(`Row ${rowNumber}: enter a valid email address.`);
+      } else if (genderText && !gender) {
+        errors.push(`Row ${rowNumber}: enter Male or Female for gender.`);
+      }
+
+      return {
+        rowNumber,
+        studentNumber,
+        email,
+        firstName,
+        lastName,
+        birthDate,
+        gender,
+      };
+    })
+    .filter((row) => row !== null);
+
+  if (parsedStudents.length === 0) {
+    return {
+      success: false,
+      message: "The uploaded file does not contain any student rows.",
+    };
+  }
+
+  const studentNumbers = new Set<string>();
+  const emails = new Set<string>();
+
+  for (const student of parsedStudents) {
+    if (studentNumbers.has(student.studentNumber)) {
+      errors.push(`Row ${student.rowNumber}: duplicate student number in file.`);
+    }
+
+    if (emails.has(student.email)) {
+      errors.push(`Row ${student.rowNumber}: duplicate email in file.`);
+    }
+
+    studentNumbers.add(student.studentNumber);
+    emails.add(student.email);
+  }
+
+  if (errors.length === 0) {
+    const existingStudents = await prisma.student.findMany({
+      where: {
+        OR: [
+          {
+            studentNumber: {
+              in: [...studentNumbers],
+            },
+          },
+          {
+            email: {
+              in: [...emails],
+            },
+          },
+        ],
+      },
+      select: {
+        studentNumber: true,
+        email: true,
+      },
+    });
+
+    for (const existingStudent of existingStudents) {
+      if (existingStudent.studentNumber) {
+        errors.push(
+          `Student number ${existingStudent.studentNumber} already exists.`
+        );
+      } else {
+        errors.push(`Email ${existingStudent.email} already exists.`);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      success: false,
+      message: errors.slice(0, 5).join(" "),
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const students = await transaction.student.createManyAndReturn({
+        data: parsedStudents.map((studentRow) => {
+          if (!studentRow.birthDate) {
+            throw new Error(`Row ${studentRow.rowNumber} is missing a birth date.`);
+          }
+
+          return {
+            studentNumber: studentRow.studentNumber,
+            email: studentRow.email,
+            firstName: studentRow.firstName,
+            lastName: studentRow.lastName,
+            birthDate: studentRow.birthDate,
+            gender: studentRow.gender,
+            civilStatus: null,
+            citizenship: null,
+            birthplace: null,
+            phone: null,
+          };
+        }),
+        select: {
+          id: true,
+          studentNumber: true,
+        },
+      });
+      const studentsByNumber = new Map(
+        students.map((student) => [student.studentNumber, student.id])
+      );
+
+      await transaction.admissionApplication.createMany({
+        data: parsedStudents.map((studentRow) => {
+          const studentId = studentsByNumber.get(studentRow.studentNumber);
+
+          if (!studentId) {
+            throw new Error(
+              `Could not create application for row ${studentRow.rowNumber}.`
+            );
+          }
+
+          return {
+            studentId,
+            applicantType: applicantType as ApplicantTypeValue,
+            applicationStatus: ApplicationStatus.draft,
+            branchId: branch.id,
+            programType: program.programType,
+            programId: program.id,
+            academicLevelsId: academicLevel.id,
+            remarks: `Bulk admitted from ${file.name}.`,
+            submittedAt: null,
+          };
+        }),
+      });
+    }, {
+      timeout: 20_000,
+    });
+  } catch (error) {
+    console.error("Failed to bulk admit students:", error);
+
+    return {
+      success: false,
+      message:
+        "We could not import the students. Check the file for duplicate or invalid rows and try again.",
+    };
+  }
+
+  revalidatePath("/portal/admission");
+
+  return {
+    success: true,
+    message: `Imported ${parsedStudents.length} admitted student${
+      parsedStudents.length === 1 ? "" : "s"
+    }.`,
   };
 }
 

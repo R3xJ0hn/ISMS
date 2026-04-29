@@ -124,13 +124,13 @@ type StudentUpdateQueryResult = {
   middleName: string | null;
   suffix: string | null;
   birthDate: Date;
-  gender: string;
+  gender: string | null;
   civilStatus: string | null;
   citizenship: string | null;
-  birthplace: string;
+  birthplace: string | null;
   religion: string | null;
   email: string;
-  phone: string;
+  phone: string | null;
   facebookAccount: string | null;
   address: {
     houseNumber: string | null;
@@ -459,13 +459,13 @@ function mapStudentRecord(
     middleName: student.middleName ?? "",
     suffix: student.suffix ?? "",
     birthDate: student.birthDate.toISOString().slice(0, 10),
-    gender: student.gender,
+    gender: student.gender ?? "",
     civilStatus: student.civilStatus ?? "",
     citizenship: student.citizenship ?? "",
-    birthplace: student.birthplace,
+    birthplace: student.birthplace ?? "",
     religion: student.religion ?? "",
     email: student.email,
-    phone: student.phone,
+    phone: student.phone ?? "",
     facebookAccount: student.facebookAccount ?? "",
     addressHouseNumber: student.address?.houseNumber ?? "",
     addressSubdivision: student.address?.subdivision ?? "",
