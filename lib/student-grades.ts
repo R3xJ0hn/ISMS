@@ -7,7 +7,8 @@ export type StudentGrade = {
   subject: string;
   code: string | null;
   units: string | null;
-  instructor: string | null;
+  instructor_id: string | null;
+  instructor_name: string | null;
   prelim: string | null;
   midterm: string | null;
   prefinals: string | null;
@@ -120,7 +121,8 @@ function normalizeGrade(record: GradeRecord): StudentGrade {
     subject: String(subject),
     code: stringifyNullable(getValue(record, ["subject_code", "subjectCode", "code"])),
     units: stringifyNullable(getValue(record, ["unit", "units", "credit", "credits"])),
-    instructor: stringifyNullable(getValue(record, ["instructor", "teacher", "faculty"])),
+    instructor_id: stringifyNullable(getValue(record, ["instructor_id", "teacher_id", "faculty_id"])),
+    instructor_name: stringifyNullable(getValue(record, ["instructor_name", "teacher_name", "faculty_name"])),
     prelim: getNestedGradeValue(record, "Prelim"),
     midterm: getNestedGradeValue(record, "Midterm"),
     prefinals: getNestedGradeValue(record, "Prefinals"),

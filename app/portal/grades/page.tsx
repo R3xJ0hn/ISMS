@@ -167,7 +167,7 @@ export default async function StudentGradesPage({ searchParams }: PageProps) {
                               {grade.units ?? "-"}
                             </td>
                             <td className="px-4 py-3 text-muted-foreground">
-                              {grade.instructor ?? "-"}
+                              {grade.instructor_name ?? "-"}
                             </td>
                             <td className="px-4 py-3 text-muted-foreground">
                               {grade.prelim ?? "-"}
