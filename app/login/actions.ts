@@ -13,6 +13,7 @@ import {
   normalizeEmail,
 } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
+import type { UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -100,6 +101,16 @@ function extractClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
   return normalizeIpCandidate(headerStore.get("x-real-ip")) ?? "unknown";
 }
 
+function normalizeUserAgent(value: string | null) {
+  const userAgent = value?.trim();
+
+  if (!userAgent) {
+    return null;
+  }
+
+  return userAgent.slice(0, 1000);
+}
+
 async function getRateLimitTargets(email: string) {
   const headerStore = await headers();
   const ipAddress = extractClientIp(headerStore);
@@ -182,6 +193,29 @@ async function recordFailedLoginAttempt(email: string) {
   );
 }
 
+async function recordSuccessfulLogin(user: {
+  id: string;
+  email: string;
+  role: UserRoleValue;
+}) {
+  if (!/^\d+$/.test(user.id)) {
+    return;
+  }
+
+  const headerStore = await headers();
+  const ipAddress = extractClientIp(headerStore);
+
+  await prisma.loginHistory.create({
+    data: {
+      userId: BigInt(user.id),
+      email: user.email,
+      role: user.role,
+      ipAddress: ipAddress === "unknown" ? null : ipAddress,
+      userAgent: normalizeUserAgent(headerStore.get("user-agent")),
+    },
+  });
+}
+
 export async function loginAction(
   _previousState: LoginFormState = initialState,
   formData: FormData
@@ -222,6 +256,7 @@ export async function loginAction(
     };
   }
 
+  await recordSuccessfulLogin(result.user);
   await createSession(result.user, { remember });
 
   redirect("/portal");

@@ -2,9 +2,9 @@ import { notFound, redirect } from "next/navigation";
 
 import {
   EditAdmittedStudentForm,
-  type AdmittedStudentEditRecord,
   type AdmittedStudentEditOptions,
 } from "@/app/portal/admission/edit-admitted-student-form";
+import { serializeAdmittedStudent } from "@/app/portal/admission/serialize-admitted-student";
 import { getCurrentSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -14,18 +14,6 @@ type EditAdmittedStudentPageProps = {
     applicationId: string;
   }>;
 };
-
-function formatDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function dateInputValue(date: Date | null) {
-  return date ? formatDateInput(date) : "";
-}
-
-function optionalValue(value: string | null | undefined) {
-  return value ?? "";
-}
 
 function parseId(value: string) {
   if (!/^\d+$/.test(value)) {
@@ -126,6 +114,24 @@ export default async function EditAdmittedStudentPage({
             },
           },
         },
+        branch: {
+          select: {
+            slug: true,
+            title: true,
+          },
+        },
+        program: {
+          select: {
+            code: true,
+            label: true,
+            programType: true,
+          },
+        },
+        academicLevels: {
+          select: {
+            label: true,
+          },
+        },
       },
     }),
     prisma.branch.findMany({
@@ -163,62 +169,7 @@ export default async function EditAdmittedStudentPage({
     notFound();
   }
 
-  const guardianLink = application.student.guardians[0];
-  const guardian = guardianLink?.guardian;
-  const address = application.student.address;
-  const lastSchool = application.lastSchool;
-  const lastSchoolAddress = lastSchool?.address;
-
-  const student = {
-    applicationId: application.id.toString(),
-    studentId: application.student.id.toString(),
-    applicantType: application.applicantType,
-    branchId: application.branchId.toString(),
-    programId: application.programId.toString(),
-    academicLevelsId: application.academicLevelsId.toString(),
-    studentNumber: application.student.studentNumber ?? "",
-    firstName: application.student.firstName,
-    lastName: application.student.lastName,
-    middleName: optionalValue(application.student.middleName),
-    suffix: optionalValue(application.student.suffix),
-    birthDate: formatDateInput(application.student.birthDate),
-    gender: optionalValue(application.student.gender),
-    civilStatus: optionalValue(application.student.civilStatus),
-    citizenship: optionalValue(application.student.citizenship),
-    birthplace: optionalValue(application.student.birthplace),
-    religion: optionalValue(application.student.religion),
-    email: application.student.email,
-    phone: optionalValue(application.student.phone),
-    facebookAccount: optionalValue(application.student.facebookAccount),
-    addressHouseNumber: optionalValue(address?.houseNumber),
-    addressSubdivision: optionalValue(address?.subdivision),
-    addressStreet: optionalValue(address?.street),
-    addressBarangay: optionalValue(address?.barangay),
-    addressCity: optionalValue(address?.city),
-    addressProvince: optionalValue(address?.province),
-    addressPostalCode: optionalValue(address?.postalCode),
-    guardianFirstName: optionalValue(guardian?.firstName),
-    guardianLastName: optionalValue(guardian?.lastName),
-    guardianMiddleName: optionalValue(guardian?.middleName),
-    guardianSuffix: optionalValue(guardian?.suffix),
-    guardianRelationship: optionalValue(guardianLink?.relationship),
-    guardianContactNumber: optionalValue(guardian?.contactNumber),
-    guardianOccupation: optionalValue(guardian?.occupation),
-    lastSchoolName: optionalValue(lastSchool?.schoolName),
-    lastSchoolId: optionalValue(lastSchool?.schoolId),
-    lastSchoolShortName: optionalValue(lastSchool?.shortName),
-    lastSchoolType: optionalValue(lastSchool?.schoolType),
-    lastSchoolHouseNumber: optionalValue(lastSchoolAddress?.houseNumber),
-    lastSchoolSubdivision: optionalValue(lastSchoolAddress?.subdivision),
-    lastSchoolStreet: optionalValue(lastSchoolAddress?.street),
-    lastSchoolBarangay: optionalValue(lastSchoolAddress?.barangay),
-    lastSchoolCity: optionalValue(lastSchoolAddress?.city),
-    lastSchoolProvince: optionalValue(lastSchoolAddress?.province),
-    lastSchoolPostalCode: optionalValue(lastSchoolAddress?.postalCode),
-    lastSchoolYear: optionalValue(application.LSSchoolYearEnd),
-    lastSchoolGraduationDate: dateInputValue(application.LSGraduationDate),
-    lastSchoolYearLevel: optionalValue(application.LSAttainedLevelText),
-  } satisfies AdmittedStudentEditRecord;
+  const student = serializeAdmittedStudent(application);
 
   const options = {
     branches: branches.map((branch) => ({

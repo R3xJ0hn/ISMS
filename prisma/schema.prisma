@@ -74,7 +74,25 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  loginHistory LoginHistory[]
+
   @@map("users")
+}
+
+model LoginHistory {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  email     String   @db.VarChar(320)
+  role      UserRole
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("login_history")
 }
 
 model LoginRateLimitBucket {
@@ -156,6 +174,7 @@ model Program {
 
   enrollments  Enrollment[]
   applications AdmissionApplication[]
+  sections     Section[]
 
   @@map("programs")
 }
@@ -168,6 +187,7 @@ model AcademicLevels {
 
   enrollments  Enrollment[]
   applications AdmissionApplication[]
+  sections     Section[]
 
   @@unique([slug])
   @@map("academic_levels")
@@ -251,16 +271,20 @@ model StudentGuardian {
 }
 
 model Section {
-  id          BigInt   @id @default(autoincrement())
-  branchId    BigInt   @map("branch_id")
-  sectionCode String   @map("section_code") @db.Text
-  sectionName String   @map("section_name") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id               BigInt   @id @default(autoincrement())
+  branchId         BigInt   @map("branch_id")
+  programId        BigInt   @map("program_id")
+  academicLevelsId BigInt   @map("academic_levels_id")
+  sectionCode      String   @map("section_code") @db.Text
+  sectionName      String   @map("section_name") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  enrollments Enrollment[]
+  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  program        Program        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  academicLevels AcademicLevels @relation(fields: [academicLevelsId], references: [id], onDelete: Cascade)
+  enrollments    Enrollment[]
 
-  @@unique([branchId, sectionCode])
+  @@unique([branchId, programId, academicLevelsId, sectionCode])
   @@map("sections")
 }
 

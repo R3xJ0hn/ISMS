@@ -136,10 +136,16 @@ export default defineSeed({
         sectionCode: row.sectionCode,
         sectionName: row.sectionName,
         branchId: getId("branches", row.branchKey, "branch"),
+        programId: getId("programs", row.programKey, "program"),
+        academicLevelsId: getId(
+          "academicLevels",
+          row.academicLevelKey,
+          "academic level"
+        ),
       },
     });
   },
-  down: async ({ prisma }, rows) => {
+  down: async ({ prisma, getId }, rows) => {
     const branchSlugs = uniqueStrings(
       rows.map((row) =>
         getSeedReference(branchSlugByKey, row.branchKey, "branch")
@@ -177,6 +183,12 @@ export default defineSeed({
       return [
         {
           branchId,
+          programId: getId("programs", row.programKey, "program"),
+          academicLevelsId: getId(
+            "academicLevels",
+            row.academicLevelKey,
+            "academic level"
+          ),
           sectionCode: row.sectionCode,
         },
       ];

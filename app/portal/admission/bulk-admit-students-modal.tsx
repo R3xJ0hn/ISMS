@@ -1,7 +1,7 @@
 "use client";
 
 import { FileSpreadsheet, UploadCloud, X } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import {
   bulkAdmitStudentsAction,
@@ -42,25 +42,78 @@ export function BulkAdmitStudentsModal({
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
   const [showActionMessage, setShowActionMessage] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    bulkAdmitStudentsAction,
-    initialState
-  );
+  const dialogTitleId = useId();
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [state, formAction, pending] = useActionState(
+    async (
+      previousState: BulkAdmitStudentsState,
+      formData: FormData
+    ): Promise<BulkAdmitStudentsState> => {
+      const nextState = await bulkAdmitStudentsAction(previousState, formData);
+
+      if (nextState.success) {
+        formRef.current?.reset();
+        setFileName("");
+      }
+
+      return nextState;
+    },
+    initialState
+  );
 
   useEffect(() => {
-    if (!state.success) {
+    if (!open) {
       return;
     }
 
-    formRef.current?.reset();
-    const resetTimer = window.setTimeout(() => {
-      setFileName("");
-    }, 0);
+    const previousOverflow = document.body.style.overflow;
+    const triggerElement = openButtonRef.current;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
 
-    return () => window.clearTimeout(resetTimer);
-  }, [state.success]);
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setShowActionMessage(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      triggerElement?.focus();
+    };
+  }, [open]);
 
   function openModal() {
     formRef.current?.reset();
@@ -80,17 +133,31 @@ export function BulkAdmitStudentsModal({
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={openModal}>
+      <Button ref={openButtonRef} type="button" variant="outline" onClick={openModal}>
         <FileSpreadsheet />
         Bulk Admit
       </Button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-border bg-background shadow-xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeModal();
+            }
+          }}
+        >
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={dialogTitleId}
+            tabIndex={-1}
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-border bg-background shadow-xl outline-none"
+          >
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h2 className="text-base font-semibold text-foreground">
+                <h2 id={dialogTitleId} className="text-base font-semibold text-foreground">
                   Bulk Admit Students
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">

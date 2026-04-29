@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   ClipboardList,
   GraduationCap,
+  History,
   PanelsTopLeft,
   Users,
   type LucideIcon,
@@ -55,6 +56,11 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
 
   if (role === UserRole.admin || role === UserRole.superAdmin) {
     return [
+      {
+        title: "Login History",
+        href: "/portal/login-history",
+        icon: History,
+      },
       {
         title: "Student",
         icon: Users,

@@ -53,15 +53,57 @@ function getSmtpTransporter() {
 
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return character;
+    }
+  });
+}
+
+function sanitizeText(value: string) {
+  return value.replace(/[\u0000-\u001F\u007F]/g, " ").trim();
+}
+
+function sanitizeUpdateUrl(updateUrl: string) {
+  try {
+    const url = new URL(updateUrl);
+
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return url.toString();
+    }
+  } catch {
+    // Fall through to a harmless placeholder.
+  }
+
+  return "#";
+}
+
 function buildStudentUpdateEmail(studentName: string, updateUrl: string) {
+  const safeStudentName = sanitizeText(studentName);
+  const safeUpdateUrl = sanitizeUpdateUrl(updateUrl);
+  const htmlStudentName = escapeHtml(safeStudentName);
+  const htmlUpdateUrl = escapeHtml(safeUpdateUrl);
+
   return {
     subject: "Update your DCSA student information",
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-        <p>Hello ${studentName},</p>
+        <p>Hello ${htmlStudentName},</p>
         <p>We verified your student record. Use the secure link below to update your saved information.</p>
         <p>
-          <a href="${updateUrl}" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          <a href="${htmlUpdateUrl}" style="display: inline-block; background: #0f766e; color: #ffffff; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: 600;">
             Update student information
           </a>
         </p>
@@ -69,11 +111,11 @@ function buildStudentUpdateEmail(studentName: string, updateUrl: string) {
       </div>
     `,
     text: [
-      `Hello ${studentName},`,
+      `Hello ${safeStudentName},`,
       "",
       "We verified your student record.",
       "Use this secure link to update your saved information:",
-      updateUrl,
+      safeUpdateUrl,
       "",
       "This link expires in 1 hour.",
     ].join("\n"),

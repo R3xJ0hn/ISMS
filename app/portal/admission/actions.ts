@@ -11,6 +11,8 @@ import {
   type ApplicantType as ApplicantTypeValue,
   CivilStatus,
   Gender,
+  ProgramType,
+  type ProgramType as ProgramTypeValue,
   SchoolType,
   UserRole,
 } from "@/lib/generated/prisma/enums";
@@ -31,6 +33,22 @@ export type UpdateApplicationStatusState = {
 };
 type ApplicationStatusValue =
   (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
+
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_ROWS = 1000;
+const allowedAcademicLevelSlugsByProgramType: Record<
+  ProgramTypeValue,
+  readonly string[]
+> = {
+  [ProgramType.Bachelor]: [
+    "first-year",
+    "second-year",
+    "third-year",
+    "fourth-year",
+  ],
+  [ProgramType.SeniorHigh]: ["grade-11", "grade-12"],
+  [ProgramType.Associate]: ["first-year", "second-year"],
+};
 
 const initialState = {
   success: false,
@@ -77,6 +95,15 @@ function parseId(value: string) {
   }
 
   return BigInt(value);
+}
+
+function isAcademicLevelAllowedForProgram(
+  programType: ProgramTypeValue,
+  academicLevel: { slug: string }
+) {
+  return allowedAcademicLevelSlugsByProgramType[programType].includes(
+    academicLevel.slug
+  );
 }
 
 function normalizeHeader(value: unknown) {
@@ -256,6 +283,7 @@ export async function addAdmittedStudentAction(
       },
       select: {
         id: true,
+        slug: true,
       },
     }),
   ]);
@@ -265,6 +293,13 @@ export async function addAdmittedStudentAction(
       success: false,
       message:
         "Set up at least one branch, program, and academic level before adding admitted students.",
+    };
+  }
+
+  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel)) {
+    return {
+      success: false,
+      message: "Select an academic level that matches the program type.",
     };
   }
 
@@ -397,6 +432,7 @@ export async function bulkAdmitStudentsAction(
       },
       select: {
         id: true,
+        slug: true,
       },
     }),
   ]);
@@ -405,6 +441,20 @@ export async function bulkAdmitStudentsAction(
     return {
       success: false,
       message: "Select a valid branch, program, and academic level.",
+    };
+  }
+
+  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel)) {
+    return {
+      success: false,
+      message: "Select an academic level that matches the program type.",
+    };
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return {
+      success: false,
+      message: "Upload a file up to 5 MB.",
     };
   }
 
@@ -424,7 +474,18 @@ export async function bulkAdmitStudentsAction(
       };
     }
 
-    rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], {
+    const sheet = workbook.Sheets[firstSheet];
+    const range = sheet["!ref"] ? XLSX.utils.decode_range(sheet["!ref"]) : null;
+    const rowCount = range ? range.e.r - range.s.r + 1 : 0;
+
+    if (rowCount > MAX_IMPORT_ROWS) {
+      return {
+        success: false,
+        message: `Upload up to ${MAX_IMPORT_ROWS} rows.`,
+      };
+    }
+
+    rows = XLSX.utils.sheet_to_json(sheet, {
       header: 1,
       raw: true,
       defval: "",
@@ -659,7 +720,8 @@ export async function updateApplicationStatusAction(
 
   if (
     !applicationId ||
-    !Object.values(ApplicationStatus).includes(status as ApplicationStatusValue)
+    !Object.values(ApplicationStatus).includes(status as ApplicationStatusValue) ||
+    status === ApplicationStatus.draft
   ) {
     return {
       success: false,
@@ -692,10 +754,7 @@ export async function updateApplicationStatusAction(
     },
     data: {
       applicationStatus: status as ApplicationStatusValue,
-      submittedAt:
-        status === ApplicationStatus.draft
-          ? null
-          : application.submittedAt ?? new Date(),
+      submittedAt: application.submittedAt ?? new Date(),
     },
   });
 
@@ -884,6 +943,7 @@ export async function editAdmittedStudentAction(
       },
       select: {
         id: true,
+        slug: true,
       },
     }),
   ]);
@@ -892,6 +952,13 @@ export async function editAdmittedStudentAction(
     return {
       success: false,
       message: "Select a valid branch, program, and academic level.",
+    };
+  }
+
+  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel)) {
+    return {
+      success: false,
+      message: "Select an academic level that matches the program type.",
     };
   }
 

@@ -179,45 +179,43 @@ export default function UpdateStudentForm({
                 className={inputClass}
               />
             </Field>
-            <Field label="Gender" htmlFor="gender" required>
+            <Field label="Gender" htmlFor="gender">
               <select
                 id="gender"
                 name="gender"
-                defaultValue={student.gender}
-                required
+                defaultValue={student.gender ?? ""}
                 className={selectClass}
               >
+                <option value="">Not specified</option>
                 <option value="Female">Female</option>
                 <option value="Male">Male</option>
               </select>
             </Field>
-            <Field label="Civil status" htmlFor="civilStatus" required>
+            <Field label="Civil status" htmlFor="civilStatus">
               <select
                 id="civilStatus"
                 name="civilStatus"
-                defaultValue={student.civilStatus}
-                required
+                defaultValue={student.civilStatus ?? ""}
                 className={selectClass}
               >
+                <option value="">Not specified</option>
                 <option value="Single">Single</option>
                 <option value="Married">Married</option>
               </select>
             </Field>
-            <Field label="Citizenship" htmlFor="citizenship" required>
+            <Field label="Citizenship" htmlFor="citizenship">
               <input
                 id="citizenship"
                 name="citizenship"
-                defaultValue={student.citizenship}
-                required
+                defaultValue={student.citizenship ?? ""}
                 className={inputClass}
               />
             </Field>
-            <Field label="Birthplace" htmlFor="birthplace" required>
+            <Field label="Birthplace" htmlFor="birthplace">
               <input
                 id="birthplace"
                 name="birthplace"
-                defaultValue={student.birthplace}
-                required
+                defaultValue={student.birthplace ?? ""}
                 className={inputClass}
               />
             </Field>
@@ -247,13 +245,12 @@ export default function UpdateStudentForm({
                 className={inputClass}
               />
             </Field>
-            <Field label="Phone" htmlFor="phone" required>
+            <Field label="Phone" htmlFor="phone">
               <input
                 id="phone"
                 name="phone"
                 type="tel"
-                defaultValue={student.phone}
-                required
+                defaultValue={student.phone ?? ""}
                 className={inputClass}
               />
             </Field>

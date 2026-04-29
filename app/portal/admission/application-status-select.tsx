@@ -23,6 +23,7 @@ export function ApplicationStatusSelect({
   statuses,
 }: ApplicationStatusSelectProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const errorId = `application-status-error-${applicationId}`;
   const [value, setValue] = useState(status);
   const [state, formAction, pending] = useActionState(
     updateApplicationStatusAction,
@@ -50,6 +51,10 @@ export function ApplicationStatusSelect({
       <input type="hidden" name="applicationId" value={applicationId} />
       <select
         name="applicationStatus"
+        aria-label="Application status"
+        aria-describedby={
+          state.message && !state.success && !pending ? errorId : undefined
+        }
         value={value}
         disabled={pending}
         onChange={(event) => {
@@ -67,7 +72,9 @@ export function ApplicationStatusSelect({
       {pending ? (
         <p className="text-xs text-muted-foreground">Saving...</p>
       ) : state.message && !state.success ? (
-        <p className="text-xs text-destructive">{state.message}</p>
+        <p id={errorId} aria-live="polite" className="text-xs text-destructive">
+          {state.message}
+        </p>
       ) : null}
     </form>
   );

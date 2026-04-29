@@ -10,7 +10,7 @@ import {
 } from "@/app/(public)/admission/components/review-step";
 import { Button } from "@/components/ui/button";
 
-type PortalAdmittedStudentRecord = {
+export type PortalAdmittedStudentRecord = {
   applicationId: string;
   studentId: string;
   studentNumber: string;
