@@ -9,13 +9,13 @@ type StudentSeedRow = {
   middleName: string | null;
   suffix: string | null;
   birthDate: string;
-  gender: (typeof Gender)[keyof typeof Gender];
-  civilStatus: (typeof CivilStatus)[keyof typeof CivilStatus];
-  citizenship: string;
-  birthplace: string;
+  gender?: (typeof Gender)[keyof typeof Gender] | null;
+  civilStatus?: (typeof CivilStatus)[keyof typeof CivilStatus] | null;
+  citizenship?: string | null;
+  birthplace?: string | null;
   religion: string | null;
   email: string;
-  phone: string;
+  phone?: string | null;
   facebookAccount: string | null;
   addressKey: string | null;
 };

@@ -28,6 +28,8 @@ function getDefaultSeedPassword() {
 }
 
 const DEFAULT_SEED_PASSWORD = getDefaultSeedPassword();
+const SUPER_ADMIN_SEED_EMAIL =
+  process.env.SUPER_ADMIN_SEED_EMAIL ?? "superadmin@dcsa.example";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -65,7 +67,7 @@ function createSeedUserImage(label: string, backgroundColor: string) {
 export const seedUsers = [
   {
     key: "super-admin",
-    email: "superadmin@dcsa.example",
+    email: SUPER_ADMIN_SEED_EMAIL,
     password: DEFAULT_SEED_PASSWORD,
     role: UserRole.superAdmin,
     emailVerified: true,
@@ -94,15 +96,7 @@ export const seedUsers = [
     role: UserRole.teacher,
     emailVerified: true,
     userImage: createSeedUserImage("Teacher", "#ea580c"),
-  },
-  {
-    key: "student",
-    email: "student@dcsa.example",
-    password: DEFAULT_SEED_PASSWORD,
-    role: UserRole.student,
-    emailVerified: false,
-    userImage: createSeedUserImage("Student", "#be123c"),
-  },
+  }
 ] as const satisfies readonly UserSeedRow[];
 
 export default defineSeed({

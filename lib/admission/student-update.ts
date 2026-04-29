@@ -29,13 +29,13 @@ export type StudentUpdateRecord = {
   middleName: string;
   suffix: string;
   birthDate: string;
-  gender: string;
-  civilStatus: string;
-  citizenship: string;
-  birthplace: string;
+  gender: string | null;
+  civilStatus: string | null;
+  citizenship: string | null;
+  birthplace: string | null;
   religion: string;
   email: string;
-  phone: string;
+  phone: string | null;
   facebookAccount: string;
   addressHouseNumber: string;
   addressSubdivision: string;
@@ -79,13 +79,13 @@ export type UpdateStudentRecordInput = {
   middleName: string;
   suffix: string;
   birthDate: string;
-  gender: string;
-  civilStatus: string;
-  citizenship: string;
-  birthplace: string;
+  gender?: string | null;
+  civilStatus?: string | null;
+  citizenship?: string | null;
+  birthplace?: string | null;
   religion: string;
   email: string;
-  phone: string;
+  phone?: string | null;
   facebookAccount: string;
   addressHouseNumber: string;
   addressSubdivision: string;
@@ -124,13 +124,13 @@ type StudentUpdateQueryResult = {
   middleName: string | null;
   suffix: string | null;
   birthDate: Date;
-  gender: string;
-  civilStatus: string;
-  citizenship: string;
-  birthplace: string;
+  gender: string | null;
+  civilStatus: string | null;
+  citizenship: string | null;
+  birthplace: string | null;
   religion: string | null;
   email: string;
-  phone: string;
+  phone: string | null;
   facebookAccount: string | null;
   address: {
     houseNumber: string | null;
@@ -163,6 +163,8 @@ type StudentUpdateQueryResult = {
     LSSchoolYearEnd: string | null;
     LSAttainedLevelText: string | null;
     LSGraduationDate: Date | null;
+    applicationStatus: (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
+    submittedAt: Date | null;
     lastSchool: {
       schoolName: string;
       schoolId: string | null;
@@ -327,13 +329,13 @@ function normalizeStudentUpdateInput(
     middleName: normalizeText(input.middleName),
     suffix: normalizeText(input.suffix),
     birthDate: normalizeText(input.birthDate),
-    gender: normalizeText(input.gender),
-    civilStatus: normalizeText(input.civilStatus),
-    citizenship: normalizeText(input.citizenship),
-    birthplace: normalizeText(input.birthplace),
+    gender: normalizeNullableText(input.gender),
+    civilStatus: normalizeNullableText(input.civilStatus),
+    citizenship: normalizeNullableText(input.citizenship),
+    birthplace: normalizeNullableText(input.birthplace),
     religion: normalizeText(input.religion),
     email: normalizeText(input.email),
-    phone: normalizeText(input.phone),
+    phone: normalizeNullableText(input.phone),
     facebookAccount: normalizeText(input.facebookAccount),
     addressHouseNumber: normalizeText(input.addressHouseNumber),
     addressSubdivision: normalizeText(input.addressSubdivision),
@@ -366,17 +368,22 @@ function normalizeStudentUpdateInput(
   };
 }
 
+function normalizeNullableText(value: string | null | undefined) {
+  if (value == null) {
+    return null;
+  }
+
+  const normalizedValue = normalizeText(value);
+
+  return normalizedValue || null;
+}
+
 function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
   const requiredFields: Array<[keyof UpdateStudentRecordInput, boolean]> = [
     ["firstName", !input.firstName],
     ["lastName", !input.lastName],
     ["birthDate", !input.birthDate],
-    ["gender", !input.gender],
-    ["civilStatus", !input.civilStatus],
-    ["citizenship", !input.citizenship],
-    ["birthplace", !input.birthplace],
     ["email", !input.email],
-    ["phone", !input.phone],
     ["addressBarangay", !input.addressBarangay],
     ["addressCity", !input.addressCity],
     ["addressProvince", !input.addressProvince],
@@ -403,11 +410,15 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "birthDate";
   }
 
-  if (!Object.values(Gender).includes(input.gender as (typeof Gender)[keyof typeof Gender])) {
+  if (
+    input.gender &&
+    !Object.values(Gender).includes(input.gender as (typeof Gender)[keyof typeof Gender])
+  ) {
     return "gender";
   }
 
   if (
+    input.civilStatus &&
     !Object.values(CivilStatus).includes(
       input.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus]
     )
@@ -419,7 +430,7 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "email";
   }
 
-  if (!isValidPhone(input.phone)) {
+  if (input.phone && !isValidPhone(input.phone)) {
     return "phone";
   }
 
@@ -586,6 +597,8 @@ export async function getStudentUpdateRecord(token: string) {
           LSSchoolYearEnd: true,
           LSAttainedLevelText: true,
           LSGraduationDate: true,
+          applicationStatus: true,
+          submittedAt: true,
           lastSchool: {
             select: {
               schoolName: true,
@@ -713,6 +726,8 @@ export async function updateStudentRecordFromToken(
               academicLevelsId: true,
               programType: true,
               lastSchoolId: true,
+              applicationStatus: true,
+              submittedAt: true,
               lastSchool: {
                 select: {
                   id: true,
@@ -755,12 +770,25 @@ export async function updateStudentRecordFromToken(
       let addressId = student.addressId;
 
       if (addressId) {
-        await tx.address.update({
+        const addressStudentCount = await tx.student.count({
           where: {
-            id: addressId,
+            addressId,
           },
-          data: addressData,
         });
+
+        if (addressStudentCount > 1) {
+          const address = await tx.address.create({
+            data: addressData,
+          });
+          addressId = address.id;
+        } else {
+          await tx.address.update({
+            where: {
+              id: addressId,
+            },
+            data: addressData,
+          });
+        }
       } else {
         const address = await tx.address.create({
           data: addressData,
@@ -771,25 +799,43 @@ export async function updateStudentRecordFromToken(
       const primaryGuardianLink = student.guardians[0];
 
       if (primaryGuardianLink) {
-        await tx.guardian.update({
+        const guardianData = {
+          firstName: normalizedInput.guardianFirstName,
+          lastName: normalizedInput.guardianLastName,
+          middleName: optionalText(normalizedInput.guardianMiddleName),
+          suffix: optionalText(normalizedInput.guardianSuffix),
+          contactNumber: normalizedInput.guardianContactNumber,
+          occupation: optionalText(normalizedInput.guardianOccupation),
+        };
+        const guardianLinkCount = await tx.studentGuardian.count({
           where: {
-            id: primaryGuardianLink.guardianId,
-          },
-          data: {
-            firstName: normalizedInput.guardianFirstName,
-            lastName: normalizedInput.guardianLastName,
-            middleName: optionalText(normalizedInput.guardianMiddleName),
-            suffix: optionalText(normalizedInput.guardianSuffix),
-            contactNumber: normalizedInput.guardianContactNumber,
-            occupation: optionalText(normalizedInput.guardianOccupation),
+            guardianId: primaryGuardianLink.guardianId,
           },
         });
+
+        const guardian =
+          guardianLinkCount > 1
+            ? await tx.guardian.create({
+                data: {
+                  ...guardianData,
+                  email: null,
+                  addressId: null,
+                  facebookAccount: null,
+                },
+              })
+            : await tx.guardian.update({
+                where: {
+                  id: primaryGuardianLink.guardianId,
+                },
+                data: guardianData,
+              });
 
         await tx.studentGuardian.update({
           where: {
             id: primaryGuardianLink.id,
           },
           data: {
+            guardianId: guardian.id,
             relationship: normalizedInput.guardianRelationship,
             isPrimary: true,
           },
@@ -884,6 +930,8 @@ export async function updateStudentRecordFromToken(
       }
 
       if (latestApplication) {
+        const shouldMarkReviewing =
+          latestApplication.applicationStatus === ApplicationStatus.draft;
         await tx.admissionApplication.update({
           where: {
             id: latestApplication.id,
@@ -892,6 +940,12 @@ export async function updateStudentRecordFromToken(
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
+            ...(shouldMarkReviewing
+              ? {
+                  applicationStatus: ApplicationStatus.reviewing,
+                  submittedAt: latestApplication.submittedAt ?? new Date(),
+                }
+              : {}),
             LSGraduationDate: normalizedInput.lastSchoolGraduationDate
               ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
               : null,
@@ -902,7 +956,7 @@ export async function updateStudentRecordFromToken(
           data: {
             studentId: student.id,
             applicantType: ApplicantType.existing,
-            applicationStatus: ApplicationStatus.draft,
+            applicationStatus: ApplicationStatus.reviewing,
             lastSchoolId,
             LSSchoolYearEnd: normalizedInput.lastSchoolYear,
             LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
@@ -914,7 +968,7 @@ export async function updateStudentRecordFromToken(
             programId: latestEnrollment.programId,
             academicLevelsId: latestEnrollment.academicLevelsId,
             remarks: "Created from secure student update link.",
-            submittedAt: null,
+            submittedAt: new Date(),
           },
         });
       }
@@ -930,9 +984,13 @@ export async function updateStudentRecordFromToken(
           suffix: optionalText(normalizedInput.suffix),
           birthDate,
           gender:
-            normalizedInput.gender as (typeof Gender)[keyof typeof Gender],
+            normalizedInput.gender === null
+              ? null
+              : normalizedInput.gender as (typeof Gender)[keyof typeof Gender],
           civilStatus:
-            normalizedInput.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus],
+            normalizedInput.civilStatus === null
+              ? null
+              : normalizedInput.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus],
           citizenship: normalizedInput.citizenship,
           birthplace: normalizedInput.birthplace,
           religion: optionalText(normalizedInput.religion),

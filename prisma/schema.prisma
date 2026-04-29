@@ -74,7 +74,25 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  loginHistory LoginHistory[]
+
   @@map("users")
+}
+
+model LoginHistory {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @map("user_id")
+  email     String   @db.VarChar(320)
+  role      UserRole
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("login_history")
 }
 
 model LoginRateLimitBucket {
@@ -154,9 +172,9 @@ model Program {
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   programType   ProgramType
 
-  sections     Section[]
   enrollments  Enrollment[]
   applications AdmissionApplication[]
+  sections     Section[]
 
   @@map("programs")
 }
@@ -167,9 +185,9 @@ model AcademicLevels {
   slug      String   @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  sections     Section[]
   enrollments  Enrollment[]
   applications AdmissionApplication[]
+  sections     Section[]
 
   @@unique([slug])
   @@map("academic_levels")
@@ -189,24 +207,24 @@ model SchoolYear {
 }
 
 model Student {
-  id              BigInt      @id @default(autoincrement())
-  studentNumber   String?     @unique @map("student_number") @db.Text
-  firstName       String      @map("first_name") @db.Text
-  lastName        String      @map("last_name") @db.Text
-  middleName      String?     @map("middle_name") @db.Text
-  suffix          String?     @db.Text
-  birthDate       DateTime    @map("birth_date") @db.Date
-  gender          Gender
-  civilStatus     CivilStatus @map("civil_status")
-  citizenship     String      @db.Text
-  birthplace      String      @db.Text
-  religion        String?     @db.Text
-  email           String      @unique @db.Text
-  phone           String      @db.Text
-  facebookAccount String?     @map("facebook_account") @db.Text
-  addressId       BigInt?     @map("address_id")
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              BigInt       @id @default(autoincrement())
+  studentNumber   String?      @unique @map("student_number") @db.Text
+  firstName       String       @map("first_name") @db.Text
+  lastName        String       @map("last_name") @db.Text
+  middleName      String?      @map("middle_name") @db.Text
+  suffix          String?      @db.Text
+  birthDate       DateTime     @map("birth_date") @db.Date
+  gender          Gender?
+  civilStatus     CivilStatus? @map("civil_status")
+  citizenship     String?      @db.Text
+  birthplace      String?      @db.Text
+  religion        String?      @db.Text
+  email           String       @unique @db.Text
+  phone           String?      @db.Text
+  facebookAccount String?      @map("facebook_account") @db.Text
+  addressId       BigInt?      @map("address_id")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
   guardians    StudentGuardian[]

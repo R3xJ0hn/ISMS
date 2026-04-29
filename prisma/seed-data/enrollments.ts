@@ -27,9 +27,9 @@ export const seedEnrollments = [
   {
     studentKey: "2612346",
     branchKey: "fairview",
-    programKey: "bsba",
+    programKey: "bsoa",
     academicLevelKey: "first-year",
-    sectionKey: "fair-bsba-1a",
+    sectionKey: "fair-bsoa-1a",
     schoolYearKey: "2025-2026",
     enrollmentStatus: EnrollmentStatus.enrolled,
     enrolledAt: "2025-08-13T08:30:00.000Z",
@@ -47,9 +47,9 @@ export const seedEnrollments = [
   {
     studentKey: "2612348",
     branchKey: "valenzuela",
-    programKey: "shs-stem",
+    programKey: "shs-gas",
     academicLevelKey: "grade-11",
-    sectionKey: "val-stem-11a",
+    sectionKey: "val-gas-11a",
     schoolYearKey: "2025-2026",
     enrollmentStatus: EnrollmentStatus.enrolled,
     enrolledAt: "2025-08-11T07:45:00.000Z",

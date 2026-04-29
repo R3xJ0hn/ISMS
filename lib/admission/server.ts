@@ -5,8 +5,9 @@ import { unstable_cache } from "next/cache";
 import {
   CivilStatus,
   Gender,
+  ProgramType,
   SchoolType,
-  type ProgramType,
+  type ProgramType as ProgramTypeValue,
 } from "@/lib/generated/prisma/enums";
 import {
   saveAdmissionSubmission,
@@ -14,6 +15,11 @@ import {
 } from "@/lib/admission/submission-store";
 import { sendStudentUpdateLinkEmail } from "@/lib/admission/resend";
 import { createStudentUpdateUrl } from "@/lib/admission/student-update";
+import {
+  validateEmail,
+  validatePhone,
+  validateSchoolYear,
+} from "@/lib/admission/validation";
 import { prisma } from "@/lib/prisma";
 import { normalizeName, normalizeText } from "@/lib/utils";
 
@@ -77,7 +83,6 @@ export type VerifyCurrentStudentInput = {
   firstName?: string;
   lastName?: string;
   birthDate?: string;
-  lastSchoolYearAttended?: string;
 };
 
 export type VerifyCurrentStudentResult = {
@@ -116,6 +121,19 @@ const NEW_STUDENT = "New Student";
 const MISSING_FIELDS_MESSAGE =
   "Complete all verification fields before checking the record.";
 const VERIFICATION_FAILED_MESSAGE = "Verification failed.";
+const allowedAcademicLevelSlugsByProgramType: Record<
+  ProgramTypeValue,
+  readonly string[]
+> = {
+  [ProgramType.Bachelor]: [
+    "first-year",
+    "second-year",
+    "third-year",
+    "fourth-year",
+  ],
+  [ProgramType.SeniorHigh]: ["grade-11", "grade-12"],
+  [ProgramType.Associate]: ["first-year", "second-year"],
+};
 
 const branchSelect = {
   id: true,
@@ -189,7 +207,6 @@ const existingStudentRequiredFields = [
   "current_student_first_name",
   "current_student_last_name",
   "current_student_birth_date",
-  "current_last_school_year_attended",
   "current_student_record_id",
 ] as const;
 
@@ -250,7 +267,6 @@ const allowedSubmissionFields = [
   "current_student_first_name",
   "current_student_last_name",
   "current_student_birth_date",
-  "current_last_school_year_attended",
   "current_student_record_id",
   "current_student_verified_name",
   "current_student_verified_school_year",
@@ -296,13 +312,8 @@ const fieldLabels: Record<string, string> = {
   current_student_first_name: "Current student first name",
   current_student_last_name: "Current student last name",
   current_student_birth_date: "Current student birth date",
-  current_last_school_year_attended: "Last school year attended",
   current_student_record_id: "Verified student record",
 };
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
-const schoolYearPattern = /^(\d{4})(?:\s*-\s*(\d{4}))?$/;
 
 function formatAddress(address: BranchAddress | null) {
   if (!address) {
@@ -367,40 +378,6 @@ function parseDateRange(value: string) {
   return { start, end };
 }
 
-function isValidEmail(value: string) {
-  return emailPattern.test(value);
-}
-
-function isValidPhone(value: string) {
-  if (!phonePattern.test(value)) {
-    return false;
-  }
-
-  const digits = value.replace(/\D/g, "");
-  return digits.length >= 7 && digits.length <= 15;
-}
-
-function isValidSchoolYear(value: string) {
-  const match = schoolYearPattern.exec(value);
-
-  if (!match) {
-    return false;
-  }
-
-  const startYear = Number.parseInt(match[1], 10);
-  const endYear = match[2] ? Number.parseInt(match[2], 10) : null;
-
-  if (Number.isNaN(startYear) || startYear < 1900 || startYear > 2100) {
-    return false;
-  }
-
-  if (endYear === null) {
-    return true;
-  }
-
-  return endYear === startYear + 1;
-}
-
 function enumIncludes<T extends Record<string, string>>(
   values: T,
   value: string
@@ -419,15 +396,15 @@ function firstInvalidField(
   }> = [
     {
       field: "contact_email",
-      validate: isValidEmail,
+      validate: validateEmail,
     },
     {
       field: "contact_phone",
-      validate: isValidPhone,
+      validate: validatePhone,
     },
     {
       field: "guardian_contact_number",
-      validate: isValidPhone,
+      validate: validatePhone,
     },
     {
       field: "student_birth_date",
@@ -447,7 +424,7 @@ function firstInvalidField(
     },
     {
       field: "last_school_year",
-      validate: isValidSchoolYear,
+      validate: validateSchoolYear,
     },
     {
       field: "last_school_graduation_date",
@@ -456,17 +433,12 @@ function firstInvalidField(
     },
     {
       field: "current_student_email",
-      validate: isValidEmail,
+      validate: validateEmail,
       when: applicantType === EXISTING_STUDENT,
     },
     {
       field: "current_student_birth_date",
       validate: (value) => parseDateRange(value) !== null,
-      when: applicantType === EXISTING_STUDENT,
-    },
-    {
-      field: "current_last_school_year_attended",
-      validate: isValidSchoolYear,
       when: applicantType === EXISTING_STUDENT,
     },
   ];
@@ -585,12 +557,6 @@ async function existingStudentVerificationMatches(form: Record<string, string>) 
     return false;
   }
 
-  const latestEnrollment = student.enrollments[0];
-
-  if (!latestEnrollment) {
-    return false;
-  }
-
   return (
     normalizeText(student.studentNumber) === form.current_student_number &&
     student.email.toLowerCase() === form.current_student_email.toLowerCase() &&
@@ -599,9 +565,7 @@ async function existingStudentVerificationMatches(form: Record<string, string>) 
     normalizeName(student.lastName).toLowerCase() ===
       normalizeName(form.current_student_last_name).toLowerCase() &&
     student.birthDate >= submittedBirthDate.start &&
-    student.birthDate < submittedBirthDate.end &&
-    normalizeText(latestEnrollment.schoolYear.name) ===
-      form.current_last_school_year_attended
+    student.birthDate < submittedBirthDate.end
   );
 }
 
@@ -633,7 +597,7 @@ export async function getAdmissionProgramOptions(
   }
 
   try {
-    const [branch, sections] = await Promise.all([
+    const [branch, programs, academicLevels] = await Promise.all([
       prisma.branch.findUnique({
         where: {
           id: BigInt(normalizedBranchId),
@@ -644,26 +608,19 @@ export async function getAdmissionProgramOptions(
           title: true,
         },
       }),
-      prisma.section.findMany({
-        where: {
-          branchId: BigInt(normalizedBranchId),
-        },
+      prisma.program.findMany({
         select: {
-          academicLevels: {
-            select: {
-              id: true,
-              label: true,
-              slug: true,
-            },
-          },
-          program: {
-            select: {
-              id: true,
-              code: true,
-              label: true,
-              programType: true,
-            },
-          },
+          id: true,
+          code: true,
+          label: true,
+          programType: true,
+        },
+      }),
+      prisma.academicLevels.findMany({
+        select: {
+          id: true,
+          label: true,
+          slug: true,
         },
       }),
     ]);
@@ -675,40 +632,31 @@ export async function getAdmissionProgramOptions(
       };
     }
 
-    const programsById = new Map<string, InternalProgramOption>();
+    const programOptions = programs
+      .map((program): InternalProgramOption => {
+        const allowedSlugs = allowedAcademicLevelSlugsByProgramType[
+          program.programType
+        ];
 
-    for (const section of sections) {
-      const programId = section.program.id.toString();
-      const existingProgram = programsById.get(programId);
-
-      if (existingProgram) {
-        existingProgram.academicLevels.set(section.academicLevels.id.toString(), {
-          id: section.academicLevels.id.toString(),
-          label: section.academicLevels.label,
-          slug: section.academicLevels.slug,
-        });
-        continue;
-      }
-
-      programsById.set(programId, {
-        id: programId,
-        code: section.program.code,
-        label: section.program.label,
-        programType: section.program.programType,
-        academicLevels: new Map([
-          [
-            section.academicLevels.id.toString(),
-            {
-              id: section.academicLevels.id.toString(),
-              label: section.academicLevels.label,
-              slug: section.academicLevels.slug,
-            },
-          ],
-        ]),
-      });
-    }
-
-    const programs = Array.from(programsById.values())
+        return {
+          id: program.id.toString(),
+          code: program.code,
+          label: program.label,
+          programType: program.programType,
+          academicLevels: new Map(
+            academicLevels
+              .filter((level) => allowedSlugs.includes(level.slug))
+              .map((level) => [
+                level.id.toString(),
+                {
+                  id: level.id.toString(),
+                  label: level.label,
+                  slug: level.slug,
+                },
+              ])
+          ),
+        };
+      })
       .toSorted(sortPrograms)
       .map(({ academicLevels, ...program }) => ({
         ...program,
@@ -723,7 +671,7 @@ export async function getAdmissionProgramOptions(
         title: branch.title,
         code: branch.slug,
       },
-      programs,
+      programs: programOptions,
     };
   } catch (error) {
     console.error("Failed to fetch admission program options:", error);
@@ -750,51 +698,64 @@ async function getCanonicalAdmissionProgramSelection(
     return null;
   }
 
-  const section = await prisma.section.findFirst({
-    where: {
-      branchId: BigInt(branchId),
-      programId: BigInt(programId),
-      academicLevelsId: BigInt(academicLevelsId),
-    },
-    select: {
-      branch: {
-        select: {
-          id: true,
-          slug: true,
-          title: true,
-        },
+  const [branch, program, academicLevel] = await Promise.all([
+    prisma.branch.findUnique({
+      where: {
+        id: BigInt(branchId),
       },
-      program: {
-        select: {
-          id: true,
-          code: true,
-          label: true,
-          programType: true,
-        },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
       },
-      academicLevels: {
-        select: {
-          id: true,
-          label: true,
-        },
+    }),
+    prisma.program.findUnique({
+      where: {
+        id: BigInt(programId),
       },
-    },
-  });
+      select: {
+        id: true,
+        code: true,
+        label: true,
+        programType: true,
+      },
+    }),
+    prisma.academicLevels.findUnique({
+      where: {
+        id: BigInt(academicLevelsId),
+      },
+      select: {
+        id: true,
+        label: true,
+        slug: true,
+      },
+    }),
+  ]);
 
-  if (!section || section.program.programType !== form.program_type) {
+  if (!branch || !program || !academicLevel) {
+    return null;
+  }
+
+  const allowedAcademicLevelSlugs =
+    allowedAcademicLevelSlugsByProgramType[program.programType];
+
+  if (
+    program.programType !== form.program_type ||
+    !allowedAcademicLevelSlugs.includes(academicLevel.slug)
+  ) {
     return null;
   }
 
   return {
-    branchId: section.branch.id,
-    branchCode: section.branch.slug,
-    branchTitle: section.branch.title,
-    programId: section.program.id,
-    programCode: section.program.code,
-    programLabel: section.program.label,
-    programType: section.program.programType satisfies ProgramType,
-    academicLevelsId: section.academicLevels.id,
-    academicLevelLabel: section.academicLevels.label,
+    branchId: branch.id,
+    branchCode: branch.slug,
+    branchTitle: branch.title,
+    programId: program.id,
+    programCode: program.code,
+    programLabel: program.label,
+    programType: program.programType satisfies ProgramTypeValue,
+    academicLevelsId: academicLevel.id,
+    academicLevelLabel: academicLevel.label,
   };
 }
 
@@ -824,15 +785,13 @@ export async function verifyCurrentStudent(
   const firstName = normalizeName(input.firstName);
   const lastName = normalizeName(input.lastName);
   const birthDate = normalizeText(input.birthDate);
-  const lastSchoolYearAttended = normalizeText(input.lastSchoolYearAttended);
 
   if (
     !studentNumber ||
     !studentEmail ||
     !firstName ||
     !lastName ||
-    !birthDate ||
-    !lastSchoolYearAttended
+    !birthDate
   ) {
     return {
       verified: false,
@@ -855,14 +814,6 @@ export async function verifyCurrentStudent(
         studentNumber,
         email: {
           equals: studentEmail,
-          mode: "insensitive",
-        },
-        firstName: {
-          equals: firstName,
-          mode: "insensitive",
-        },
-        lastName: {
-          equals: lastName,
           mode: "insensitive",
         },
         birthDate: {
@@ -923,31 +874,24 @@ export async function verifyCurrentStudent(
       };
     }
 
+    if (
+      normalizeName(student.firstName).toLowerCase() !==
+        firstName.toLowerCase() ||
+      normalizeName(student.lastName).toLowerCase() !== lastName.toLowerCase()
+    ) {
+      console.info("Current student verification failed", {
+        reason: "student_name_mismatch",
+      });
+
+      return {
+        verified: false,
+        message: VERIFICATION_FAILED_MESSAGE,
+      };
+    }
+
     const latestEnrollment = student.enrollments[0];
 
-    if (!latestEnrollment) {
-      console.info("Current student verification failed", {
-        reason: "latest_enrollment_not_found",
-      });
-
-      return {
-        verified: false,
-        message: VERIFICATION_FAILED_MESSAGE,
-      };
-    }
-
-    if (latestEnrollment.schoolYear.name !== lastSchoolYearAttended) {
-      console.info("Current student verification failed", {
-        reason: "latest_school_year_mismatch",
-      });
-
-      return {
-        verified: false,
-        message: VERIFICATION_FAILED_MESSAGE,
-      };
-    }
-
-    let verificationMessage =
+    const verificationMessage =
       "Student record verified. We sent a secure update link to your email.";
 
     try {
@@ -958,8 +902,12 @@ export async function verifyCurrentStudent(
       });
     } catch (error) {
       console.error("Failed to send student update link email:", error);
-      verificationMessage =
-        "Student record verified. We could not send the update link right now.";
+
+      return {
+        verified: false,
+        message:
+          "Student record was found, but we could not send the update link email. Please contact the registrar or try again later.",
+      };
     }
 
     return {
@@ -968,16 +916,18 @@ export async function verifyCurrentStudent(
       student: {
         id: student.id.toString(),
         displayName: formatDisplayName(student),
-        latestEnrollment: {
-          schoolYear: latestEnrollment.schoolYear.name,
-          branch: latestEnrollment.branch.title,
-          program: latestEnrollment.program.label,
-          yearLevel: latestEnrollment.academicLevels.label,
-          section:
-            latestEnrollment.section?.sectionName ??
-            latestEnrollment.section?.sectionCode ??
-            null,
-        },
+        latestEnrollment: latestEnrollment
+          ? {
+              schoolYear: latestEnrollment.schoolYear.name,
+              branch: latestEnrollment.branch.title,
+              program: latestEnrollment.program.label,
+              yearLevel: latestEnrollment.academicLevels.label,
+              section:
+                latestEnrollment.section?.sectionName ??
+                latestEnrollment.section?.sectionCode ??
+                null,
+            }
+          : null,
       },
     };
   } catch (error) {

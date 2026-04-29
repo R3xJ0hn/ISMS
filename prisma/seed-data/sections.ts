@@ -4,9 +4,7 @@ import {
   getAllowedAcademicLevelKeysForProgram,
   uniqueStrings,
 } from "./_helpers";
-import { seedAcademicLevels } from "./academic-levels";
 import { seedBranches } from "./branches";
-import { seedPrograms } from "./programs";
 
 type SectionSeedRow = {
   key: string;
@@ -45,11 +43,11 @@ const seedSectionOfferings = [
     sectionSuffix: "A",
   },
   {
-    keyPrefix: "fair-bsba",
-    codePrefix: "FAIR-BSBA",
-    namePrefix: "BSBA",
+    keyPrefix: "fair-bsoa",
+    codePrefix: "FAIR-BSOA",
+    namePrefix: "BSOA",
     branchKey: "fairview",
-    programKey: "bsba",
+    programKey: "bsoa",
     sectionSuffix: "A",
   },
   {
@@ -61,11 +59,11 @@ const seedSectionOfferings = [
     sectionSuffix: "A",
   },
   {
-    keyPrefix: "val-stem",
-    codePrefix: "VAL-STEM",
-    namePrefix: "STEM",
+    keyPrefix: "val-gas",
+    codePrefix: "VAL-GAS",
+    namePrefix: "GAS",
     branchKey: "valenzuela",
-    programKey: "shs-stem",
+    programKey: "shs-gas",
     sectionSuffix: "A",
   },
   {
@@ -105,12 +103,6 @@ export const seedSections: readonly SectionSeedRow[] = seedSectionOfferings.flat
 const branchSlugByKey = new Map(
   seedBranches.map((row) => [row.key, row.slug] as const)
 );
-const programCodeByKey = new Map(
-  seedPrograms.map((row) => [row.key, row.code] as const)
-);
-const academicLevelSlugByKey = new Map(
-  seedAcademicLevels.map((row) => [row.key, row.slug] as const)
-);
 
 function getSeedReference(
   lookup: ReadonlyMap<string, string>,
@@ -124,6 +116,19 @@ function getSeedReference(
   }
 
   return value;
+}
+
+function tryGetSeedId(
+  getId: (group: string, key: string, label: string) => bigint,
+  group: string,
+  key: string,
+  label: string
+) {
+  try {
+    return getId(group, key, label);
+  } catch {
+    return null;
+  }
 }
 
 export default defineSeed({
@@ -153,24 +158,10 @@ export default defineSeed({
       },
     });
   },
-  down: async ({ prisma }, rows) => {
+  down: async ({ prisma, getId }, rows) => {
     const branchSlugs = uniqueStrings(
       rows.map((row) =>
         getSeedReference(branchSlugByKey, row.branchKey, "branch")
-      )
-    );
-    const programCodes = uniqueStrings(
-      rows.map((row) =>
-        getSeedReference(programCodeByKey, row.programKey, "program")
-      )
-    );
-    const academicLevelSlugs = uniqueStrings(
-      rows.map((row) =>
-        getSeedReference(
-          academicLevelSlugByKey,
-          row.academicLevelKey,
-          "academic level"
-        )
       )
     );
 
@@ -185,64 +176,35 @@ export default defineSeed({
         slug: true,
       },
     });
-    const programs = await prisma.program.findMany({
-      where: {
-        code: {
-          in: programCodes,
-        },
-      },
-      select: {
-        code: true,
-        id: true,
-      },
-    });
-    const academicLevels = await prisma.academicLevels.findMany({
-      where: {
-        slug: {
-          in: academicLevelSlugs,
-        },
-      },
-      select: {
-        id: true,
-        slug: true,
-      },
-    });
 
     const branchIdBySlug = new Map(
       branches.map((branch) => [branch.slug, branch.id] as const)
     );
-    const programIdByCode = new Map(
-      programs.map((program) => [program.code, program.id] as const)
-    );
-    const academicLevelIdBySlug = new Map(
-      academicLevels.map((level) => [level.slug, level.id] as const)
-    );
 
     const predicates = rows.flatMap((row) => {
-      const branchSlug = getSeedReference(
-        branchSlugByKey,
-        row.branchKey,
-        "branch"
-      );
-      const programCode = getSeedReference(
-        programCodeByKey,
+      let branchSlug: string;
+
+      try {
+        branchSlug = getSeedReference(branchSlugByKey, row.branchKey, "branch");
+      } catch {
+        return [];
+      }
+
+      const branchId = branchIdBySlug.get(branchSlug);
+      const programId = tryGetSeedId(
+        getId,
+        "programs",
         row.programKey,
         "program"
       );
-      const academicLevelSlug = getSeedReference(
-        academicLevelSlugByKey,
+      const academicLevelsId = tryGetSeedId(
+        getId,
+        "academicLevels",
         row.academicLevelKey,
         "academic level"
       );
-      const branchId = branchIdBySlug.get(branchSlug);
-      const programId = programIdByCode.get(programCode);
-      const academicLevelsId = academicLevelIdBySlug.get(academicLevelSlug);
 
-      if (
-        branchId === undefined ||
-        programId === undefined ||
-        academicLevelsId === undefined
-      ) {
+      if (branchId === undefined || !programId || !academicLevelsId) {
         return [];
       }
 
