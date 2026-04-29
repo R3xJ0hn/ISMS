@@ -231,7 +231,9 @@ export default async function AdmissionPage({
     id: branch.id.toString(),
     title: branch.title,
   }));
-  const applicationStatuses = Object.values(ApplicationStatus);
+  const applicationStatuses = Object.values(ApplicationStatus).filter(
+    (status) => status !== ApplicationStatus.draft
+  );
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">

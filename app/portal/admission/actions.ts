@@ -167,8 +167,13 @@ function parseExcelDate(value: unknown) {
   const month = Number.parseInt(slashMatch[1], 10);
   const day = Number.parseInt(slashMatch[2], 10);
   const yearText = slashMatch[3];
+
+  if (yearText.length !== 4) {
+    return parseBirthDate(text);
+  }
+
   const parsedYear = Number.parseInt(yearText, 10);
-  const year = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+  const year = parsedYear;
 
   return parseBirthDate(
     `${year.toString().padStart(4, "0")}-${month

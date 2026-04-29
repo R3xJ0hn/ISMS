@@ -43,7 +43,16 @@ export default async function LoginHistoryPage() {
 
   const isAdmin =
     session.role === UserRole.admin || session.role === UserRole.superAdmin;
-  const userId = /^\d+$/.test(session.id) ? BigInt(session.id) : null;
+  const hasNumericSessionId = /^\d+$/.test(session.id);
+
+  if (!hasNumericSessionId) {
+    console.warn("Login history requested with non-numeric session id.", {
+      sessionId: session.id,
+      role: session.role,
+    });
+  }
+
+  const userId = hasNumericSessionId ? BigInt(session.id) : null;
 
   const loginHistory = await prisma.loginHistory.findMany({
     where: isAdmin

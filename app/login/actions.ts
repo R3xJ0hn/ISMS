@@ -204,16 +204,21 @@ async function recordSuccessfulLogin(user: {
 
   const headerStore = await headers();
   const ipAddress = extractClientIp(headerStore);
+  const userAgent = normalizeUserAgent(headerStore.get("user-agent"));
 
-  await prisma.loginHistory.create({
-    data: {
-      userId: BigInt(user.id),
-      email: user.email,
-      role: user.role,
-      ipAddress: ipAddress === "unknown" ? null : ipAddress,
-      userAgent: normalizeUserAgent(headerStore.get("user-agent")),
-    },
-  });
+  try {
+    await prisma.loginHistory.create({
+      data: {
+        userId: BigInt(user.id),
+        email: user.email,
+        role: user.role,
+        ipAddress: ipAddress === "unknown" ? null : ipAddress,
+        userAgent,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to record successful login:", error);
+  }
 }
 
 export async function loginAction(

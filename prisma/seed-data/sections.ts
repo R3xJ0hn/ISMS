@@ -118,6 +118,19 @@ function getSeedReference(
   return value;
 }
 
+function tryGetSeedId(
+  getId: (group: string, key: string, label: string) => bigint,
+  group: string,
+  key: string,
+  label: string
+) {
+  try {
+    return getId(group, key, label);
+  } catch {
+    return null;
+  }
+}
+
 export default defineSeed({
   table: "section",
   order: 60,
@@ -169,26 +182,37 @@ export default defineSeed({
     );
 
     const predicates = rows.flatMap((row) => {
-      const branchSlug = getSeedReference(
-        branchSlugByKey,
-        row.branchKey,
-        "branch"
-      );
-      const branchId = branchIdBySlug.get(branchSlug);
+      let branchSlug: string;
 
-      if (branchId === undefined) {
+      try {
+        branchSlug = getSeedReference(branchSlugByKey, row.branchKey, "branch");
+      } catch {
+        return [];
+      }
+
+      const branchId = branchIdBySlug.get(branchSlug);
+      const programId = tryGetSeedId(
+        getId,
+        "programs",
+        row.programKey,
+        "program"
+      );
+      const academicLevelsId = tryGetSeedId(
+        getId,
+        "academicLevels",
+        row.academicLevelKey,
+        "academic level"
+      );
+
+      if (branchId === undefined || !programId || !academicLevelsId) {
         return [];
       }
 
       return [
         {
           branchId,
-          programId: getId("programs", row.programKey, "program"),
-          academicLevelsId: getId(
-            "academicLevels",
-            row.academicLevelKey,
-            "academic level"
-          ),
+          programId,
+          academicLevelsId,
           sectionCode: row.sectionCode,
         },
       ];
