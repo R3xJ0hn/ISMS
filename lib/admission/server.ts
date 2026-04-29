@@ -597,33 +597,35 @@ export async function getAdmissionProgramOptions(
   }
 
   try {
-    const [branch, programs, academicLevels] = await Promise.all([
-      prisma.branch.findUnique({
-        where: {
-          id: BigInt(normalizedBranchId),
+    const branch = await prisma.branch.findUnique({
+      where: {
+        id: BigInt(normalizedBranchId),
+      },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        sections: {
+          select: {
+            program: {
+              select: {
+                id: true,
+                code: true,
+                label: true,
+                programType: true,
+              },
+            },
+            academicLevels: {
+              select: {
+                id: true,
+                label: true,
+                slug: true,
+              },
+            },
+          },
         },
-        select: {
-          id: true,
-          slug: true,
-          title: true,
-        },
-      }),
-      prisma.program.findMany({
-        select: {
-          id: true,
-          code: true,
-          label: true,
-          programType: true,
-        },
-      }),
-      prisma.academicLevels.findMany({
-        select: {
-          id: true,
-          label: true,
-          slug: true,
-        },
-      }),
-    ]);
+      },
+    });
 
     if (!branch) {
       return {
@@ -632,31 +634,38 @@ export async function getAdmissionProgramOptions(
       };
     }
 
-    const programOptions = programs
-      .map((program): InternalProgramOption => {
-        const allowedSlugs = allowedAcademicLevelSlugsByProgramType[
-          program.programType
-        ];
+    const programsById = new Map<string, InternalProgramOption>();
 
-        return {
-          id: program.id.toString(),
-          code: program.code,
-          label: program.label,
-          programType: program.programType,
-          academicLevels: new Map(
-            academicLevels
-              .filter((level) => allowedSlugs.includes(level.slug))
-              .map((level) => [
-                level.id.toString(),
-                {
-                  id: level.id.toString(),
-                  label: level.label,
-                  slug: level.slug,
-                },
-              ])
-          ),
+    for (const section of branch.sections) {
+      const programId = section.program.id.toString();
+      const allowedSlugs =
+        allowedAcademicLevelSlugsByProgramType[section.program.programType];
+
+      if (!allowedSlugs.includes(section.academicLevels.slug)) {
+        continue;
+      }
+
+      let program = programsById.get(programId);
+
+      if (!program) {
+        program = {
+          id: programId,
+          code: section.program.code,
+          label: section.program.label,
+          programType: section.program.programType,
+          academicLevels: new Map(),
         };
-      })
+        programsById.set(programId, program);
+      }
+
+      program.academicLevels.set(section.academicLevels.id.toString(), {
+        id: section.academicLevels.id.toString(),
+        label: section.academicLevels.label,
+        slug: section.academicLevels.slug,
+      });
+    }
+
+    const programOptions = Array.from(programsById.values())
       .toSorted(sortPrograms)
       .map(({ academicLevels, ...program }) => ({
         ...program,
@@ -698,44 +707,43 @@ async function getCanonicalAdmissionProgramSelection(
     return null;
   }
 
-  const [branch, program, academicLevel] = await Promise.all([
-    prisma.branch.findUnique({
-      where: {
-        id: BigInt(branchId),
+  const offering = await prisma.section.findFirst({
+    where: {
+      branchId: BigInt(branchId),
+      programId: BigInt(programId),
+      academicLevelsId: BigInt(academicLevelsId),
+    },
+    select: {
+      branch: {
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+        },
       },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
+      program: {
+        select: {
+          id: true,
+          code: true,
+          label: true,
+          programType: true,
+        },
       },
-    }),
-    prisma.program.findUnique({
-      where: {
-        id: BigInt(programId),
+      academicLevels: {
+        select: {
+          id: true,
+          label: true,
+          slug: true,
+        },
       },
-      select: {
-        id: true,
-        code: true,
-        label: true,
-        programType: true,
-      },
-    }),
-    prisma.academicLevels.findUnique({
-      where: {
-        id: BigInt(academicLevelsId),
-      },
-      select: {
-        id: true,
-        label: true,
-        slug: true,
-      },
-    }),
-  ]);
+    },
+  });
 
-  if (!branch || !program || !academicLevel) {
+  if (!offering) {
     return null;
   }
 
+  const { branch, program, academicLevels: academicLevel } = offering;
   const allowedAcademicLevelSlugs =
     allowedAcademicLevelSlugsByProgramType[program.programType];
 
@@ -898,7 +906,7 @@ export async function verifyCurrentStudent(
       await sendStudentUpdateLinkEmail({
         to: student.email,
         studentName: formatDisplayName(student),
-        updateUrl: createStudentUpdateUrl(student.id.toString()),
+        updateUrl: await createStudentUpdateUrl(student.id.toString()),
       });
     } catch (error) {
       console.error("Failed to send student update link email:", error);

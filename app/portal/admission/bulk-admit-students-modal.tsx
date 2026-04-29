@@ -42,6 +42,7 @@ export function BulkAdmitStudentsModal({
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
   const [showActionMessage, setShowActionMessage] = useState(false);
+  const [submittedMessage, setSubmittedMessage] = useState("");
   const dialogTitleId = useId();
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -59,10 +60,16 @@ export function BulkAdmitStudentsModal({
         setFileName("");
       }
 
+      setSubmittedMessage(nextState.message);
+      setShowActionMessage(Boolean(nextState.message));
+
       return nextState;
     },
     initialState
   );
+
+  const shouldShowActionMessage =
+    showActionMessage && state.message && submittedMessage === state.message;
 
   useEffect(() => {
     if (!open) {
@@ -178,7 +185,10 @@ export function BulkAdmitStudentsModal({
             <form
               ref={formRef}
               action={formAction}
-              onSubmit={() => setShowActionMessage(true)}
+              onSubmit={() => {
+                setShowActionMessage(false);
+                setSubmittedMessage("");
+              }}
               className="space-y-5 overflow-y-auto p-5"
             >
               <div className="grid gap-4 md:grid-cols-2">
@@ -277,7 +287,7 @@ export function BulkAdmitStudentsModal({
                 />
               </label>
 
-              {showActionMessage && state.message ? (
+              {shouldShowActionMessage ? (
                 <p
                   className={
                     state.success

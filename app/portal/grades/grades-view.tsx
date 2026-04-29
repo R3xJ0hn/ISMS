@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpenCheck, ChevronDown } from "lucide-react";
 
@@ -60,6 +60,11 @@ export function GradesView({
 }: GradesViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [selectedSemester, setSelectedSemester] = useState(semester);
+
+  useEffect(() => {
+    setSelectedSemester(semester);
+  }, [semester]);
 
   return (
     <>
@@ -85,10 +90,11 @@ export function GradesView({
             <select
               id="semester"
               name="semester"
-              value={semester}
+              value={selectedSemester}
               disabled={isPending}
               onChange={(event) => {
                 const nextSemester = event.target.value;
+                setSelectedSemester(nextSemester);
 
                 startTransition(() => {
                   router.push(`/portal/grades?semester=${nextSemester}`);
@@ -104,7 +110,7 @@ export function GradesView({
         </div>
       </section>
 
-      {isPending ? <GradesTableSkeleton semester={semester} /> : children}
+      {isPending ? <GradesTableSkeleton semester={selectedSemester} /> : children}
     </>
   );
 }

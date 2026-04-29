@@ -126,8 +126,12 @@ function tryGetSeedId(
 ) {
   try {
     return getId(group, key, label);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Missing seeded ")) {
+      return null;
+    }
+
+    throw error;
   }
 }
 

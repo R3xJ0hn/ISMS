@@ -16,6 +16,7 @@ import {
   SchoolType,
   UserRole,
 } from "@/lib/generated/prisma/enums";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { validateEmail, validatePhone, validateSchoolYear } from "@/lib/admission/validation";
 import { prisma } from "@/lib/prisma";
 
@@ -168,18 +169,43 @@ function parseExcelDate(value: unknown) {
   const day = Number.parseInt(slashMatch[2], 10);
   const yearText = slashMatch[3];
 
-  if (yearText.length !== 4) {
-    return parseBirthDate(text);
-  }
-
-  const parsedYear = Number.parseInt(yearText, 10);
-  const year = parsedYear;
+  const year =
+    yearText.length === 2
+      ? 2000 + Number.parseInt(yearText, 10)
+      : Number.parseInt(yearText, 10);
 
   return parseBirthDate(
     `${year.toString().padStart(4, "0")}-${month
       .toString()
       .padStart(2, "0")}-${day.toString().padStart(2, "0")}`
   );
+}
+
+function getStudentUniqueConstraintMessage(error: unknown) {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return null;
+  }
+
+  const target = Array.isArray(error.meta?.target)
+    ? error.meta.target.map(String)
+    : [String(error.meta?.target ?? "")];
+
+  if (
+    target.some((field) =>
+      ["student_number", "studentNumber"].some((name) => field.includes(name))
+    )
+  ) {
+    return "A student with that student number already exists.";
+  }
+
+  if (target.some((field) => field.includes("email"))) {
+    return "A student with that email already exists.";
+  }
+
+  return "A student with that student number or email already exists.";
 }
 
 function parseGender(value: string) {
@@ -308,67 +334,57 @@ export async function addAdmittedStudentAction(
     };
   }
 
-  const existingStudent = await prisma.student.findFirst({
-    where: {
-      OR: [
-        {
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const student = await transaction.student.create({
+        data: {
           studentNumber,
-        },
-        {
           email,
+          firstName,
+          lastName,
+          birthDate,
+          gender: gender as (typeof Gender)[keyof typeof Gender],
+          civilStatus: null,
+          citizenship: null,
+          birthplace,
+          phone,
         },
-      ],
-    },
-    select: {
-      id: true,
-      email: true,
-      studentNumber: true,
-    },
-  });
+        select: {
+          id: true,
+        },
+      });
 
-  if (existingStudent) {
+      await transaction.admissionApplication.create({
+        data: {
+          studentId: student.id,
+          applicantType: applicantType as ApplicantTypeValue,
+          applicationStatus: ApplicationStatus.draft,
+          branchId: branch.id,
+          programType: program.programType,
+          programId: program.id,
+          academicLevelsId: academicLevel.id,
+          remarks: "Manually admitted by admin.",
+          submittedAt: null,
+        },
+      });
+    });
+  } catch (error) {
+    const message = getStudentUniqueConstraintMessage(error);
+
+    if (message) {
+      return {
+        success: false,
+        message,
+      };
+    }
+
+    console.error("Failed to add admitted student:", error);
+
     return {
       success: false,
-      message:
-        existingStudent.studentNumber === studentNumber
-          ? "A student with that student number already exists."
-          : "A student with that email already exists.",
+      message: "We could not add the student right now.",
     };
   }
-
-  await prisma.$transaction(async (transaction) => {
-    const student = await transaction.student.create({
-      data: {
-        studentNumber,
-        email,
-        firstName,
-        lastName,
-        birthDate,
-        gender: gender as (typeof Gender)[keyof typeof Gender],
-        civilStatus: null,
-        citizenship: null,
-        birthplace,
-        phone,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    await transaction.admissionApplication.create({
-      data: {
-        studentId: student.id,
-        applicantType: applicantType as ApplicantTypeValue,
-        applicationStatus: ApplicationStatus.draft,
-        branchId: branch.id,
-        programType: program.programType,
-        programId: program.id,
-        academicLevelsId: academicLevel.id,
-        remarks: "Manually admitted by admin.",
-        submittedAt: null,
-      },
-    });
-  });
 
   revalidatePath("/portal/admission");
 
@@ -894,36 +910,6 @@ export async function editAdmittedStudentAction(
     };
   }
 
-  const existingStudent = await prisma.student.findFirst({
-    where: {
-      id: {
-        not: studentId,
-      },
-      OR: [
-        {
-          studentNumber,
-        },
-        {
-          email,
-        },
-      ],
-    },
-    select: {
-      email: true,
-      studentNumber: true,
-    },
-  });
-
-  if (existingStudent) {
-    return {
-      success: false,
-      message:
-        existingStudent.studentNumber === studentNumber
-          ? "A student with that student number already exists."
-          : "A student with that email already exists.",
-    };
-  }
-
   const [branch, program, academicLevel] = await Promise.all([
     prisma.branch.findUnique({
       where: {
@@ -967,7 +953,8 @@ export async function editAdmittedStudentAction(
     };
   }
 
-  await prisma.$transaction(async (transaction) => {
+  try {
+    await prisma.$transaction(async (transaction) => {
     const student = await transaction.student.findUnique({
       where: {
         id: studentId,
@@ -1181,7 +1168,24 @@ export async function editAdmittedStudentAction(
         addressId,
       },
     });
-  });
+    });
+  } catch (error) {
+    const message = getStudentUniqueConstraintMessage(error);
+
+    if (message) {
+      return {
+        success: false,
+        message,
+      };
+    }
+
+    console.error("Failed to edit admitted student:", error);
+
+    return {
+      success: false,
+      message: "We could not update the student right now.",
+    };
+  }
 
   revalidatePath("/portal/admission");
   revalidatePath(`/portal/admission/${applicationId.toString()}/edit`);

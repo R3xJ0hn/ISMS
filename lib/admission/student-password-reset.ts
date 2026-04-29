@@ -4,7 +4,6 @@ import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 import { verifyStudentUpdateToken } from "./student-update";
-import { encrypt } from "../encryption";
 
 const PASSWORD_HASH_ROUNDS = 12;
 
@@ -44,6 +43,26 @@ export async function getStudentUpdatePasswordRecord(token: string) {
   const payload = verifyStudentUpdateToken(token);
 
   if (!payload) {
+    return null;
+  }
+
+  const tokenRecord = await prisma.studentUpdateToken.findUnique({
+    where: {
+      jti: payload.jti,
+    },
+    select: {
+      studentId: true,
+      consumedAt: true,
+      expiresAt: true,
+    },
+  });
+
+  if (
+    !tokenRecord ||
+    tokenRecord.studentId !== BigInt(payload.studentId) ||
+    tokenRecord.consumedAt ||
+    tokenRecord.expiresAt <= new Date()
+  ) {
     return null;
   }
 
@@ -127,6 +146,29 @@ export async function setStudentPortalPasswordFromToken(
       };
     }
 
+    const tokenRecord = await prisma.studentUpdateToken.findUnique({
+      where: {
+        jti: payload.jti,
+      },
+      select: {
+        studentId: true,
+        consumedAt: true,
+        expiresAt: true,
+      },
+    });
+
+    if (
+      !tokenRecord ||
+      tokenRecord.studentId !== BigInt(payload.studentId) ||
+      tokenRecord.consumedAt ||
+      tokenRecord.expiresAt <= new Date()
+    ) {
+      return {
+        success: false,
+        message: "This password setup link is invalid or has expired.",
+      };
+    }
+
     const email = normalizeEmail(student.email);
     const existingUser = await prisma.user.findUnique({
       where: {
@@ -146,30 +188,47 @@ export async function setStudentPortalPasswordFromToken(
     }
 
     const passwordHash = await hash(password, PASSWORD_HASH_ROUNDS);
-    const passKey = encrypt(password);
 
-    if (existingUser) {
-      await prisma.user.update({
+    await prisma.$transaction(async (tx) => {
+      const consumedToken = await tx.studentUpdateToken.updateMany({
         where: {
-          id: existingUser.id,
+          jti: payload.jti,
+          studentId: BigInt(payload.studentId),
+          consumedAt: null,
+          expiresAt: {
+            gt: new Date(),
+          },
         },
         data: {
-          passwordHash,
-          key: passKey,
-          emailVerified: true,
+          consumedAt: new Date(),
         },
       });
-    } else {
-      await prisma.user.create({
-        data: {
-          email,
-          passwordHash,
-          key: passKey,
-          role: UserRole.student,
-          emailVerified: true,
-        },
-      });
-    }
+
+      if (consumedToken.count !== 1) {
+        throw new Error("Student update token was already consumed.");
+      }
+
+      if (existingUser) {
+        await tx.user.update({
+          where: {
+            id: existingUser.id,
+          },
+          data: {
+            passwordHash,
+            emailVerified: true,
+          },
+        });
+      } else {
+        await tx.user.create({
+          data: {
+            email,
+            passwordHash,
+            role: UserRole.student,
+            emailVerified: true,
+          },
+        });
+      }
+    });
 
     return {
       success: true,

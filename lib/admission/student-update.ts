@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   ApplicantType,
@@ -18,6 +18,7 @@ const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
 export type StudentUpdateTokenPayload = {
   scope: "student-update";
   studentId: string;
+  jti: string;
   exp: number;
 };
 
@@ -293,6 +294,7 @@ export function verifyStudentUpdateToken(token: string) {
     if (
       payload.scope !== "student-update" ||
       !/^\d+$/.test(payload.studentId) ||
+      typeof payload.jti !== "string" ||
       payload.exp <= Date.now()
     ) {
       return null;
@@ -517,16 +519,27 @@ function mapStudentRecord(
   };
 }
 
-export function createStudentUpdateUrl(studentId: string) {
+export async function createStudentUpdateUrl(studentId: string) {
+  const expiresAt = new Date(Date.now() + STUDENT_UPDATE_LINK_TTL_MS);
   const payload: StudentUpdateTokenPayload = {
     scope: "student-update",
     studentId,
-    exp: Date.now() + STUDENT_UPDATE_LINK_TTL_MS,
+    jti: randomUUID(),
+    exp: expiresAt.getTime(),
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = signStudentUpdateToken(encodedPayload);
+  const token = `${encodedPayload}.${signature}`;
 
-  return `${getAppBaseUrl()}/admission/update?token=${encodeURIComponent(`${encodedPayload}.${signature}`)}`;
+  await prisma.studentUpdateToken.create({
+    data: {
+      jti: payload.jti,
+      studentId: BigInt(studentId),
+      expiresAt,
+    },
+  });
+
+  return `${getAppBaseUrl()}/admission/update?token=${encodeURIComponent(token)}`;
 }
 
 export async function getStudentUpdateRecord(token: string) {
@@ -879,36 +892,60 @@ export async function updateStudentRecordFromToken(
       const latestEnrollment = student.enrollments[0];
       let lastSchoolId = latestApplication?.lastSchoolId ?? null;
       let lastSchoolAddressId = latestApplication?.lastSchool?.addressId ?? null;
-
-      if (latestApplication?.lastSchool?.addressId) {
-        await tx.address.update({
-          where: {
-            id: latestApplication.lastSchool.addressId,
-          },
-          data: lastSchoolAddressData,
-        });
-      } else if (lastSchoolId) {
-        const lastSchoolAddress = await tx.address.create({
-          data: lastSchoolAddressData,
-        });
-
-        lastSchoolAddressId = lastSchoolAddress.id;
-      }
+      const lastSchoolData = {
+        schoolName: normalizedInput.lastSchoolName,
+        schoolId: optionalText(normalizedInput.lastSchoolId),
+        shortName: optionalText(normalizedInput.lastSchoolShortName),
+        schoolType:
+          normalizedInput.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
+      };
 
       if (lastSchoolId) {
-        await tx.lastSchool.update({
+        const lastSchoolApplicationCount = await tx.admissionApplication.count({
           where: {
-            id: lastSchoolId,
-          },
-          data: {
-            schoolName: normalizedInput.lastSchoolName,
-            schoolId: optionalText(normalizedInput.lastSchoolId),
-            shortName: optionalText(normalizedInput.lastSchoolShortName),
-            schoolType:
-              normalizedInput.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
-            addressId: lastSchoolAddressId,
+            lastSchoolId,
           },
         });
+
+        if (lastSchoolApplicationCount > 1) {
+          const lastSchoolAddress = await tx.address.create({
+            data: lastSchoolAddressData,
+          });
+          const lastSchool = await tx.lastSchool.create({
+            data: {
+              ...lastSchoolData,
+              addressId: lastSchoolAddress.id,
+            },
+          });
+
+          lastSchoolId = lastSchool.id;
+          lastSchoolAddressId = lastSchoolAddress.id;
+        } else {
+          if (latestApplication?.lastSchool?.addressId) {
+            await tx.address.update({
+              where: {
+                id: latestApplication.lastSchool.addressId,
+              },
+              data: lastSchoolAddressData,
+            });
+          } else {
+            const lastSchoolAddress = await tx.address.create({
+              data: lastSchoolAddressData,
+            });
+
+            lastSchoolAddressId = lastSchoolAddress.id;
+          }
+
+          await tx.lastSchool.update({
+            where: {
+              id: lastSchoolId,
+            },
+            data: {
+              ...lastSchoolData,
+              addressId: lastSchoolAddressId,
+            },
+          });
+        }
       } else {
         const lastSchoolAddress = await tx.address.create({
           data: lastSchoolAddressData,
@@ -916,11 +953,7 @@ export async function updateStudentRecordFromToken(
 
         const lastSchool = await tx.lastSchool.create({
           data: {
-            schoolName: normalizedInput.lastSchoolName,
-            schoolId: optionalText(normalizedInput.lastSchoolId),
-            shortName: optionalText(normalizedInput.lastSchoolShortName),
-            schoolType:
-              normalizedInput.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
+            ...lastSchoolData,
             addressId: lastSchoolAddress.id,
           },
         });

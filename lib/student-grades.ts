@@ -1,4 +1,5 @@
 const DEFAULT_SEMESTER = "1stSem";
+const STUDENT_GRADES_FETCH_TIMEOUT_MS = 10_000;
 
 type GradeRecord = Record<string, unknown>;
 
@@ -206,17 +207,40 @@ export async function getStudentGrades(
     };
   }
 
-  const url = new URL(endpoint);
+  let url: URL;
+
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return {
+      success: false,
+      semester,
+      message: "Student grades Apps Script URL is not configured or malformed.",
+    };
+  }
+
   url.searchParams.set("student_no", studentNumber);
   url.searchParams.set("semester", semester);
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      STUDENT_GRADES_FETCH_TIMEOUT_MS
+    );
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       return {

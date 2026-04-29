@@ -91,6 +91,10 @@ export default async function StudentGradesPage({ searchParams }: PageProps) {
     redirect("/portal");
   }
 
+  if (!process.env.STUDENT_GRADES_APPS_SCRIPT_URL) {
+    console.error("STUDENT_GRADES_APPS_SCRIPT_URL is not configured.");
+  }
+
   const resolvedSearchParams = await searchParams;
   const semester = normalizeSemester(resolvedSearchParams?.semester);
   const student = await prisma.student.findUnique({
@@ -160,9 +164,7 @@ export default async function StudentGradesPage({ searchParams }: PageProps) {
                     <p className="mt-1 text-muted-foreground">{gradesResult.message}</p>
                     {!process.env.STUDENT_GRADES_APPS_SCRIPT_URL ? (
                       <p className="mt-2 text-muted-foreground">
-                        Add your Apps Script deployment URL to{" "}
-                        <span className="font-mono">STUDENT_GRADES_APPS_SCRIPT_URL</span>{" "}
-                        in <span className="font-mono">.env</span>.
+                        Grades are unavailable right now; please contact support.
                       </p>
                     ) : null}
                   </div>

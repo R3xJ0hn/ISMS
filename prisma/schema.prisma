@@ -109,6 +109,21 @@ model LoginRateLimitBucket {
   @@map("login_rate_limit_buckets")
 }
 
+model StudentUpdateToken {
+  id         BigInt    @id @default(autoincrement())
+  jti        String    @unique @db.Uuid
+  studentId  BigInt    @map("student_id")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([expiresAt])
+  @@map("student_update_tokens")
+}
+
 model Address {
   id          BigInt  @id @default(autoincrement())
   houseNumber String? @map("house_number") @db.Text
@@ -230,6 +245,7 @@ model Student {
   guardians    StudentGuardian[]
   applications AdmissionApplication[]
   enrollments  Enrollment[]
+  updateTokens StudentUpdateToken[]
 
   @@map("students")
 }

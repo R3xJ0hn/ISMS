@@ -20,9 +20,7 @@ function getDefaultSeedPassword() {
 
   const generatedPassword = randomBytes(24).toString("base64url");
 
-  console.info(
-    `SEED_USER_PASSWORD is not set. Generated development seed password: ${generatedPassword}`
-  );
+  console.info("SEED_USER_PASSWORD generated for development.");
 
   return generatedPassword;
 }

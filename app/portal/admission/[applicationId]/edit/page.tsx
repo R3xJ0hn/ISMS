@@ -161,6 +161,7 @@ export default async function EditAdmittedStudentPage({
       select: {
         id: true,
         label: true,
+        slug: true,
       },
     }),
   ]);
@@ -185,6 +186,7 @@ export default async function EditAdmittedStudentPage({
     academicLevels: academicLevels.map((level) => ({
       id: level.id.toString(),
       label: level.label,
+      slug: level.slug,
     })),
   } satisfies AdmittedStudentEditOptions;
 
