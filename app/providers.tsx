@@ -5,6 +5,15 @@ import { PostHogProvider as PHProvider, usePostHog } from 'posthog-js/react'
 import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
+const SAFE_PAGEVIEW_QUERY_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'utm_id',
+])
+
 function PostHogPageView() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -12,10 +21,20 @@ function PostHogPageView() {
 
   useEffect(() => {
     if (pathname && posthogClient) {
-      let url = window.origin + pathname
-      const search = searchParams.toString()
-      if (search) url += '?' + search
-      posthogClient.capture('$pageview', { '$current_url': url })
+      const sanitizedSearchParams = new URLSearchParams()
+
+      searchParams.forEach((value, key) => {
+        if (SAFE_PAGEVIEW_QUERY_PARAMS.has(key)) {
+          sanitizedSearchParams.append(key, value)
+        }
+      })
+
+      const sanitizedSearch = sanitizedSearchParams.toString()
+      const sanitizedUrl = `${window.origin}${pathname}${
+        sanitizedSearch ? `?${sanitizedSearch}` : ''
+      }`
+
+      posthogClient.capture('$pageview', { '$current_url': sanitizedUrl })
     }
   }, [pathname, searchParams, posthogClient])
 
@@ -24,8 +43,18 @@ function PostHogPageView() {
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
-      api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+    const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
+    const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST
+
+    if (!posthogKey || !posthogHost) {
+      console.warn(
+        'PostHog initialization skipped: NEXT_PUBLIC_POSTHOG_KEY and NEXT_PUBLIC_POSTHOG_HOST must both be set.'
+      )
+      return
+    }
+
+    posthog.init(posthogKey, {
+      api_host: posthogHost,
       person_profiles: 'identified_only',
       capture_pageview: false,
       capture_pageleave: true,
