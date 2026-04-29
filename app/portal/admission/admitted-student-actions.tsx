@@ -8,6 +8,7 @@ import {
   AdmissionReviewDetails,
   type ReviewFormValues,
 } from "@/app/(public)/admission/components/review-step";
+import { getAdmittedStudentDetails } from "@/app/portal/admission/detail-actions";
 import { Button } from "@/components/ui/button";
 
 export type PortalAdmittedStudentRecord = {
@@ -58,12 +59,21 @@ export type PortalAdmittedStudentRecord = {
   reviewForm: ReviewFormValues;
 };
 
+export type PortalAdmittedStudentSummary = {
+  applicationId: string;
+  firstName: string;
+  lastName: string;
+};
+
 export function AdmittedStudentActions({
   student,
 }: {
-  student: PortalAdmittedStudentRecord;
+  student: PortalAdmittedStudentSummary;
 }) {
   const [viewOpen, setViewOpen] = useState(false);
+  const [details, setDetails] = useState<PortalAdmittedStudentRecord | null>(null);
+  const [detailsError, setDetailsError] = useState("");
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -125,7 +135,24 @@ export function AdmittedStudentActions({
           type="button"
           variant="outline"
           size="icon-sm"
-          onClick={() => setViewOpen(true)}
+          onClick={async () => {
+            setViewOpen(true);
+
+            if (details || loadingDetails) {
+              return;
+            }
+
+            setLoadingDetails(true);
+            setDetailsError("");
+            try {
+              setDetails(await getAdmittedStudentDetails(student.applicationId));
+            } catch (error) {
+              console.error("Failed to load admitted student details:", error);
+              setDetailsError("Student details could not be loaded.");
+            } finally {
+              setLoadingDetails(false);
+            }
+          }}
           aria-label="View student"
         >
           <Eye />
@@ -177,11 +204,19 @@ export function AdmittedStudentActions({
               </Button>
             </div>
             <div className="overflow-y-auto p-5">
-              <AdmissionReviewDetails
-                form={student.reviewForm}
-                showConsent={false}
-                className="max-h-none"
-              />
+              {details ? (
+                <AdmissionReviewDetails
+                  form={details.reviewForm}
+                  showConsent={false}
+                  className="max-h-none"
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {loadingDetails
+                    ? "Loading student details..."
+                    : detailsError || "Student details are unavailable."}
+                </p>
+              )}
             </div>
           </div>
         </div>

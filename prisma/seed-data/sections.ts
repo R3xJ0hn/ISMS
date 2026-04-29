@@ -126,8 +126,12 @@ function tryGetSeedId(
 ) {
   try {
     return getId(group, key, label);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Missing seeded ")) {
+      return null;
+    }
+
+    throw error;
   }
 }
 
@@ -159,10 +163,24 @@ export default defineSeed({
     });
   },
   down: async ({ prisma, getId }, rows) => {
+    function tryGetSeedReference(
+      lookup: Map<string, string>,
+      key: string,
+      label: string
+    ) {
+      try {
+        return getSeedReference(lookup, key, label);
+      } catch {
+        return null;
+      }
+    }
+
     const branchSlugs = uniqueStrings(
-      rows.map((row) =>
-        getSeedReference(branchSlugByKey, row.branchKey, "branch")
-      )
+      rows
+        .map((row) =>
+          tryGetSeedReference(branchSlugByKey, row.branchKey, "branch")
+        )
+        .filter((slug): slug is string => slug !== null)
     );
 
     const branches = await prisma.branch.findMany({
@@ -204,7 +222,11 @@ export default defineSeed({
         "academic level"
       );
 
-      if (branchId === undefined || !programId || !academicLevelsId) {
+      if (
+        branchId === undefined ||
+        programId === null ||
+        academicLevelsId === null
+      ) {
         return [];
       }
 

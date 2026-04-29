@@ -5,7 +5,6 @@ import { AdmittedStudentActions } from "@/app/portal/admission/admitted-student-
 import { AdmissionBranchFilter } from "@/app/portal/admission/admission-branch-filter";
 import { ApplicationStatusSelect } from "@/app/portal/admission/application-status-select";
 import { BulkAdmitStudentsModal } from "@/app/portal/admission/bulk-admit-students-modal";
-import { serializeAdmittedStudent } from "@/app/portal/admission/serialize-admitted-student";
 import { getCurrentSession } from "@/lib/auth";
 import { ApplicationStatus, UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -92,90 +91,30 @@ export default async function AdmissionPage({
           createdAt: "desc",
         },
       ],
-      include: {
+      select: {
+        id: true,
+        applicantType: true,
+        applicationStatus: true,
+        submittedAt: true,
         academicLevels: {
           select: {
             label: true,
-            slug: true,
-          },
-        },
-        branch: {
-          select: {
-            slug: true,
-            title: true,
           },
         },
         program: {
           select: {
-            code: true,
             label: true,
-            programType: true,
-          },
-        },
-        lastSchool: {
-          select: {
-            schoolName: true,
-            schoolId: true,
-            shortName: true,
-            schoolType: true,
-            address: {
-              select: {
-                houseNumber: true,
-                subdivision: true,
-                street: true,
-                barangay: true,
-                city: true,
-                province: true,
-                postalCode: true,
-              },
-            },
           },
         },
         student: {
           select: {
             email: true,
-            birthDate: true,
-            id: true,
             firstName: true,
             lastName: true,
             middleName: true,
             phone: true,
-            gender: true,
-            civilStatus: true,
-            citizenship: true,
-            birthplace: true,
-            religion: true,
-            facebookAccount: true,
             studentNumber: true,
             suffix: true,
-            address: {
-              select: {
-                houseNumber: true,
-                subdivision: true,
-                street: true,
-                barangay: true,
-                city: true,
-                province: true,
-                postalCode: true,
-              },
-            },
-            guardians: {
-              orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-              take: 1,
-              select: {
-                relationship: true,
-                guardian: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                    middleName: true,
-                    suffix: true,
-                    contactNumber: true,
-                    occupation: true,
-                  },
-                },
-              },
-            },
           },
         },
       },
@@ -330,7 +269,11 @@ export default async function AdmissionPage({
                     </td>
                     <td className="px-4 py-4 align-top">
                       <AdmittedStudentActions
-                        student={serializeAdmittedStudent(application)}
+                        student={{
+                          applicationId: application.id.toString(),
+                          firstName: application.student.firstName,
+                          lastName: application.student.lastName,
+                        }}
                       />
                     </td>
                   </tr>

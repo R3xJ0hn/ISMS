@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 
 import {
   editAdmittedStudentAction,
@@ -9,6 +9,7 @@ import {
 } from "@/app/portal/admission/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
 
 export type AdmittedStudentEditRecord = {
   applicationId: string;
@@ -75,6 +76,7 @@ export type AdmittedStudentEditOptions = {
   academicLevels: Array<{
     id: string;
     label: string;
+    slug: string;
   }>;
 };
 
@@ -117,6 +119,30 @@ export function EditAdmittedStudentForm({
     editAdmittedStudentAction,
     initialState
   );
+  const [selectedProgramId, setSelectedProgramId] = useState(student.programId);
+  const selectedProgram = options.programs.find(
+    (program) => program.id === selectedProgramId
+  );
+  const compatibleAcademicLevels = useMemo(() => {
+    if (!selectedProgram) {
+      return options.academicLevels;
+    }
+
+    const allowedSlugs =
+      allowedAcademicLevelSlugsByProgramType[selectedProgram.programType] ?? [];
+
+    return options.academicLevels.filter((level) =>
+      allowedSlugs.includes(level.slug)
+    );
+  }, [options.academicLevels, selectedProgram]);
+  const [selectedAcademicLevelId, setSelectedAcademicLevelId] = useState(
+    student.academicLevelsId
+  );
+  const academicLevelId = compatibleAcademicLevels.some(
+    (level) => level.id === selectedAcademicLevelId
+  )
+    ? selectedAcademicLevelId
+    : compatibleAcademicLevels[0]?.id ?? "";
 
   return (
     <form action={formAction} className="space-y-8">
@@ -156,7 +182,27 @@ export function EditAdmittedStudentForm({
           <Field label="Program" required>
             <select
               name="programId"
-              defaultValue={student.programId}
+              value={selectedProgramId}
+              onChange={(event) => {
+                const nextProgramId = event.target.value;
+                const nextProgram = options.programs.find(
+                  (program) => program.id === nextProgramId
+                );
+                const nextAllowedSlugs =
+                  allowedAcademicLevelSlugsByProgramType[
+                    nextProgram?.programType ?? ""
+                  ] ?? [];
+                const nextLevels = options.academicLevels.filter((level) =>
+                  nextAllowedSlugs.includes(level.slug)
+                );
+
+                setSelectedProgramId(nextProgramId);
+                setSelectedAcademicLevelId((currentLevelId) =>
+                  nextLevels.some((level) => level.id === currentLevelId)
+                    ? currentLevelId
+                    : nextLevels[0]?.id ?? ""
+                );
+              }}
               required
               className={selectClass}
             >
@@ -170,11 +216,12 @@ export function EditAdmittedStudentForm({
           <Field label="Academic level" required>
             <select
               name="academicLevelsId"
-              defaultValue={student.academicLevelsId}
+              value={academicLevelId}
+              onChange={(event) => setSelectedAcademicLevelId(event.target.value)}
               required
               className={selectClass}
             >
-              {options.academicLevels.map((level) => (
+              {compatibleAcademicLevels.map((level) => (
                 <option key={level.id} value={level.id}>
                   {level.label}
                 </option>

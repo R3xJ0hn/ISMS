@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   ClipboardList,
   GraduationCap,
@@ -48,7 +49,7 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
     return [
       {
         title: "Grades",
-        href: "/portal",
+        href: "/portal/grades",
         icon: GraduationCap,
       },
     ];
@@ -92,6 +93,58 @@ function hasChildren(item: SidebarItem): item is SidebarParentItem {
   return "children" in item;
 }
 
+function SidebarParentNavItem({
+  item,
+  pathname,
+}: {
+  item: SidebarParentItem;
+  pathname: string;
+}) {
+  const isActiveChild = item.children.some((child) =>
+    isItemActive(pathname, child.href)
+  );
+  const [manuallyOpen, setManuallyOpen] = useState(false);
+  const [manuallyClosedPath, setManuallyClosedPath] = useState<string | null>(
+    null
+  );
+  const open =
+    (isActiveChild && manuallyClosedPath !== pathname) || manuallyOpen;
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setManuallyOpen(nextOpen);
+        setManuallyClosedPath(!nextOpen && isActiveChild ? pathname : null);
+      }}
+    >
+      <CollapsibleTrigger asChild>
+        <SidebarMenuButton isActive={isActiveChild}>
+          <item.icon />
+          <span>{item.title}</span>
+        </SidebarMenuButton>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SidebarMenuSub>
+          {item.children.map((child) => (
+            <SidebarMenuSubItem key={child.title}>
+              <SidebarMenuSubButton
+                asChild
+                isActive={isItemActive(pathname, child.href)}
+              >
+                <Link href={child.href}>
+                  <child.icon />
+                  <span>{child.title}</span>
+                </Link>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          ))}
+        </SidebarMenuSub>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function AppSidebarNav({ role }: { role: UserRoleValue }) {
   const pathname = usePathname();
   const navigationItems = getSidebarItems(role);
@@ -111,39 +164,7 @@ export function AppSidebarNav({ role }: { role: UserRoleValue }) {
                   </Link>
                 </SidebarMenuButton>
               ) : (
-                <Collapsible
-                  defaultOpen={item.children.some((child) =>
-                    isItemActive(pathname, child.href)
-                  )}
-                >
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      isActive={item.children.some((child) =>
-                        isItemActive(pathname, child.href)
-                      )}
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {item.children.map((child) => (
-                        <SidebarMenuSubItem key={child.title}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={isItemActive(pathname, child.href)}
-                          >
-                            <Link href={child.href}>
-                              <child.icon />
-                              <span>{child.title}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </Collapsible>
+                <SidebarParentNavItem item={item} pathname={pathname} />
               )}
             </SidebarMenuItem>
           ))}

@@ -3,15 +3,18 @@ const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
 const schoolYearPattern = /^(\d{4})(?:\s*-\s*(\d{4}))?$/;
 
 export function validateEmail(value: string) {
-  return emailPattern.test(value);
+  const normalized = value.trim();
+  return emailPattern.test(normalized);
 }
 
 export function validatePhone(value: string) {
-  if (!phonePattern.test(value)) {
+  const normalized = value.trim();
+
+  if (!phonePattern.test(normalized)) {
     return false;
   }
 
-  const digits = value.replace(/\D/g, "");
+  const digits = normalized.replace(/\D/g, "");
   return digits.length >= 7 && digits.length <= 15;
 }
 

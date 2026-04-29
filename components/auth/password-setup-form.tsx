@@ -146,7 +146,13 @@ export function PasswordSetupForm({
 
       <div className="flex flex-col gap-4 border-t border-gray-200 bg-gray-50 px-5 py-5 sm:px-7">
         {state.message ? (
-          <p className="text-sm font-medium text-red-700">{state.message}</p>
+          <p
+            role="alert"
+            aria-atomic="true"
+            className="text-sm font-medium text-red-700"
+          >
+            {state.message}
+          </p>
         ) : null}
 
         <div className="flex justify-end">

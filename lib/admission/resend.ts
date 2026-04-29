@@ -79,15 +79,16 @@ function sanitizeText(value: string) {
 function sanitizeUpdateUrl(updateUrl: string) {
   try {
     const url = new URL(updateUrl);
+    const allowHttp = process.env.NODE_ENV === "development";
 
-    if (url.protocol === "http:" || url.protocol === "https:") {
-      return url.toString();
+    if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) {
+      throw new Error("Student update URL must use HTTPS outside development.");
     }
-  } catch {
-    // Fall through to a harmless placeholder.
-  }
 
-  return "#";
+    return url.toString();
+  } catch {
+    throw new Error("Student update URL is invalid.");
+  }
 }
 
 function buildStudentUpdateEmail(studentName: string, updateUrl: string) {

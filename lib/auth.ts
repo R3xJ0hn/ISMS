@@ -185,14 +185,18 @@ export async function authenticateUser(email: string, password: string) {
   }
 
   if (!isBcryptHash(user.passwordHash)) {
-    await prisma.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        passwordHash: await hashPassword(password),
-      },
-    });
+    try {
+      await prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          passwordHash: await hashPassword(password),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to rehash user password:", error);
+    }
   }
 
   return {

@@ -62,12 +62,22 @@ function createRateLimitTarget(scope: RateLimitScope, value: string, limit: numb
   };
 }
 
-function getRateLimitTargetId(target: { scope: string; identifierHash: string }) {
-  return `${target.scope}:${target.identifierHash}`;
-}
-
 function getRateLimitWindowExpiration() {
   return new Date(Date.now() + LOGIN_RATE_LIMIT_WINDOW_MS);
+}
+
+async function deleteExpiredLoginRateLimitBuckets() {
+  try {
+    await prisma.loginRateLimitBucket.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to delete expired login rate-limit buckets:", error);
+  }
 }
 
 function normalizeIpCandidate(value: string | null) {
@@ -88,11 +98,7 @@ function extractClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
       .map((value) => value.trim())
       .filter(Boolean) ?? [];
 
-  // If you only trust specific proxy hops in production, prefer an env-configured
-  // trusted-proxy count here instead of blindly trusting every x-forwarded-for entry.
-  const forwardedIp = [...forwardedForEntries]
-    .reverse()
-    .find((value) => isIP(value) !== 0);
+  const forwardedIp = forwardedForEntries.find((value) => isIP(value) !== 0);
 
   if (forwardedIp) {
     return forwardedIp;
@@ -121,46 +127,14 @@ async function getRateLimitTargets(email: string) {
   ];
 }
 
-async function checkLoginRateLimit(email: string) {
-  const targets = await getRateLimitTargets(email);
-  const now = new Date();
-  const buckets = await prisma.loginRateLimitBucket.findMany({
-    where: {
-      OR: targets.map((target) => ({
-        scope: target.scope,
-        identifierHash: target.identifierHash,
-      })),
-    },
-    select: {
-      scope: true,
-      identifierHash: true,
-      attempts: true,
-      expiresAt: true,
-    },
-  });
-
-  const bucketLookup = new Map(
-    buckets.map((bucket) => [getRateLimitTargetId(bucket), bucket])
-  );
-
-  return targets.every((target) => {
-    const bucket = bucketLookup.get(getRateLimitTargetId(target));
-
-    if (!bucket || bucket.expiresAt <= now) {
-      return true;
-    }
-
-    return bucket.attempts < target.limit;
-  });
-}
-
-async function recordFailedLoginAttempt(email: string) {
+async function recordLoginRateLimitAttempt(email: string) {
   const targets = await getRateLimitTargets(email);
   const expiresAt = getRateLimitWindowExpiration();
 
-  await Promise.all(
-    targets.map((target) =>
-      prisma.$executeRaw(Prisma.sql`
+  const results = await prisma.$transaction(async (transaction) =>
+    Promise.all(
+      targets.map(async (target) => {
+        const rows = await transaction.$queryRaw<Array<{ attempts: number }>>(Prisma.sql`
         INSERT INTO "login_rate_limit_buckets" (
           "scope",
           "identifier_hash",
@@ -188,9 +162,18 @@ async function recordFailedLoginAttempt(email: string) {
             ELSE "login_rate_limit_buckets"."expires_at"
           END,
           "updated_at" = NOW()
-      `)
+        RETURNING "attempts"
+      `);
+
+        return {
+          target,
+          attempts: rows[0]?.attempts ?? target.limit + 1,
+        };
+      })
     )
   );
+
+  return results.every(({ target, attempts }) => attempts <= target.limit);
 }
 
 async function recordSuccessfulLogin(user: {
@@ -240,19 +223,12 @@ export async function loginAction(
   }
 
   const normalizedEmail = normalizeEmail(email);
-
-  if (!(await checkLoginRateLimit(normalizedEmail))) {
-    return {
-      status: "error",
-      message: INVALID_CREDENTIALS_MESSAGE,
-      email,
-    };
-  }
+  void deleteExpiredLoginRateLimitBuckets();
 
   const result = await authenticateUser(email, password);
 
   if (!result.success) {
-    await recordFailedLoginAttempt(normalizedEmail);
+    await recordLoginRateLimitAttempt(normalizedEmail);
 
     return {
       status: "error",

@@ -50,6 +50,10 @@ export default async function LoginHistoryPage() {
       sessionId: session.id,
       role: session.role,
     });
+
+    if (!isAdmin) {
+      redirect("/login");
+    }
   }
 
   const userId = hasNumericSessionId ? BigInt(session.id) : null;
@@ -58,7 +62,7 @@ export default async function LoginHistoryPage() {
     where: isAdmin
       ? undefined
       : {
-          userId: userId ?? BigInt(0),
+          userId: userId as bigint,
         },
     orderBy: {
       createdAt: "desc",
