@@ -116,10 +116,13 @@ export async function AppSidebar({ session, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="gap-0 p-0">
-        <div className="flex items-center gap-3 px-3 py-4">
-          <Avatar size="lg" className="rounded-2xl ring-1 ring-sidebar-border">
+        <div className="flex items-center gap-3 px-3 py-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <Avatar
+            size="lg"
+            className="rounded-2xl ring-1 ring-sidebar-border group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:rounded-lg"
+          >
             <AvatarImage src={user?.userImage ?? undefined} alt={displayName} />
-            <AvatarFallback className="rounded-2xl bg-primary/12 font-semibold text-primary">
+            <AvatarFallback className="rounded-2xl bg-primary/12 font-semibold text-primary group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:text-xs">
               {initials}
             </AvatarFallback>
           </Avatar>
