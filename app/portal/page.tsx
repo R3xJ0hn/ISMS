@@ -14,6 +14,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { getCurrentSession } from "@/lib/auth"
+import { UserRole } from "@/lib/generated/prisma/enums"
 import { redirect } from "next/navigation"
 import type { CSSProperties } from "react"
 
@@ -59,6 +60,10 @@ export default async function Page() {
 
   if (!session) {
     redirect("/login")
+  }
+
+  if (session.role === UserRole.student) {
+    redirect("/portal/grades")
   }
 
   return (
