@@ -5,7 +5,6 @@ import { unstable_cache } from "next/cache";
 import {
   CivilStatus,
   Gender,
-  ProgramType,
   SchoolType,
   type ProgramType as ProgramTypeValue,
 } from "@/lib/generated/prisma/enums";
@@ -20,6 +19,7 @@ import {
   validatePhone,
   validateSchoolYear,
 } from "@/lib/admission/validation";
+import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
 import { prisma } from "@/lib/prisma";
 import { normalizeName, normalizeText } from "@/lib/utils";
 
@@ -121,20 +121,6 @@ const NEW_STUDENT = "New Student";
 const MISSING_FIELDS_MESSAGE =
   "Complete all verification fields before checking the record.";
 const VERIFICATION_FAILED_MESSAGE = "Verification failed.";
-const allowedAcademicLevelSlugsByProgramType: Record<
-  ProgramTypeValue,
-  readonly string[]
-> = {
-  [ProgramType.Bachelor]: [
-    "first-year",
-    "second-year",
-    "third-year",
-    "fourth-year",
-  ],
-  [ProgramType.SeniorHigh]: ["grade-11", "grade-12"],
-  [ProgramType.Associate]: ["first-year", "second-year"],
-};
-
 const branchSelect = {
   id: true,
   slug: true,

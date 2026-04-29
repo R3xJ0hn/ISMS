@@ -122,6 +122,19 @@ export async function setStudentPortalPasswordFromToken(
     };
   }
 
+  if (
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/\d/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    return {
+      success: false,
+      message:
+        "Password must include uppercase and lowercase letters, a number, and a special character.",
+    };
+  }
+
   if (password !== confirmPassword) {
     return {
       success: false,

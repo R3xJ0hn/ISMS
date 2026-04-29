@@ -9,6 +9,7 @@ import {
 } from "@/app/portal/admission/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
 
 export type AdmittedStudentEditRecord = {
   applicationId: string;
@@ -77,12 +78,6 @@ export type AdmittedStudentEditOptions = {
     label: string;
     slug: string;
   }>;
-};
-
-const allowedAcademicLevelSlugsByProgramType: Record<string, readonly string[]> = {
-  Bachelor: ["first-year", "second-year", "third-year", "fourth-year"],
-  SeniorHigh: ["grade-11", "grade-12"],
-  Associate: ["first-year", "second-year"],
 };
 
 const initialState = {

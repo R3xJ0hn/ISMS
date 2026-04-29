@@ -1,11 +1,18 @@
 import crypto from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
+const IV_LENGTH_BYTES = 16;
+const AUTH_TAG_LENGTH_BYTES = 16;
+const MIN_SECRET_BYTES = 32;
 
 const CONFIGURED_SECRET_KEY = process.env.SECRET_KEY;
 
 if (!CONFIGURED_SECRET_KEY) {
   throw new Error("SECRET_KEY must be configured for encryption.");
+}
+
+if (Buffer.byteLength(CONFIGURED_SECRET_KEY, "utf8") < MIN_SECRET_BYTES) {
+  throw new Error(`SECRET_KEY must be at least ${MIN_SECRET_BYTES} bytes.`);
 }
 
 const SECRET_KEY = CONFIGURED_SECRET_KEY;
@@ -21,7 +28,7 @@ function getEncryptionKey() {
 }
 
 export function encrypt(text: string) {
-  const iv = crypto.randomBytes(12);
+  const iv = crypto.randomBytes(IV_LENGTH_BYTES);
 
   const cipher = crypto.createCipheriv(
     ALGORITHM,
@@ -37,9 +44,24 @@ export function encrypt(text: string) {
 }
 
 export function decrypt(encryptedText: string) {
-  const [ivHex, contentHex, tagHex] = encryptedText.split(":");
+  const parts = encryptedText.split(":");
 
-  if (!ivHex || !contentHex || !tagHex) {
+  if (parts.length !== 3) {
+    throw new Error("Invalid encrypted text format.");
+  }
+
+  const [ivHex, contentHex, tagHex] = parts;
+  const hexPattern = /^[0-9a-f]+$/i;
+
+  if (
+    ivHex.length !== IV_LENGTH_BYTES * 2 ||
+    tagHex.length !== AUTH_TAG_LENGTH_BYTES * 2 ||
+    !hexPattern.test(ivHex) ||
+    !hexPattern.test(tagHex) ||
+    !contentHex ||
+    contentHex.length % 2 !== 0 ||
+    !hexPattern.test(contentHex)
+  ) {
     throw new Error("Invalid encrypted text format.");
   }
 

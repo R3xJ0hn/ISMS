@@ -7,6 +7,7 @@ import {
 import { serializeAdmittedStudent } from "@/app/portal/admission/serialize-admitted-student";
 import { getCurrentSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
+import { parseId } from "@/lib/admission/parse-id";
 import { prisma } from "@/lib/prisma";
 
 type EditAdmittedStudentPageProps = {
@@ -14,14 +15,6 @@ type EditAdmittedStudentPageProps = {
     applicationId: string;
   }>;
 };
-
-function parseId(value: string) {
-  if (!/^\d+$/.test(value)) {
-    return null;
-  }
-
-  return BigInt(value);
-}
 
 export default async function EditAdmittedStudentPage({
   params,

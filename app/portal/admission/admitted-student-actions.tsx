@@ -72,6 +72,7 @@ export function AdmittedStudentActions({
 }) {
   const [viewOpen, setViewOpen] = useState(false);
   const [details, setDetails] = useState<PortalAdmittedStudentRecord | null>(null);
+  const [detailsError, setDetailsError] = useState("");
   const [loadingDetails, setLoadingDetails] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -142,8 +143,12 @@ export function AdmittedStudentActions({
             }
 
             setLoadingDetails(true);
+            setDetailsError("");
             try {
               setDetails(await getAdmittedStudentDetails(student.applicationId));
+            } catch (error) {
+              console.error("Failed to load admitted student details:", error);
+              setDetailsError("Student details could not be loaded.");
             } finally {
               setLoadingDetails(false);
             }
@@ -209,7 +214,7 @@ export function AdmittedStudentActions({
                 <p className="text-sm text-muted-foreground">
                   {loadingDetails
                     ? "Loading student details..."
-                    : "Student details are unavailable."}
+                    : detailsError || "Student details are unavailable."}
                 </p>
               )}
             </div>

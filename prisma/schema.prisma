@@ -88,7 +88,7 @@ model LoginHistory {
   userAgent String?  @map("user_agent") @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt])
   @@index([createdAt])

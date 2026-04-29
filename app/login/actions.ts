@@ -66,6 +66,20 @@ function getRateLimitWindowExpiration() {
   return new Date(Date.now() + LOGIN_RATE_LIMIT_WINDOW_MS);
 }
 
+async function deleteExpiredLoginRateLimitBuckets() {
+  try {
+    await prisma.loginRateLimitBucket.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to delete expired login rate-limit buckets:", error);
+  }
+}
+
 function normalizeIpCandidate(value: string | null) {
   const candidate = value?.trim();
 
@@ -209,18 +223,13 @@ export async function loginAction(
   }
 
   const normalizedEmail = normalizeEmail(email);
-
-  if (!(await recordLoginRateLimitAttempt(normalizedEmail))) {
-    return {
-      status: "error",
-      message: INVALID_CREDENTIALS_MESSAGE,
-      email,
-    };
-  }
+  void deleteExpiredLoginRateLimitBuckets();
 
   const result = await authenticateUser(email, password);
 
   if (!result.success) {
+    await recordLoginRateLimitAttempt(normalizedEmail);
+
     return {
       status: "error",
       message: INVALID_CREDENTIALS_MESSAGE,
