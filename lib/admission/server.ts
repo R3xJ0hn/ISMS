@@ -504,11 +504,13 @@ const getCachedBranches = unstable_cache(
 
 async function existingStudentVerificationMatches(form: Record<string, string>) {
   const recordId = form.current_student_record_id;
+  const branchId = form.branch_id;
 
-  if (!/^\d+$/.test(recordId)) {
+  if (!/^\d+$/.test(recordId) || !/^\d+$/.test(branchId)) {
     return false;
   }
 
+  const selectedBranchId = BigInt(branchId);
   const submittedBirthDate = parseDateRange(form.current_student_birth_date);
 
   if (!submittedBirthDate) {
@@ -526,6 +528,9 @@ async function existingStudentVerificationMatches(form: Record<string, string>) 
       lastName: true,
       birthDate: true,
       enrollments: {
+        where: {
+          branchId: selectedBranchId,
+        },
         orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
         take: 1,
         select: {
@@ -534,12 +539,30 @@ async function existingStudentVerificationMatches(form: Record<string, string>) 
               name: true,
             },
           },
+          branchId: true,
+        },
+      },
+      applications: {
+        where: {
+          branchId: selectedBranchId,
+        },
+        orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          branchId: true,
         },
       },
     },
   });
 
   if (!student) {
+    return false;
+  }
+
+  const latestEnrollment = student.enrollments[0];
+  const latestApplication = student.applications[0];
+
+  if (!latestEnrollment && !latestApplication) {
     return false;
   }
 
@@ -774,6 +797,7 @@ function applyCanonicalProgramSelection(
 export async function verifyCurrentStudent(
   input: VerifyCurrentStudentInput
 ): Promise<VerifyCurrentStudentResult> {
+  const branchId = normalizeText(input.branchId);
   const studentNumber = normalizeText(input.studentNumber);
   const studentEmail = normalizeText(input.studentEmail);
   const firstName = normalizeName(input.firstName);
@@ -781,6 +805,7 @@ export async function verifyCurrentStudent(
   const birthDate = normalizeText(input.birthDate);
 
   if (
+    !branchId ||
     !studentNumber ||
     !studentEmail ||
     !firstName ||
@@ -793,6 +818,13 @@ export async function verifyCurrentStudent(
     };
   }
 
+  if (!/^\d+$/.test(branchId)) {
+    return {
+      verified: false,
+      message: "Select a valid branch before checking the record.",
+    };
+  }
+
   const birthDateRange = parseDateRange(birthDate);
 
   if (!birthDateRange) {
@@ -801,6 +833,8 @@ export async function verifyCurrentStudent(
       message: "Enter a valid birth date.",
     };
   }
+
+  const selectedBranchId = BigInt(branchId);
 
   try {
     const student = await prisma.student.findFirst({
@@ -823,6 +857,9 @@ export async function verifyCurrentStudent(
         lastName: true,
         suffix: true,
         enrollments: {
+          where: {
+            branchId: selectedBranchId,
+          },
           orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
           take: 1,
           select: {
@@ -833,6 +870,7 @@ export async function verifyCurrentStudent(
             },
             branch: {
               select: {
+                id: true,
                 title: true,
               },
             },
@@ -850,6 +888,30 @@ export async function verifyCurrentStudent(
               select: {
                 sectionCode: true,
                 sectionName: true,
+              },
+            },
+          },
+        },
+        applications: {
+          where: {
+            branchId: selectedBranchId,
+          },
+          orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+          take: 1,
+          select: {
+            branch: {
+              select: {
+                title: true,
+              },
+            },
+            program: {
+              select: {
+                label: true,
+              },
+            },
+            academicLevels: {
+              select: {
+                label: true,
               },
             },
           },
@@ -884,6 +946,18 @@ export async function verifyCurrentStudent(
     }
 
     const latestEnrollment = student.enrollments[0];
+    const latestApplication = student.applications[0];
+
+    if (!latestEnrollment && !latestApplication) {
+      console.info("Current student verification failed", {
+        reason: "student_branch_mismatch",
+      });
+
+      return {
+        verified: false,
+        message: VERIFICATION_FAILED_MESSAGE,
+      };
+    }
 
     const verificationMessage =
       "Student record verified. We sent a secure update link to your email.";
@@ -921,6 +995,14 @@ export async function verifyCurrentStudent(
                 latestEnrollment.section?.sectionCode ??
                 null,
             }
+          : latestApplication
+            ? {
+                schoolYear: null,
+                branch: latestApplication.branch.title,
+                program: latestApplication.program.label,
+                yearLevel: latestApplication.academicLevels.label,
+                section: null,
+              }
           : null,
       },
     };
@@ -1050,10 +1132,7 @@ export async function submitAdmissionApplication(
     }
   }
 
-  const submissionId = `ADM-${new Date()
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const submissionId = randomUUID().replace(/\D/g, "").padEnd(8, "0").slice(0, 8);
   const submittedAt = new Date().toISOString();
 
   try {

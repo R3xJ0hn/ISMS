@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MapPin, ShieldCheck, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { verifyCurrentStudent } from "../actions";
@@ -29,7 +29,10 @@ export type CurrentStudentStepHandle = {
 
 type CurrentStudentFormValues = Record<
   | CurrentStudentFieldName
+  | "applicant_type"
   | "branch_id"
+  | "branch_code"
+  | "branch_title"
   | "current_student_record_id"
   | "current_student_verified_name"
   | "current_student_verified_school_year"
@@ -48,6 +51,38 @@ type VerificationStatus = "idle" | "verifying" | "failed" | "verified";
 
 const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+
+function PreviousSelectionSummary({ form }: { form: CurrentStudentFormValues }) {
+  const branchName = form.branch_title || "Selected branch";
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
+        Previous selection
+      </p>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <UserRound className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+          <div className="min-w-0">
+            <dt className="font-semibold text-gray-600">Applicant type</dt>
+            <dd className="mt-0.5 truncate text-gray-950">
+              {form.applicant_type || "Not selected"}
+            </dd>
+          </div>
+        </div>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+          <div className="min-w-0">
+            <dt className="font-semibold text-gray-600">Branch</dt>
+            <dd className="mt-0.5 truncate text-gray-950">
+              {branchName}
+            </dd>
+          </div>
+        </div>
+      </dl>
+    </div>
+  );
+}
 
 function Field({
   id,
@@ -323,6 +358,7 @@ const CurrentStudentStep = React.forwardRef<
 
   return (
     <div className="space-y-5">
+
       <div>
         <h3 className="text-lg font-semibold text-gray-950">
           Verify your student record
@@ -333,11 +369,12 @@ const CurrentStudentStep = React.forwardRef<
         </p>
       </div>
 
+      <PreviousSelectionSummary form={form} />
+
       <div className="grid gap-5 md:grid-cols-2">
         <TextField
           id="current_student_number"
           label="Student number"
-          type="number"
           value={form.current_student_number}
           onChange={handleChange}
           placeholder="Example: 2612345"
@@ -412,34 +449,7 @@ const CurrentStudentStep = React.forwardRef<
           </div>
         </div>
 
-        {verified && (
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="font-semibold">Verified student</dt>
-              <dd className="mt-1 text-gray-700">
-                {form.current_student_verified_name}
-              </dd>
-            </div>
-            <div>
-              <dt className="font-semibold">Latest school year</dt>
-              <dd className="mt-1 text-gray-700">
-                {form.current_student_verified_school_year}
-              </dd>
-            </div>
-            <div>
-              <dt className="font-semibold">Program</dt>
-              <dd className="mt-1 text-gray-700">
-                {form.current_student_verified_program || "Program unavailable"}
-              </dd>
-            </div>
-            <div>
-              <dt className="font-semibold">Branch</dt>
-              <dd className="mt-1 text-gray-700">
-                {form.current_student_verified_branch || "Branch unavailable"}
-              </dd>
-            </div>
-          </dl>
-        )}
+       
       </div>
     </div>
   );

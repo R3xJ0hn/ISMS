@@ -8,7 +8,11 @@ import { Check, Facebook, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAdmissionBranches } from "../actions";
 
-export type ApplicantFieldName = "applicant_type" | "branch_id";
+export type ApplicantFieldName =
+  | "applicant_type"
+  | "branch_id"
+  | "branch_code"
+  | "branch_title";
 
 type ApplicantFormValues = Record<ApplicantFieldName, string>;
 
@@ -135,7 +139,7 @@ function SelectField({
   disabled,
   hint,
 }: {
-  id: ApplicantFieldName;
+  id: "branch_id";
   label: string;
   value: string;
   onChange: (field: ApplicantFieldName, value: string) => void;
@@ -155,7 +159,13 @@ function SelectField({
         aria-required={required}
         onChange={(event) => {
           event.currentTarget.setCustomValidity("");
+          const selectedBranch = branches.find(
+            (branch) => branch.id === event.target.value
+          );
+
           onChange(id, event.target.value);
+          onChange("branch_code", selectedBranch?.code ?? "");
+          onChange("branch_title", selectedBranch?.title ?? "");
         }}
         onInvalid={(event) => {
           event.currentTarget.setCustomValidity(`Please ${placeholder.toLowerCase()}.`);

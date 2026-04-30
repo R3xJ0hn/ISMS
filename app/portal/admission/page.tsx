@@ -78,11 +78,12 @@ export default async function AdmissionPage({
 
   const [admittedStudents, branches, programs, academicLevels] = await Promise.all([
     prisma.admissionApplication.findMany({
-      where: selectedBranchId
-        ? {
-            branchId: selectedBranchId,
-          }
-        : undefined,
+      where: {
+        applicationStatus: {
+          not: ApplicationStatus.approved,
+        },
+        ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
+      },
       orderBy: [
         {
           submittedAt: "desc",
@@ -170,9 +171,11 @@ export default async function AdmissionPage({
     id: branch.id.toString(),
     title: branch.title,
   }));
-  const applicationStatuses = Object.values(ApplicationStatus).filter(
-    (status) => status !== ApplicationStatus.draft
-  );
+  const applicationStatuses = [
+    ApplicationStatus.reviewing,
+    ApplicationStatus.approved,
+    ApplicationStatus.rejected,
+  ];
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">

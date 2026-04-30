@@ -166,6 +166,15 @@ type StudentUpdateQueryResult = {
     LSGraduationDate: Date | null;
     applicationStatus: (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
     submittedAt: Date | null;
+    branch: {
+      title: string;
+    };
+    program: {
+      label: string;
+    };
+    academicLevels: {
+      label: string;
+    };
     lastSchool: {
       schoolName: string;
       schoolId: string | null;
@@ -507,11 +516,19 @@ function mapStudentRecord(
     lastSchoolGraduationDate:
       latestApplication?.LSGraduationDate?.toISOString().slice(0, 10) ?? "",
     lastSchoolYearLevel: latestApplication?.LSAttainedLevelText ?? "",
-    latestEnrollmentStatus: latestEnrollment?.enrollmentStatus ?? "",
+    latestEnrollmentStatus:
+      latestEnrollment?.enrollmentStatus ??
+      latestApplication?.applicationStatus ??
+      "",
     latestEnrollmentSchoolYear: latestEnrollment?.schoolYear.name ?? "",
-    latestEnrollmentBranch: latestEnrollment?.branch.title ?? "",
-    latestEnrollmentProgram: latestEnrollment?.program.label ?? "",
-    latestEnrollmentYearLevel: latestEnrollment?.academicLevels.label ?? "",
+    latestEnrollmentBranch:
+      latestEnrollment?.branch.title ?? latestApplication?.branch.title ?? "",
+    latestEnrollmentProgram:
+      latestEnrollment?.program.label ?? latestApplication?.program.label ?? "",
+    latestEnrollmentYearLevel:
+      latestEnrollment?.academicLevels.label ??
+      latestApplication?.academicLevels.label ??
+      "",
     latestEnrollmentSection:
       latestEnrollment?.section?.sectionName ??
       latestEnrollment?.section?.sectionCode ??
@@ -612,6 +629,21 @@ export async function getStudentUpdateRecord(token: string) {
           LSGraduationDate: true,
           applicationStatus: true,
           submittedAt: true,
+          branch: {
+            select: {
+              title: true,
+            },
+          },
+          program: {
+            select: {
+              label: true,
+            },
+          },
+          academicLevels: {
+            select: {
+              label: true,
+            },
+          },
           lastSchool: {
             select: {
               schoolName: true,
