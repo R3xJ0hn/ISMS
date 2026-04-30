@@ -375,7 +375,6 @@ const CurrentStudentStep = React.forwardRef<
         <TextField
           id="current_student_number"
           label="Student number"
-          type="number"
           value={form.current_student_number}
           onChange={handleChange}
           placeholder="Example: 2612345"

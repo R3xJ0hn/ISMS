@@ -720,6 +720,7 @@ export async function bulkAdmitStudentsAction(
   }
 
   revalidatePath("/portal/admission");
+  revalidatePath("/portal/students");
 
   return {
     success: true,

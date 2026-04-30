@@ -71,6 +71,11 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
             href: "/portal/admission",
             icon: ClipboardList,
           },
+          {
+            title: "Students",
+            href: "/portal/students",
+            icon: GraduationCap,
+          },
         ],
       },
     ];

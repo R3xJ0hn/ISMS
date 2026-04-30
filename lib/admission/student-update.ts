@@ -520,10 +520,7 @@ function mapStudentRecord(
       latestEnrollment?.enrollmentStatus ??
       latestApplication?.applicationStatus ??
       "",
-    latestEnrollmentSchoolYear:
-      latestEnrollment?.schoolYear.name ??
-      latestApplication?.LSSchoolYearEnd ??
-      "",
+    latestEnrollmentSchoolYear: latestEnrollment?.schoolYear.name ?? "",
     latestEnrollmentBranch:
       latestEnrollment?.branch.title ?? latestApplication?.branch.title ?? "",
     latestEnrollmentProgram:

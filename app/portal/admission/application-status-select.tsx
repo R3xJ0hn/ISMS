@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useOptimistic, useRef, useTransition } from "react";
 
 import {
   updateApplicationStatusAction,
@@ -14,6 +14,10 @@ type ApplicationStatusSelectProps = {
 };
 
 function formatStatusLabel(status: string) {
+  if (status === "reviewing") {
+    return "Review";
+  }
+
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
@@ -24,7 +28,6 @@ export function ApplicationStatusSelect({
 }: ApplicationStatusSelectProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const errorId = `application-status-error-${applicationId}`;
-  const [value, setValue] = useState(status);
   const [state, formAction, pending] = useActionState(
     updateApplicationStatusAction,
     {
@@ -33,18 +36,12 @@ export function ApplicationStatusSelect({
       status,
     } satisfies UpdateApplicationStatusState
   );
-
-  useEffect(() => {
-    setValue(status);
-  }, [status]);
-
-  useEffect(() => {
-    if (!state.status) {
-      return;
-    }
-
-    setValue(state.status);
-  }, [state.status]);
+  const committedStatus = state.success || state.message ? state.status : status;
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(
+    committedStatus,
+    (_currentStatus, nextStatus: string) => nextStatus
+  );
+  const [, startTransition] = useTransition();
 
   return (
     <form ref={formRef} action={formAction} className="space-y-1">
@@ -55,11 +52,15 @@ export function ApplicationStatusSelect({
         aria-describedby={
           state.message && !state.success && !pending ? errorId : undefined
         }
-        value={value}
+        value={optimisticStatus}
         disabled={pending}
         onChange={(event) => {
-          setValue(event.target.value);
-          requestAnimationFrame(() => formRef.current?.requestSubmit());
+          const nextStatus = event.target.value;
+
+          startTransition(() => {
+            setOptimisticStatus(nextStatus);
+            requestAnimationFrame(() => formRef.current?.requestSubmit());
+          });
         }}
         className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >

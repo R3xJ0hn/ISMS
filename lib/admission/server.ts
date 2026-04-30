@@ -1132,10 +1132,7 @@ export async function submitAdmissionApplication(
     }
   }
 
-  const submissionId = `ADM-${new Date()
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const submissionId = randomUUID().replace(/\D/g, "").padEnd(8, "0").slice(0, 8);
   const submittedAt = new Date().toISOString();
 
   try {
