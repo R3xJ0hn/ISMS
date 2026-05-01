@@ -4,22 +4,14 @@ import { redirect } from "next/navigation";
 
 import {
   setStudentPortalPasswordFromToken,
-  type SetStudentPasswordInput,
 } from "@/lib/admission/student-password-reset";
-import {
-  updateStudentRecordFromToken,
-  type UpdateStudentRecordInput,
-} from "@/lib/admission/student-update";
-
-export type UpdateStudentFormState = {
-  status: "idle" | "success" | "error";
-  message: string;
-};
-
-export type SetStudentPasswordFormState = {
-  status: "idle" | "error";
-  message: string;
-};
+import { updateStudentRecordFromToken } from "@/lib/admission/student-update";
+import type {
+  SetStudentPasswordFormState,
+  SetStudentPasswordInput,
+  UpdateStudentFormState,
+  UpdateStudentRecordInput,
+} from "@/lib/admission/types";
 
 const initialState: UpdateStudentFormState = {
   status: "idle",

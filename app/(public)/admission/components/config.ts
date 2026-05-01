@@ -7,25 +7,9 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import type { AdmissionStep as Step } from "@/lib/admission/types";
 
-export type StepId =
-  | "applicant"
-  | "program"
-  | "student"
-  | "contact"
-  | "lastSchool"
-  | "guardian"
-  | "currentStudent"
-  | "review";
-
-export type Step = {
-  id: StepId;
-  label: string;
-  title: string;
-  eyebrow: string;
-  icon: LucideIcon;
-};
+export type { AdmissionStep as Step, AdmissionStepId as StepId } from "@/lib/admission/types";
 
 export const steps: Step[] = [
   {

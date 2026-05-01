@@ -1,23 +1,20 @@
 "use client";
 
 import * as React from "react";
-import type { HTMLInputTypeAttribute, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import type {
+  AdmissionFieldProps,
+  AdmissionSelectFieldProps,
+  AdmissionTextAreaFieldProps,
+  AdmissionTextFieldProps,
+} from "@/lib/admission/types";
 
 export const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 export const textareaClass =
   "min-h-28 w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-
-type FieldProps = {
-  id: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: ReactNode;
-};
 
 function mergeAriaDescribedBy(
   currentValue: string | undefined,
@@ -28,7 +25,13 @@ function mergeAriaDescribedBy(
   return [...ids].filter(Boolean).join(" ");
 }
 
-export function Field({ id, label, required, hint, children }: FieldProps) {
+export function Field({
+  id,
+  label,
+  required,
+  hint,
+  children,
+}: AdmissionFieldProps) {
   const hintId = hint ? `${id}-hint` : undefined;
   const describedChild =
     hintId && React.isValidElement<{ "aria-describedby"?: string }>(children)
@@ -56,19 +59,6 @@ export function Field({ id, label, required, hint, children }: FieldProps) {
   );
 }
 
-type TextFieldProps<T extends string> = {
-  id: T;
-  label: string;
-  value: string;
-  onChange: (field: T, value: string) => void;
-  type?: HTMLInputTypeAttribute;
-  placeholder?: string;
-  autoComplete?: string;
-  required?: boolean;
-  hint?: string;
-  disabled?: boolean;
-};
-
 export function TextField<T extends string>({
   id,
   label,
@@ -80,7 +70,7 @@ export function TextField<T extends string>({
   required,
   hint,
   disabled,
-}: TextFieldProps<T>) {
+}: AdmissionTextFieldProps<T>) {
   return (
     <Field id={id} label={label} required={required} hint={hint}>
       <input
@@ -111,18 +101,6 @@ export function TextField<T extends string>({
   );
 }
 
-type SelectFieldProps<T extends string> = {
-  id: T;
-  label: string;
-  value: string;
-  onChange: (field: T, value: string) => void;
-  children: ReactNode;
-  required?: boolean;
-  hint?: string;
-  disabled?: boolean;
-  placeholder: string;
-};
-
 export function SelectField<T extends string>({
   id,
   label,
@@ -133,7 +111,7 @@ export function SelectField<T extends string>({
   hint,
   disabled,
   placeholder,
-}: SelectFieldProps<T>) {
+}: AdmissionSelectFieldProps<T>) {
   return (
     <Field id={id} label={label} required={required} hint={hint}>
       <select
@@ -166,19 +144,6 @@ export function SelectField<T extends string>({
   );
 }
 
-type TextAreaFieldProps<T extends string> = {
-  id: T;
-  label: string;
-  value: string;
-  onChange: (field: T, value: string) => void;
-  placeholder?: string;
-  autoComplete?: string;
-  required?: boolean;
-  hint?: string;
-  disabled?: boolean;
-  rows?: number;
-};
-
 export function TextAreaField<T extends string>({
   id,
   label,
@@ -190,7 +155,7 @@ export function TextAreaField<T extends string>({
   hint,
   disabled,
   rows = 4,
-}: TextAreaFieldProps<T>) {
+}: AdmissionTextAreaFieldProps<T>) {
   return (
     <Field id={id} label={label} required={required} hint={hint}>
       <textarea

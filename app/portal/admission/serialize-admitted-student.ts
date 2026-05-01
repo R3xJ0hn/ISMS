@@ -1,4 +1,4 @@
-import type { ReviewFormValues } from "@/app/(public)/admission/components/review-step";
+import type { ReviewFormValues } from "@/lib/admission/types";
 import type { PortalAdmittedStudentRecord } from "@/app/portal/admission/admitted-student-actions";
 import type { AdmittedStudentEditRecord } from "@/app/portal/admission/edit-admitted-student-form";
 

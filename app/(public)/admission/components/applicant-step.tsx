@@ -6,41 +6,16 @@ import Image from "next/image";
 import { Check, Facebook, MapPin, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type {
+  AdmissionApplicantTypeOption,
+  ApplicantBranch,
+  ApplicantFieldName,
+  ApplicantStepProps,
+  BranchesStatus,
+} from "@/lib/admission/types";
 import { getAdmissionBranches } from "../actions";
 
-export type ApplicantFieldName =
-  | "applicant_type"
-  | "branch_id"
-  | "branch_code"
-  | "branch_title";
-
-type ApplicantFormValues = Record<ApplicantFieldName, string>;
-
-type ApplicantStepProps = {
-  form: ApplicantFormValues;
-  onChange: (field: ApplicantFieldName, value: string) => void;
-};
-
-type ApplicantType = {
-  value: string;
-  title: string;
-  description: string;
-};
-
-type Branch = {
-  id: string;
-  code: string;
-  title: string;
-  image: string | null;
-  phone: string | null;
-  facebookText: string | null;
-  mapLink: string | null;
-  formattedAddress: string;
-};
-
-type BranchesStatus = "loading" | "success" | "error";
-
-const applicantTypes: ApplicantType[] = [
+const applicantTypes: AdmissionApplicantTypeOption[] = [
   {
     value: "New Student",
     title: "New student",
@@ -65,7 +40,7 @@ function ChoiceButton({
   selected,
   onSelect,
 }: {
-  type: ApplicantType;
+  type: AdmissionApplicantTypeOption;
   selected: boolean;
   onSelect: (value: string) => void;
 }) {
@@ -143,7 +118,7 @@ function SelectField({
   label: string;
   value: string;
   onChange: (field: ApplicantFieldName, value: string) => void;
-  branches: Branch[];
+  branches: ApplicantBranch[];
   required?: boolean;
   placeholder: string;
   disabled?: boolean;
@@ -215,7 +190,7 @@ function BranchDetails({
   branch,
   status,
 }: {
-  branch?: Branch;
+  branch?: ApplicantBranch;
   status: BranchesStatus;
 }) {
   if (status === "loading") {
@@ -304,7 +279,7 @@ function BranchDetails({
 }
 
 export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
-  const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [branches, setBranches] = React.useState<ApplicantBranch[]>([]);
   const [branchesStatus, setBranchesStatus] =
     React.useState<BranchesStatus>("loading");
 

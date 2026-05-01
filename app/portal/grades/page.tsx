@@ -5,7 +5,7 @@ import { GradesView } from "@/app/portal/grades/grades-view";
 import { getCurrentSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { getStudentGrades, normalizeSemester } from "@/lib/student-grades";
+import { getStudentGrades, normalizeSemester } from "@/lib/app-script";
 
 type PageProps = {
   searchParams?: Promise<{

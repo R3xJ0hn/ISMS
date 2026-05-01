@@ -1,7 +1,7 @@
 "use client";
 
 import { PasswordSetupForm } from "@/components/auth/password-setup-form";
-import type { StudentUpdatePasswordRecord } from "@/lib/admission/student-password-reset";
+import type { StudentUpdatePasswordRecord } from "@/lib/admission/types";
 
 import {
   setStudentPortalPassword,

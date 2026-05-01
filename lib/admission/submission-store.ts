@@ -7,43 +7,9 @@ import {
   SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { optionalText, parseDateInput } from "../utils";
+import type { SaveAdmissionSubmissionInput } from "./types";
 
-export type CanonicalAdmissionProgramSelection = {
-  branchId: bigint;
-  branchCode: string;
-  branchTitle: string;
-  programId: bigint;
-  programCode: string;
-  programLabel: string;
-  programType: string;
-  academicLevelsId: bigint;
-  academicLevelLabel: string;
-};
-
-export type SaveAdmissionSubmissionInput = {
-  submissionId: string;
-  submittedAt: Date;
-  form: Record<string, string>;
-  programSelection: CanonicalAdmissionProgramSelection;
-};
-
-function optionalText(value: string) {
-  return value ? value : null;
-}
-
-function parseDateInput(value: string) {
-  const date = new Date(`${value}T00:00:00.000Z`);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new Error("Invalid date value.");
-  }
-
-  return date;
-}
-
-function applicantTypeFromForm(value: string) {
-  return value === "Existing Student" ? ApplicantType.existing : ApplicantType.new;
-}
 
 export async function saveAdmissionSubmission({
   submissionId,
@@ -144,7 +110,7 @@ export async function saveAdmissionSubmission({
     await tx.admissionApplication.create({
       data: {
         studentId: student.id,
-        applicantType: applicantTypeFromForm(form.applicant_type),
+        applicantType: form.applicant_type === "Existing Student" ? ApplicantType.existing : ApplicantType.new,
         applicationStatus: ApplicationStatus.submitted,
         lastSchoolId: lastSchool.id,
         LSSchoolYearEnd: optionalText(form.last_school_year),

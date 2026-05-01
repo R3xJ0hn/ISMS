@@ -4,12 +4,10 @@ import Link from "next/link";
 import { Eye, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  AdmissionReviewDetails,
-  type ReviewFormValues,
-} from "@/app/(public)/admission/components/review-step";
+import { AdmissionReviewDetails } from "@/app/(public)/admission/components/review-step";
 import { getAdmittedStudentDetails } from "@/app/portal/admission/detail-actions";
 import { Button } from "@/components/ui/button";
+import type { ReviewFormValues } from "@/lib/admission/types";
 
 export type PortalAdmittedStudentRecord = {
   applicationId: string;

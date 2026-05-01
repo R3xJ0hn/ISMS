@@ -1,43 +1,15 @@
 import { hash } from "bcryptjs";
-
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-
 import { verifyStudentUpdateToken } from "./student-update";
+import { formatStudentDisplayName, normalizeEmail } from "../utils";
+import type {
+  SetStudentPasswordInput,
+  StudentUpdatePasswordRecord,
+} from "./types";
 
 const PASSWORD_HASH_ROUNDS = 12;
 
-export type StudentUpdatePasswordRecord = {
-  token: string;
-  studentId: string;
-  displayName: string;
-  email: string;
-};
-
-export type SetStudentPasswordInput = {
-  password: string;
-  confirmPassword: string;
-};
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function formatStudentDisplayName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
 
 export async function getStudentUpdatePasswordRecord(token: string) {
   const payload = verifyStudentUpdateToken(token);

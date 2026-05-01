@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmail } from "./utils";
 
 const SESSION_COOKIE_NAME = "isms_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -52,10 +53,6 @@ function getJwtSecret() {
 }
 
 const JWT_SECRET = getJwtSecret();
-
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
 
 function scrypt(
   password: string,
