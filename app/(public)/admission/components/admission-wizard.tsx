@@ -1006,17 +1006,69 @@ export default function AdmissionWizard() {
     <section id="admission-form" className="relative z-10 bg-gray-50 pb-16">
       <div className="mx-auto -mt-12 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-[290px_1fr]">
-          <aside className="rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-500">
-                Admission progress
-              </p>
-              <p className="mt-2 text-2xl font-bold text-gray-950">
-                {safeCurrentIndex + 1}/{visibleSteps.length}
-              </p>
+          <aside className="rounded-lg bg-white p-4 shadow-sm sm:border sm:border-gray-200 sm:p-0">
+            <div className="sm:border-b sm:border-gray-200 sm:p-5">
+              <div className="flex items-start justify-between gap-4 sm:block">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">
+                    Admission progress
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-gray-950 sm:mt-2 sm:text-2xl">
+                    {safeCurrentIndex + 1}/{visibleSteps.length}
+                  </p>
+                </div>
+                <p className="max-w-40 text-right text-sm font-semibold text-primary sm:hidden">
+                  {currentStep.title}
+                </p>
+              </div>
+
+              <div className="mt-4 sm:hidden">
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-gray-200"
+                  aria-hidden="true"
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{
+                      width: `${
+                        ((safeCurrentIndex + 1) / visibleSteps.length) * 100
+                      }%`,
+                    }}
+                  />
+                </div>
+                <ol
+                  className="mt-3 flex items-center justify-between gap-1"
+                  aria-label="Admission steps"
+                >
+                  {visibleSteps.map((step, index) => {
+                    const active = index === safeCurrentIndex;
+                    const complete = stepIsComplete(step.id, form, consent);
+
+                    return (
+                      <li
+                        key={step.id}
+                        className={cn(
+                          "h-1.5 flex-1 rounded-full",
+                          active || complete ? "bg-primary" : "bg-gray-200"
+                        )}
+                        aria-current={active ? "step" : undefined}
+                      >
+                        <span className="sr-only">
+                          {step.label}
+                          {active
+                            ? ", current step"
+                            : complete
+                              ? ", complete"
+                              : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
             </div>
 
-            <ol className="grid gap-1 p-3">
+            <ol className="hidden gap-1 p-3 sm:grid">
               {visibleSteps.map((step, index) => {
                 const Icon = step.icon;
                 const active = index === safeCurrentIndex;
@@ -1082,7 +1134,7 @@ export default function AdmissionWizard() {
               })}
             </ol>
 
-            <div className="border-t border-gray-200 p-5">
+            <div className="hidden border-t border-gray-200 p-5 sm:block">
               <div className="flex items-start gap-3 text-sm leading-6 text-gray-600">
                 <BookOpenCheck
                   className="mt-0.5 size-5 shrink-0 text-secondary"
