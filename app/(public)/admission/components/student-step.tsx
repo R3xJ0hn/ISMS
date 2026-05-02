@@ -2,25 +2,7 @@
 
 import { SelectField, TextField } from "./form-fields";
 import { civilStatusOptions, genderOptions } from "./config";
-
-export type StudentFieldName =
-  | "student_first_name"
-  | "student_last_name"
-  | "student_middle_name"
-  | "student_suffix"
-  | "student_birth_date"
-  | "student_gender"
-  | "student_civil_status"
-  | "student_citizenship"
-  | "student_birthplace"
-  | "student_religion";
-
-type StudentFormValues = Record<StudentFieldName, string>;
-
-type StudentStepProps = {
-  form: StudentFormValues;
-  onChange: (field: StudentFieldName, value: string) => void;
-};
+import type { StudentStepProps } from "@/lib/types";
 
 export default function StudentStep({ form, onChange }: StudentStepProps) {
   return (

@@ -1,22 +1,7 @@
 "use client";
 
 import { TextField } from "./form-fields";
-
-export type GuardianFieldName =
-  | "guardian_last_name"
-  | "guardian_first_name"
-  | "guardian_middle_name"
-  | "guardian_suffix"
-  | "guardian_relationship"
-  | "guardian_contact_number"
-  | "guardian_occupation";
-
-type GuardianFormValues = Record<GuardianFieldName, string>;
-
-type GuardianStepProps = {
-  form: GuardianFormValues;
-  onChange: (field: GuardianFieldName, value: string) => void;
-};
+import type { GuardianStepProps } from "@/lib/types";
 
 export default function GuardianStep({ form, onChange }: GuardianStepProps) {
   return (

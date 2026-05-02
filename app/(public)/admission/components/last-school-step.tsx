@@ -2,29 +2,7 @@
 
 import { SelectField, TextField } from "./form-fields";
 import { schoolTypeOptions } from "./config";
-
-export type LastSchoolFieldName =
-  | "last_school_name"
-  | "last_school_id"
-  | "last_school_short_name"
-  | "last_school_type"
-  | "last_school_house_number"
-  | "last_school_subdivision"
-  | "last_school_street"
-  | "last_school_barangay"
-  | "last_school_city"
-  | "last_school_province"
-  | "last_school_postal_code"
-  | "last_school_year"
-  | "last_school_graduation_date"
-  | "last_school_year_level";
-
-type LastSchoolFormValues = Record<LastSchoolFieldName, string>;
-
-type LastSchoolStepProps = {
-  form: LastSchoolFormValues;
-  onChange: (field: LastSchoolFieldName, value: string) => void;
-};
+import type { LastSchoolStepProps } from "@/lib/types";
 
 export default function LastSchoolStep({
   form,

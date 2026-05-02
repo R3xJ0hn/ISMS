@@ -13,14 +13,22 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { steps, type Step, type StepId } from "./config";
+import type {
+  AdmissionConfirmation,
+  AdmissionFieldName,
+  AdmissionFormValues,
+  AdmissionStep as Step,
+  AdmissionStepId as StepId,
+  AdmissionSubmissionStatus,
+  CurrentStudentFieldName,
+  CurrentStudentStepHandle,
+  CurrentStudentVerification,
+  ExistingStudentNotice,
+} from "@/lib/types";
+import { steps } from "./config";
 import ApplicantStep from "./applicant-step";
 import ContactStep from "./contact-step";
-import CurrentStudentStep, {
-  type CurrentStudentFieldName,
-  type CurrentStudentStepHandle,
-  type CurrentStudentVerification,
-} from "./current-student-step";
+import CurrentStudentStep from "./current-student-step";
 import GuardianStep from "./guardian-step";
 import LastSchoolStep from "./last-school-step";
 import ProgramStep from "./program-step";
@@ -28,7 +36,7 @@ import ReviewStep from "./review-step";
 import StudentStep from "./student-step";
 import { submitAdmissionApplication } from "../actions";
 
-export const initialFormValues = {
+export const initialFormValues: AdmissionFormValues = {
   applicant_type: "",
   branch_id: "",
   branch_code: "",
@@ -95,23 +103,11 @@ export const initialFormValues = {
   current_school_year: "",
 };
 
-type FieldName = keyof typeof initialFormValues;
-type AdmissionFormValues = typeof initialFormValues;
-type SubmissionStatus = "idle" | "submitting" | "submitted";
-type AdmissionConfirmation = {
-  message: string;
-  submissionId: string;
-  submittedAt: string;
-};
-type ExistingStudentNotice = {
-  message: string;
-};
-
 const EXISTING_STUDENT = "Existing Student";
 const REQUIRED_DOCUMENT_NOTE =
   "Bring a valid ID, report card or transcript, birth certificate, and latest 2x2 photo for manual review in the registrar office.";
 
-const currentStudentInputFields = new Set<FieldName>([
+const currentStudentInputFields = new Set<AdmissionFieldName>([
   "current_student_number",
   "current_student_email",
   "current_student_first_name",
@@ -120,7 +116,7 @@ const currentStudentInputFields = new Set<FieldName>([
 ]);
 
 function isCurrentStudentInputField(
-  field: FieldName
+  field: AdmissionFieldName
 ): field is CurrentStudentFieldName {
   return currentStudentInputFields.has(field);
 }
@@ -750,7 +746,7 @@ export default function AdmissionWizard() {
   const [verifyingCurrentStudent, setVerifyingCurrentStudent] =
     React.useState(false);
   const [submissionStatus, setSubmissionStatus] =
-    React.useState<SubmissionStatus>("idle");
+    React.useState<AdmissionSubmissionStatus>("idle");
   const [submissionError, setSubmissionError] = React.useState("");
   const [confirmation, setConfirmation] =
     React.useState<AdmissionConfirmation | null>(null);
@@ -800,7 +796,7 @@ export default function AdmissionWizard() {
       .every((step) => stepIsComplete(step.id, form, consent));
   }
 
-  function updateField(field: FieldName, value: string) {
+  function updateField(field: AdmissionFieldName, value: string) {
     setVerifyingCurrentStudent(false);
     setSubmissionError("");
     setConsent(false);

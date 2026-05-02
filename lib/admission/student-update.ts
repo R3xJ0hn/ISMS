@@ -5,258 +5,29 @@ import {
   ApplicationStatus,
   CivilStatus,
   Gender,
-  ProgramType,
   SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { normalizeText } from "@/lib/utils";
+import {
+  enumIncludes,
+  getAppBaseUrl,
+  isValidEmail,
+  isValidPhone,
+  missingRequiredField,
+  normalizeNullableText,
+  normalizeText,
+  optionalText,
+  parseDateInput,
+} from "@/lib/utils";
+import type {
+  StudentUpdateQueryResult,
+  StudentUpdateRecord,
+  StudentUpdateTokenPayload,
+  UpdateStudentRecordInput,
+} from "../types";
 
 const STUDENT_UPDATE_LINK_TTL_MS = 1000 * 60 * 60;
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
 
-export type StudentUpdateTokenPayload = {
-  scope: "student-update";
-  studentId: string;
-  jti: string;
-  exp: number;
-};
-
-export type StudentUpdateRecord = {
-  token: string;
-  studentId: string;
-  firstName: string;
-  lastName: string;
-  middleName: string;
-  suffix: string;
-  birthDate: string;
-  gender: string | null;
-  civilStatus: string | null;
-  citizenship: string | null;
-  birthplace: string | null;
-  religion: string;
-  email: string;
-  phone: string | null;
-  facebookAccount: string;
-  addressHouseNumber: string;
-  addressSubdivision: string;
-  addressStreet: string;
-  addressBarangay: string;
-  addressCity: string;
-  addressProvince: string;
-  addressPostalCode: string;
-  guardianFirstName: string;
-  guardianLastName: string;
-  guardianMiddleName: string;
-  guardianSuffix: string;
-  guardianRelationship: string;
-  guardianContactNumber: string;
-  guardianOccupation: string;
-  lastSchoolName: string;
-  lastSchoolId: string;
-  lastSchoolShortName: string;
-  lastSchoolType: string;
-  lastSchoolHouseNumber: string;
-  lastSchoolSubdivision: string;
-  lastSchoolStreet: string;
-  lastSchoolBarangay: string;
-  lastSchoolCity: string;
-  lastSchoolProvince: string;
-  lastSchoolPostalCode: string;
-  lastSchoolYear: string;
-  lastSchoolGraduationDate: string;
-  lastSchoolYearLevel: string;
-  latestEnrollmentStatus: string;
-  latestEnrollmentSchoolYear: string;
-  latestEnrollmentBranch: string;
-  latestEnrollmentProgram: string;
-  latestEnrollmentYearLevel: string;
-  latestEnrollmentSection: string;
-};
-
-export type UpdateStudentRecordInput = {
-  firstName: string;
-  lastName: string;
-  middleName: string;
-  suffix: string;
-  birthDate: string;
-  gender?: string | null;
-  civilStatus?: string | null;
-  citizenship?: string | null;
-  birthplace?: string | null;
-  religion: string;
-  email: string;
-  phone?: string | null;
-  facebookAccount: string;
-  addressHouseNumber: string;
-  addressSubdivision: string;
-  addressStreet: string;
-  addressBarangay: string;
-  addressCity: string;
-  addressProvince: string;
-  addressPostalCode: string;
-  guardianFirstName: string;
-  guardianLastName: string;
-  guardianMiddleName: string;
-  guardianSuffix: string;
-  guardianRelationship: string;
-  guardianContactNumber: string;
-  guardianOccupation: string;
-  lastSchoolName: string;
-  lastSchoolId: string;
-  lastSchoolShortName: string;
-  lastSchoolType: string;
-  lastSchoolHouseNumber: string;
-  lastSchoolSubdivision: string;
-  lastSchoolStreet: string;
-  lastSchoolBarangay: string;
-  lastSchoolCity: string;
-  lastSchoolProvince: string;
-  lastSchoolPostalCode: string;
-  lastSchoolYear: string;
-  lastSchoolGraduationDate: string;
-  lastSchoolYearLevel: string;
-};
-
-type StudentUpdateQueryResult = {
-  id: bigint;
-  firstName: string;
-  lastName: string;
-  middleName: string | null;
-  suffix: string | null;
-  birthDate: Date;
-  gender: string | null;
-  civilStatus: string | null;
-  citizenship: string | null;
-  birthplace: string | null;
-  religion: string | null;
-  email: string;
-  phone: string | null;
-  facebookAccount: string | null;
-  address: {
-    houseNumber: string | null;
-    subdivision: string | null;
-    street: string | null;
-    barangay: string;
-    city: string;
-    province: string;
-    postalCode: string | null;
-  } | null;
-  guardians: Array<{
-    relationship: string;
-    isPrimary: boolean;
-    guardian: {
-      firstName: string;
-      lastName: string;
-      middleName: string | null;
-      suffix: string | null;
-      contactNumber: string;
-      occupation: string | null;
-    };
-  }>;
-  applications: Array<{
-    id: bigint;
-    branchId: bigint;
-    programId: bigint;
-    academicLevelsId: bigint;
-    programType: (typeof ProgramType)[keyof typeof ProgramType];
-    lastSchoolId: bigint | null;
-    LSSchoolYearEnd: string | null;
-    LSAttainedLevelText: string | null;
-    LSGraduationDate: Date | null;
-    applicationStatus: (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
-    submittedAt: Date | null;
-    branch: {
-      title: string;
-    };
-    program: {
-      label: string;
-    };
-    academicLevels: {
-      label: string;
-    };
-    lastSchool: {
-      schoolName: string;
-      schoolId: string | null;
-      shortName: string | null;
-      schoolType: (typeof SchoolType)[keyof typeof SchoolType];
-      address: {
-        houseNumber: string | null;
-        subdivision: string | null;
-        street: string | null;
-        barangay: string;
-        city: string;
-        province: string;
-        postalCode: string | null;
-      } | null;
-    } | null;
-  }>;
-  enrollments: Array<{
-    branchId: bigint;
-    programId: bigint;
-    academicLevelsId: bigint;
-    enrollmentStatus: string;
-    schoolYear: {
-      name: string;
-    };
-    branch: {
-      title: string;
-    };
-    program: {
-      label: string;
-      programType: (typeof ProgramType)[keyof typeof ProgramType];
-    };
-    academicLevels: {
-      label: string;
-    };
-    section: {
-      sectionName: string;
-      sectionCode: string;
-    } | null;
-  }>;
-};
-
-function optionalText(value: string) {
-  return value ? value : null;
-}
-
-function parseDateInput(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    return null;
-  }
-
-  const [, yearText, monthText, dayText] = match;
-  const year = Number.parseInt(yearText, 10);
-  const month = Number.parseInt(monthText, 10);
-  const day = Number.parseInt(dayText, 10);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() + 1 !== month ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-
-  return date;
-}
-
-function isValidEmail(value: string) {
-  return emailPattern.test(value);
-}
-
-function isValidPhone(value: string) {
-  if (!phonePattern.test(value)) {
-    return false;
-  }
-
-  const digits = value.replace(/\D/g, "");
-  return digits.length >= 7 && digits.length <= 15;
-}
 
 function getStudentUpdateLinkSecret() {
   const secret =
@@ -315,36 +86,6 @@ export function verifyStudentUpdateToken(token: string) {
   }
 }
 
-function normalizeAppBaseUrl(value: string) {
-  const url = new URL(value.trim());
-  const allowHttp = process.env.NODE_ENV === "development";
-
-  if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) {
-    throw new Error("APP_URL must use HTTPS outside development.");
-  }
-
-  url.search = "";
-  url.hash = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-
-  return url.toString().replace(/\/$/, "");
-}
-
-function getAppBaseUrl() {
-  if (process.env.APP_URL) {
-    return normalizeAppBaseUrl(process.env.APP_URL);
-  }
-
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return normalizeAppBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
-  }
-
-  if (process.env.VERCEL_URL) {
-    return normalizeAppBaseUrl(`https://${process.env.VERCEL_URL}`);
-  }
-
-  return normalizeAppBaseUrl("http://localhost:3000");
-}
 
 function normalizeStudentUpdateInput(
   input: UpdateStudentRecordInput
@@ -394,61 +135,49 @@ function normalizeStudentUpdateInput(
   };
 }
 
-function normalizeNullableText(value: string | null | undefined) {
-  if (value == null) {
-    return null;
-  }
-
-  const normalizedValue = normalizeText(value);
-
-  return normalizedValue || null;
-}
 
 function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
-  const requiredFields: Array<[keyof UpdateStudentRecordInput, boolean]> = [
-    ["firstName", !input.firstName],
-    ["lastName", !input.lastName],
-    ["birthDate", !input.birthDate],
-    ["email", !input.email],
-    ["addressBarangay", !input.addressBarangay],
-    ["addressCity", !input.addressCity],
-    ["addressProvince", !input.addressProvince],
-    ["guardianFirstName", !input.guardianFirstName],
-    ["guardianLastName", !input.guardianLastName],
-    ["guardianRelationship", !input.guardianRelationship],
-    ["guardianContactNumber", !input.guardianContactNumber],
-    ["lastSchoolName", !input.lastSchoolName],
-    ["lastSchoolType", !input.lastSchoolType],
-    ["lastSchoolBarangay", !input.lastSchoolBarangay],
-    ["lastSchoolCity", !input.lastSchoolCity],
-    ["lastSchoolProvince", !input.lastSchoolProvince],
-    ["lastSchoolYear", !input.lastSchoolYear],
-    ["lastSchoolYearLevel", !input.lastSchoolYearLevel],
-  ];
+  const requiredFields = [
+    "firstName",
+    "lastName",
+    "birthDate",
+    "email",
+    "addressBarangay",
+    "addressCity",
+    "addressProvince",
+    "guardianFirstName",
+    "guardianLastName",
+    "guardianRelationship",
+    "guardianContactNumber",
+    "lastSchoolName",
+    "lastSchoolType",
+    "lastSchoolBarangay",
+    "lastSchoolCity",
+    "lastSchoolProvince",
+    "lastSchoolYear",
+    "lastSchoolYearLevel",
+  ] satisfies Array<keyof UpdateStudentRecordInput>;
 
-  const missingField = requiredFields.find(([, missing]) => missing)?.[0];
+  const missingField = missingRequiredField(
+    input as unknown as Record<string, unknown>,
+    requiredFields,
+  ) as keyof UpdateStudentRecordInput | null;
 
   if (missingField) {
     return missingField;
   }
 
-  if (!parseDateInput(input.birthDate)) {
+  try {
+    parseDateInput(input.birthDate);
+  } catch {
     return "birthDate";
   }
 
-  if (
-    input.gender &&
-    !Object.values(Gender).includes(input.gender as (typeof Gender)[keyof typeof Gender])
-  ) {
+  if (input.gender && !enumIncludes(Gender, input.gender)) {
     return "gender";
   }
 
-  if (
-    input.civilStatus &&
-    !Object.values(CivilStatus).includes(
-      input.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus]
-    )
-  ) {
+  if (input.civilStatus && !enumIncludes(CivilStatus, input.civilStatus)) {
     return "civilStatus";
   }
 
@@ -464,11 +193,7 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "guardianContactNumber";
   }
 
-  if (
-    !Object.values(SchoolType).includes(
-      input.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType]
-    )
-  ) {
+  if (!enumIncludes(SchoolType, input.lastSchoolType)) {
     return "lastSchoolType";
   }
 

@@ -6,23 +6,37 @@ import { cookies } from "next/headers";
 
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmail } from "./utils";
+
+/* -------------------------------------------------------------------------- */
+/* Constants                                                                  */
+/* -------------------------------------------------------------------------- */
 
 const SESSION_COOKIE_NAME = "isms_session";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
-const REMEMBER_ME_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const REMEMBER_ME_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
 const PASSWORD_HASH_ROUNDS = 12;
 const JWT_SECRET_MIN_BYTES = 32;
+
 const DUMMY_PASSWORD_HASH =
   "$2b$12$w0LkwL5Dj1mh2EDkETZjS.uYL2Z1vq5Wm1QX/YTDtzG3wNAvWo6N6";
+
 const STRICT_INTEGER_PATTERN = /^\d+$/;
 
 const LEGACY_SCRYPT_KEY_LENGTH = 64;
 const LEGACY_SCRYPT_COST = 16384;
 const LEGACY_SCRYPT_BLOCK_SIZE = 8;
 const LEGACY_SCRYPT_PARALLELIZATION = 1;
+
 const textEncoder = new TextEncoder();
 
-type SessionUser = {
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type SessionUser = {
   id: string;
   email: string;
   role: UserRole;
@@ -34,6 +48,10 @@ type SessionTokenPayload = JWTPayload & {
   role: UserRole;
   emailVerified: boolean;
 };
+
+/* -------------------------------------------------------------------------- */
+/* JWT Secret                                                                 */
+/* -------------------------------------------------------------------------- */
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -53,9 +71,33 @@ function getJwtSecret() {
 
 const JWT_SECRET = getJwtSecret();
 
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
+/* -------------------------------------------------------------------------- */
+/* Password Hashing                                                           */
+/* -------------------------------------------------------------------------- */
+
+function isBcryptHash(value: string) {
+  return (
+    value.startsWith("$2a$") ||
+    value.startsWith("$2b$") ||
+    value.startsWith("$2y$")
+  );
 }
+
+export async function hashPassword(password: string) {
+  return hash(password, PASSWORD_HASH_ROUNDS);
+}
+
+async function verifyPassword(password: string, storedHash: string) {
+  if (isBcryptHash(storedHash)) {
+    return compare(password, storedHash);
+  }
+
+  return verifyLegacyScryptHash(password, storedHash);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Legacy Scrypt Password Support                                             */
+/* -------------------------------------------------------------------------- */
 
 function scrypt(
   password: string,
@@ -80,10 +122,6 @@ function scrypt(
   });
 }
 
-function isBcryptHash(value: string) {
-  return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
-}
-
 function parseStrictInteger(value: string) {
   if (!STRICT_INTEGER_PATTERN.test(value)) {
     return null;
@@ -99,8 +137,14 @@ function parseStrictInteger(value: string) {
 }
 
 async function verifyLegacyScryptHash(password: string, storedHash: string) {
-  const [algorithm, costText, blockSizeText, parallelizationText, saltHex, derivedKeyHex] =
-    storedHash.split("$");
+  const [
+    algorithm,
+    costText,
+    blockSizeText,
+    parallelizationText,
+    saltHex,
+    derivedKeyHex,
+  ] = storedHash.split("$");
 
   if (
     algorithm !== "scrypt" ||
@@ -117,18 +161,12 @@ async function verifyLegacyScryptHash(password: string, storedHash: string) {
   const blockSize = parseStrictInteger(blockSizeText);
   const parallelization = parseStrictInteger(parallelizationText);
 
-  if (
-    cost === null ||
-    blockSize === null ||
-    parallelization === null ||
-    !Number.isFinite(cost) ||
-    !Number.isFinite(blockSize) ||
-    !Number.isFinite(parallelization)
-  ) {
+  if (cost === null || blockSize === null || parallelization === null) {
     return false;
   }
 
   const expectedKey = Buffer.from(derivedKeyHex, "hex");
+
   const actualKey = await scrypt(
     password,
     Buffer.from(saltHex, "hex"),
@@ -141,20 +179,16 @@ async function verifyLegacyScryptHash(password: string, storedHash: string) {
     }
   );
 
+  if (actualKey.length !== expectedKey.length) {
+    return false;
+  }
+
   return timingSafeEqual(actualKey, expectedKey);
 }
 
-async function verifyPassword(password: string, storedHash: string) {
-  if (isBcryptHash(storedHash)) {
-    return compare(password, storedHash);
-  }
-
-  return verifyLegacyScryptHash(password, storedHash);
-}
-
-export async function hashPassword(password: string) {
-  return hash(password, PASSWORD_HASH_ROUNDS);
-}
+/* -------------------------------------------------------------------------- */
+/* Authentication                                                             */
+/* -------------------------------------------------------------------------- */
 
 export async function authenticateUser(email: string, password: string) {
   const normalizedEmail = normalizeEmail(email);
@@ -184,20 +218,7 @@ export async function authenticateUser(email: string, password: string) {
     };
   }
 
-  if (!isBcryptHash(user.passwordHash)) {
-    try {
-      await prisma.user.update({
-        where: {
-          id: user.id,
-        },
-        data: {
-          passwordHash: await hashPassword(password),
-        },
-      });
-    } catch (error) {
-      console.error("Failed to rehash user password:", error);
-    }
-  }
+  await rehashLegacyPasswordIfNeeded(user.id, password, user.passwordHash);
 
   return {
     success: true as const,
@@ -210,27 +231,42 @@ export async function authenticateUser(email: string, password: string) {
   };
 }
 
+async function rehashLegacyPasswordIfNeeded(
+  userId: bigint,
+  password: string,
+  currentPasswordHash: string
+) {
+  if (isBcryptHash(currentPasswordHash)) {
+    return;
+  }
+
+  try {
+    await prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        passwordHash: await hashPassword(password),
+      },
+    });
+  } catch (error) {
+    console.error("Failed to rehash user password:", error);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Session Management                                                         */
+/* -------------------------------------------------------------------------- */
+
 export async function createSession(
   user: SessionUser,
   options?: {
     remember?: boolean;
   }
 ) {
-  const maxAge = options?.remember
-    ? REMEMBER_ME_SESSION_MAX_AGE_SECONDS
-    : SESSION_MAX_AGE_SECONDS;
+  const maxAge = getSessionMaxAge(options?.remember);
 
-  const token = await new SignJWT({
-    email: user.email,
-    role: user.role,
-    emailVerified: user.emailVerified,
-  } satisfies Omit<SessionTokenPayload, keyof JWTPayload | "sub">)
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(user.id)
-    .setIssuedAt()
-    .setExpirationTime(`${maxAge}s`)
-    .sign(JWT_SECRET);
-
+  const token = await createSessionToken(user, maxAge);
   const cookieStore = await cookies();
 
   cookieStore.set(SESSION_COOKIE_NAME, token, {
@@ -248,18 +284,43 @@ export async function clearSession() {
   cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
+export async function getCurrentSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+  if (!token) {
+    return null;
+  }
+
+  return verifySessionToken(token);
+}
+
+function getSessionMaxAge(remember?: boolean) {
+  return remember
+    ? REMEMBER_ME_SESSION_MAX_AGE_SECONDS
+    : SESSION_MAX_AGE_SECONDS;
+}
+
+async function createSessionToken(user: SessionUser, maxAge: number) {
+  return new SignJWT({
+    email: user.email,
+    role: user.role,
+    emailVerified: user.emailVerified,
+  } satisfies Omit<SessionTokenPayload, keyof JWTPayload | "sub">)
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(user.id)
+    .setIssuedAt()
+    .setExpirationTime(`${maxAge}s`)
+    .sign(JWT_SECRET);
+}
+
 async function verifySessionToken(token: string): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify<SessionTokenPayload>(token, JWT_SECRET, {
       algorithms: ["HS256"],
     });
 
-    if (
-      typeof payload.sub !== "string" ||
-      typeof payload.email !== "string" ||
-      typeof payload.role !== "string" ||
-      typeof payload.emailVerified !== "boolean"
-    ) {
+    if (!isValidSessionPayload(payload)) {
       return null;
     }
 
@@ -274,20 +335,30 @@ async function verifySessionToken(token: string): Promise<SessionUser | null> {
   }
 }
 
-export async function getCurrentSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  return verifySessionToken(token);
+function isValidSessionPayload(
+  payload: JWTPayload
+): payload is SessionTokenPayload & { sub: string } {
+  return (
+    typeof payload.sub === "string" &&
+    typeof payload.email === "string" &&
+    typeof payload.role === "string" &&
+    typeof payload.emailVerified === "boolean"
+  );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Formatters                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export function formatRoleLabel(role: UserRole) {
-  return role.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
+  return role
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase());
 }
+
+/* -------------------------------------------------------------------------- */
+/* Defaults                                                                   */
+/* -------------------------------------------------------------------------- */
 
 export const passwordHashDefaults = {
   algorithm: "bcrypt",
@@ -299,3 +370,5 @@ export const passwordHashDefaults = {
     parallelization: LEGACY_SCRYPT_PARALLELIZATION,
   },
 } as const;
+
+export { normalizeEmail };

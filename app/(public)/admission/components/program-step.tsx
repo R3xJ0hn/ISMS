@@ -11,56 +11,13 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type {
+  BranchSummary,
+  ProgramOption,
+  ProgramOptionsStatus,
+  ProgramStepProps,
+} from "@/lib/types";
 import { getAdmissionProgramOptions } from "../actions";
-
-export type ProgramFieldName =
-  | "branch_code"
-  | "branch_title"
-  | "program_type"
-  | "program_id"
-  | "program_code"
-  | "program_label"
-  | "academic_level_id"
-  | "academic_level_label";
-
-type ProgramFormValues = {
-  branch_id: string;
-  branch_code: string;
-  branch_title: string;
-  program_type: string;
-  program_id: string;
-  program_code: string;
-  program_label: string;
-  academic_level_id: string;
-  academic_level_label: string;
-};
-
-type ProgramStepProps = {
-  form: ProgramFormValues;
-  onChange: (field: ProgramFieldName, value: string) => void;
-};
-
-type BranchSummary = {
-  id: string;
-  title: string;
-  code: string;
-};
-
-type AcademicLevelOption = {
-  id: string;
-  label: string;
-  slug: string;
-};
-
-type ProgramOption = {
-  id: string;
-  code: string;
-  label: string;
-  programType: string;
-  academicLevels: AcademicLevelOption[];
-};
-
-type ProgramOptionsStatus = "idle" | "loading" | "success" | "error";
 
 const selectClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";

@@ -1,25 +1,7 @@
 "use client";
 
 import { TextField } from "./form-fields";
-
-export type ContactFieldName =
-  | "contact_email"
-  | "contact_phone"
-  | "contact_facebook"
-  | "address_house_number"
-  | "address_subdivision"
-  | "address_street"
-  | "address_barangay"
-  | "address_city"
-  | "address_province"
-  | "address_postal_code";
-
-type ContactFormValues = Record<ContactFieldName, string>;
-
-type ContactStepProps = {
-  form: ContactFormValues;
-  onChange: (field: ContactFieldName, value: string) => void;
-};
+import type { ContactStepProps } from "@/lib/types";
 
 export default function ContactStep({ form, onChange }: ContactStepProps) {
   return (

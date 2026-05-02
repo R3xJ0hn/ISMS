@@ -4,69 +4,7 @@ import type { ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
-export type ReviewFormValues = {
-  applicant_type: string;
-  branch_id: string;
-  branch_code: string;
-  branch_title: string;
-  program_type: string;
-  program_code: string;
-  program_label: string;
-  academic_level_label: string;
-  student_first_name: string;
-  student_last_name: string;
-  student_middle_name: string;
-  student_suffix: string;
-  student_birth_date: string;
-  student_gender: string;
-  student_civil_status: string;
-  student_citizenship: string;
-  student_birthplace: string;
-  student_religion: string;
-  contact_email: string;
-  contact_phone: string;
-  contact_facebook: string;
-  address_house_number: string;
-  address_subdivision: string;
-  address_street: string;
-  address_barangay: string;
-  address_city: string;
-  address_province: string;
-  address_postal_code: string;
-  last_school_name: string;
-  last_school_id: string;
-  last_school_short_name: string;
-  last_school_type: string;
-  last_school_house_number: string;
-  last_school_subdivision: string;
-  last_school_street: string;
-  last_school_barangay: string;
-  last_school_city: string;
-  last_school_province: string;
-  last_school_postal_code: string;
-  last_school_year: string;
-  last_school_graduation_date: string;
-  last_school_year_level: string;
-  guardian_last_name: string;
-  guardian_first_name: string;
-  guardian_middle_name: string;
-  guardian_suffix: string;
-  guardian_relationship: string;
-  guardian_contact_number: string;
-  guardian_occupation: string;
-  current_student_record_id: string;
-  current_student_verified_name: string;
-  current_student_verified_school_year: string;
-  current_student_verified_program: string;
-  current_student_verified_branch: string;
-};
-
-type ReviewStepProps = {
-  form: ReviewFormValues;
-  consent: boolean;
-  onConsentChange: (value: boolean) => void;
-};
+import type { ReviewFormValues, ReviewStepProps } from "@/lib/types";
 
 function displayValue(value: string) {
   return value.trim() ? value : "Not provided";

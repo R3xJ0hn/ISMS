@@ -5,49 +5,14 @@ import * as React from "react";
 import { AlertTriangle, CheckCircle2, MapPin, ShieldCheck, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type {
+  CurrentStudentFieldName,
+  CurrentStudentFormValues,
+  CurrentStudentStepHandle,
+  CurrentStudentStepProps,
+  CurrentStudentVerificationStatus,
+} from "@/lib/types";
 import { verifyCurrentStudent } from "../actions";
-
-export type CurrentStudentFieldName =
-  | "current_student_number"
-  | "current_student_email"
-  | "current_student_first_name"
-  | "current_student_last_name"
-  | "current_student_birth_date";
-
-export type CurrentStudentVerification = {
-  recordId: string;
-  displayName: string;
-  schoolYear: string;
-  program: string;
-  branch: string;
-  message?: string;
-};
-
-export type CurrentStudentStepHandle = {
-  verify: () => Promise<boolean>;
-};
-
-type CurrentStudentFormValues = Record<
-  | CurrentStudentFieldName
-  | "applicant_type"
-  | "branch_id"
-  | "branch_code"
-  | "branch_title"
-  | "current_student_record_id"
-  | "current_student_verified_name"
-  | "current_student_verified_school_year"
-  | "current_student_verified_program"
-  | "current_student_verified_branch",
-  string
->;
-
-type CurrentStudentStepProps = {
-  form: CurrentStudentFormValues;
-  onChange: (field: CurrentStudentFieldName, value: string) => void;
-  onVerified: (verification: CurrentStudentVerification) => void;
-};
-
-type VerificationStatus = "idle" | "verifying" | "failed" | "verified";
 
 const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
@@ -184,7 +149,8 @@ const CurrentStudentStep = React.forwardRef<
   CurrentStudentStepHandle,
   CurrentStudentStepProps
 >(function CurrentStudentStep({ form, onChange, onVerified }, ref) {
-  const [status, setStatus] = React.useState<VerificationStatus>("idle");
+  const [status, setStatus] =
+    React.useState<CurrentStudentVerificationStatus>("idle");
   const [message, setMessage] = React.useState("");
   const verifyRequestIdRef = React.useRef(0);
   const activeVerificationSignatureRef = React.useRef<string | null>(null);
@@ -338,7 +304,7 @@ const CurrentStudentStep = React.forwardRef<
     [verifyStudent]
   );
 
-  const resolvedStatus: VerificationStatus =
+  const resolvedStatus: CurrentStudentVerificationStatus =
     verified && status !== "failed" ? "verified" : status;
   const statusMessage =
     resolvedStatus === "verified"

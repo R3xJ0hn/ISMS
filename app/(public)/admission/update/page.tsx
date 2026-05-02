@@ -2,18 +2,13 @@ import type { Metadata } from "next";
 
 import Footer from "@/components/public/footer";
 import { getStudentUpdateRecord } from "@/lib/admission/student-update";
+import type { AdmissionUpdatePageProps } from "@/lib/types";
 
 import UpdateStudentForm from "./update-student-form";
 
 export const metadata: Metadata = {
   title: "Update Student Information | ISMS Application",
   description: "Secure link for updating an existing student record.",
-};
-
-type AdmissionUpdatePageProps = {
-  searchParams: Promise<{
-    token?: string;
-  }>;
 };
 
 export default async function AdmissionUpdatePage({

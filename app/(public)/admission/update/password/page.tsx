@@ -2,18 +2,13 @@ import type { Metadata } from "next";
 
 import Footer from "@/components/public/footer";
 import { getStudentUpdatePasswordRecord } from "@/lib/admission/student-password-reset";
+import type { AdmissionUpdatePasswordPageProps } from "@/lib/types";
 
 import SetStudentPasswordForm from "./set-student-password-form";
 
 export const metadata: Metadata = {
   title: "Set Portal Password | ISMS Application",
   description: "Create a portal password after updating student information.",
-};
-
-type AdmissionUpdatePasswordPageProps = {
-  searchParams: Promise<{
-    token?: string;
-  }>;
 };
 
 export default async function AdmissionUpdatePasswordPage({
