@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { ReviewFormValues, ReviewStepProps } from "@/lib/admission/types";
+import type { ReviewFormValues, ReviewStepProps } from "@/lib/types";
 
 function displayValue(value: string) {
   return value.trim() ? value : "Not provided";

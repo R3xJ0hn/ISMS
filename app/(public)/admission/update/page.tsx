@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import Footer from "@/components/public/footer";
 import { getStudentUpdateRecord } from "@/lib/admission/student-update";
-import type { AdmissionUpdatePageProps } from "@/lib/admission/types";
+import type { AdmissionUpdatePageProps } from "@/lib/types";
 
 import UpdateStudentForm from "./update-student-form";
 

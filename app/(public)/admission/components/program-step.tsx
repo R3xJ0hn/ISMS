@@ -16,7 +16,7 @@ import type {
   ProgramOption,
   ProgramOptionsStatus,
   ProgramStepProps,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 import { getAdmissionProgramOptions } from "../actions";
 
 const selectClass =

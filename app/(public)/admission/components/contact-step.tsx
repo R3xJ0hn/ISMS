@@ -1,7 +1,7 @@
 "use client";
 
 import { TextField } from "./form-fields";
-import type { ContactStepProps } from "@/lib/admission/types";
+import type { ContactStepProps } from "@/lib/types";
 
 export default function ContactStep({ form, onChange }: ContactStepProps) {
   return (

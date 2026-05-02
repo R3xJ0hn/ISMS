@@ -11,7 +11,7 @@ import type {
   SetStudentPasswordInput,
   UpdateStudentFormState,
   UpdateStudentRecordInput,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 
 const initialState: UpdateStudentFormState = {
   status: "idle",

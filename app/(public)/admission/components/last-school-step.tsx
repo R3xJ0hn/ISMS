@@ -2,7 +2,7 @@
 
 import { SelectField, TextField } from "./form-fields";
 import { schoolTypeOptions } from "./config";
-import type { LastSchoolStepProps } from "@/lib/admission/types";
+import type { LastSchoolStepProps } from "@/lib/types";
 
 export default function LastSchoolStep({
   form,

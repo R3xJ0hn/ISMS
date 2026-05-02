@@ -12,7 +12,7 @@ import type {
   ApplicantFieldName,
   ApplicantStepProps,
   BranchesStatus,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 import { getAdmissionBranches } from "../actions";
 
 const applicantTypes: AdmissionApplicantTypeOption[] = [

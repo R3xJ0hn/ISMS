@@ -11,7 +11,7 @@ import type {
   CurrentStudentStepHandle,
   CurrentStudentStepProps,
   CurrentStudentVerificationStatus,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 import { verifyCurrentStudent } from "../actions";
 
 const inputClass =

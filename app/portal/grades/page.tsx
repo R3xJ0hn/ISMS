@@ -5,7 +5,8 @@ import { GradesView } from "@/app/portal/grades/grades-view";
 import { getCurrentSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { getStudentGrades, normalizeSemester } from "@/lib/app-script";
+import { getStudentGrades, normalizeSemester } from "@/lib/data-access/app-script";
+import { formatDisplayName } from "@/lib/utils";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -13,21 +14,6 @@ type PageProps = {
   }>;
 };
 
-function formatStudentName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
 
 export default async function StudentGradesPage({ searchParams }: PageProps) {
   const session = await getCurrentSession();
@@ -66,7 +52,7 @@ export default async function StudentGradesPage({ searchParams }: PageProps) {
     gradesResult.success && gradesResult.studentName
       ? gradesResult.studentName
       : student
-        ? formatStudentName(student)
+        ? formatDisplayName(student)
         : "Student record";
 
   return (

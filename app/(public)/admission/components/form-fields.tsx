@@ -8,7 +8,7 @@ import type {
   AdmissionSelectFieldProps,
   AdmissionTextAreaFieldProps,
   AdmissionTextFieldProps,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 
 export const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";

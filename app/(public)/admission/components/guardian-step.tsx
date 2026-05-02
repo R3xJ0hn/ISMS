@@ -1,7 +1,7 @@
 "use client";
 
 import { TextField } from "./form-fields";
-import type { GuardianStepProps } from "@/lib/admission/types";
+import type { GuardianStepProps } from "@/lib/types";
 
 export default function GuardianStep({ form, onChange }: GuardianStepProps) {
   return (

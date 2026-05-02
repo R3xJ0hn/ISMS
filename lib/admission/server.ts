@@ -1,77 +1,31 @@
 import { randomUUID } from "node:crypto";
-import { unstable_cache } from "next/cache";
 
-import {
-  CivilStatus,
-  Gender,
-  SchoolType,
-  type ProgramType as ProgramTypeValue,
-} from "@/lib/generated/prisma/enums";
-import {
-  saveAdmissionSubmission,
-} from "@/lib/admission/submission-store";
-import { createStudentUpdateUrl } from "@/lib/admission/student-update";
+import { CivilStatus, Gender, SchoolType } from "@/lib/generated/prisma/enums";
 import type {
-  AdmissionBranchesResult,
   AdmissionProgramOptionsResult,
   AdmissionSubmissionResult,
-  BranchAddress,
   CanonicalAdmissionProgramSelection,
-  InternalProgramOption,
-  VerifyCurrentStudentInput,
-  VerifyCurrentStudentResult,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 import {
-  formatStudentDisplayName,
+  enumIncludes,
+  missingRequiredField,
+  normalizeForm,
+  parseDateInput,
   validateEmail,
   validatePhone,
   validateSchoolYear,
 } from "@/lib/utils";
-import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
-import { prisma } from "@/lib/prisma";
 import { normalizeName, normalizeText } from "@/lib/utils";
-import { sendEmail } from "../emailer";
-import { buildStudentUpdateEmail } from "../templates/student-update";
+import {
+  findExistingStudentVerificationRecord,
+  getCanonicalAdmissionProgramSelectionByIds,
+  saveAdmissionSubmission,
+} from "@/lib/data-access/admission";
+import { getAdmissionProgramOfferings } from "@/lib/data-access/branches";
 
 const EXISTING_STUDENT = "Existing Student";
 const NEW_STUDENT = "New Student";
-const MISSING_FIELDS_MESSAGE =
-  "Complete all verification fields before checking the record.";
-const VERIFICATION_FAILED_MESSAGE = "Verification failed.";
-const branchSelect = {
-  id: true,
-  slug: true,
-  title: true,
-  image: true,
-  phone: true,
-  facebookText: true,
-  mapLink: true,
-  address: {
-    select: {
-      houseNumber: true,
-      subdivision: true,
-      street: true,
-      barangay: true,
-      city: true,
-      province: true,
-      postalCode: true,
-    },
-  },
-} as const;
 
-const academicLevelOrder = new Map(
-  [
-    "grade-11",
-    "grade-12",
-    "first-year",
-    "second-year",
-    "third-year",
-    "fourth-year",
-  ].map((value, index) => [value, index])
-);
-const programTypeOrder = new Map(
-  ["Bachelor", "SeniorHigh", "Associate"].map((value, index) => [value, index])
-);
 
 const requiredFields = [
   "applicant_type",
@@ -218,79 +172,9 @@ const fieldLabels: Record<string, string> = {
   current_student_record_id: "Verified student record",
 };
 
-function formatAddress(address: BranchAddress | null) {
-  if (!address) {
-    return "";
-  }
-
-  return [
-    address.houseNumber,
-    address.street,
-    address.subdivision,
-    address.barangay,
-    address.city,
-    address.province,
-    address.postalCode,
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
-
-function normalizeForm(form: Record<string, unknown>) {
-  const normalized: Record<string, string> = {};
-
-  for (const field of allowedSubmissionFields) {
-    normalized[field] = normalizeText(form[field]);
-  }
-
-  return normalized;
-}
-
-function missingRequiredField(
-  form: Record<string, unknown>,
-  fields: readonly string[]
-) {
-  return fields.find((field) => !normalizeText(form[field])) ?? null;
-}
-
-function parseDateRange(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    return null;
-  }
-
-  const [, yearText, monthText, dayText] = match;
-  const year = Number.parseInt(yearText, 10);
-  const month = Number.parseInt(monthText, 10);
-  const day = Number.parseInt(dayText, 10);
-  const start = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    Number.isNaN(start.getTime()) ||
-    start.getUTCFullYear() !== year ||
-    start.getUTCMonth() + 1 !== month ||
-    start.getUTCDate() !== day
-  ) {
-    return null;
-  }
-
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-
-  return { start, end };
-}
-
-function enumIncludes<T extends Record<string, string>>(
-  values: T,
-  value: string
-) {
-  return Object.values(values).includes(value);
-}
-
 function firstInvalidField(
   form: Record<string, string>,
-  applicantType: string
+  applicantType: string,
 ) {
   const validations: Array<{
     field: string;
@@ -311,7 +195,7 @@ function firstInvalidField(
     },
     {
       field: "student_birth_date",
-      validate: (value) => parseDateRange(value) !== null,
+      validate: (value) => parseDateInput(value) !== null,
     },
     {
       field: "student_gender",
@@ -331,7 +215,7 @@ function firstInvalidField(
     },
     {
       field: "last_school_graduation_date",
-      validate: (value) => parseDateRange(value) !== null,
+      validate: (value) => parseDateInput(value) !== null,
       when: Boolean(form.last_school_graduation_date),
     },
     {
@@ -341,70 +225,22 @@ function firstInvalidField(
     },
     {
       field: "current_student_birth_date",
-      validate: (value) => parseDateRange(value) !== null,
+      validate: (value) => parseDateInput(value) !== null,
       when: applicantType === EXISTING_STUDENT,
     },
   ];
 
   return (
     validations.find(
-      ({ field, validate, when = true }) => when && !validate(form[field] ?? "")
+      ({ field, validate, when = true }) =>
+        when && !validate(form[field] ?? ""),
     )?.field ?? null
   );
 }
 
-function sortAcademicLevels(
-  left: { label: string; slug: string },
-  right: { label: string; slug: string }
+async function existingStudentVerificationMatches(
+  form: Record<string, string>,
 ) {
-  const orderDifference =
-    (academicLevelOrder.get(left.slug) ?? Number.MAX_SAFE_INTEGER) -
-    (academicLevelOrder.get(right.slug) ?? Number.MAX_SAFE_INTEGER);
-
-  if (orderDifference !== 0) {
-    return orderDifference;
-  }
-
-  return left.label.localeCompare(right.label);
-}
-
-function sortPrograms(left: InternalProgramOption, right: InternalProgramOption) {
-  const typeDifference =
-    (programTypeOrder.get(left.programType) ?? Number.MAX_SAFE_INTEGER) -
-    (programTypeOrder.get(right.programType) ?? Number.MAX_SAFE_INTEGER);
-
-  if (typeDifference !== 0) {
-    return typeDifference;
-  }
-
-  return left.label.localeCompare(right.label);
-}
-
-
-const getCachedBranches = unstable_cache(
-  async () => {
-    const branches = await prisma.branch.findMany({
-      orderBy: {
-        title: "asc",
-      },
-      select: branchSelect,
-    });
-
-    return branches.map(({ id, slug, address, ...branch }) => ({
-      ...branch,
-      id: id.toString(),
-      code: slug,
-      address,
-      formattedAddress: formatAddress(address),
-    }));
-  },
-  ["admission-branches"],
-  {
-    revalidate: 300,
-  }
-);
-
-async function existingStudentVerificationMatches(form: Record<string, string>) {
   const recordId = form.current_student_record_id;
   const branchId = form.branch_id;
 
@@ -413,48 +249,17 @@ async function existingStudentVerificationMatches(form: Record<string, string>) 
   }
 
   const selectedBranchId = BigInt(branchId);
-  const submittedBirthDate = parseDateRange(form.current_student_birth_date);
+  const submittedBirthDate = parseDateInput(
+    form.current_student_birth_date,
+  );
 
   if (!submittedBirthDate) {
     return false;
   }
 
-  const student = await prisma.student.findUnique({
-    where: {
-      id: BigInt(recordId),
-    },
-    select: {
-      studentNumber: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      birthDate: true,
-      enrollments: {
-        where: {
-          branchId: selectedBranchId,
-        },
-        orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
-        take: 1,
-        select: {
-          schoolYear: {
-            select: {
-              name: true,
-            },
-          },
-          branchId: true,
-        },
-      },
-      applications: {
-        where: {
-          branchId: selectedBranchId,
-        },
-        orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
-        take: 1,
-        select: {
-          branchId: true,
-        },
-      },
-    },
+  const student = await findExistingStudentVerificationRecord({
+    recordId: BigInt(recordId),
+    branchId: selectedBranchId,
   });
 
   if (!student) {
@@ -475,28 +280,12 @@ async function existingStudentVerificationMatches(form: Record<string, string>) 
       normalizeName(form.current_student_first_name).toLowerCase() &&
     normalizeName(student.lastName).toLowerCase() ===
       normalizeName(form.current_student_last_name).toLowerCase() &&
-    student.birthDate >= submittedBirthDate.start &&
-    student.birthDate < submittedBirthDate.end
+    student.birthDate.getTime() === submittedBirthDate.getTime()
   );
 }
 
-export async function getAdmissionBranches(): Promise<AdmissionBranchesResult> {
-  try {
-    return {
-      branches: await getCachedBranches(),
-    };
-  } catch (error) {
-    console.error("Failed to fetch branches:", error);
-
-    return {
-      branches: [],
-      error: "Failed to fetch branches.",
-    };
-  }
-}
-
 export async function getAdmissionProgramOptions(
-  branchId: string
+  branchId: string,
 ): Promise<AdmissionProgramOptionsResult> {
   const normalizedBranchId = normalizeText(branchId);
 
@@ -508,90 +297,20 @@ export async function getAdmissionProgramOptions(
   }
 
   try {
-    const branch = await prisma.branch.findUnique({
-      where: {
-        id: BigInt(normalizedBranchId),
-      },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        sections: {
-          select: {
-            program: {
-              select: {
-                id: true,
-                code: true,
-                label: true,
-                programType: true,
-              },
-            },
-            academicLevels: {
-              select: {
-                id: true,
-                label: true,
-                slug: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const offerings = await getAdmissionProgramOfferings(
+      BigInt(normalizedBranchId),
+    );
 
-    if (!branch) {
+    if (!offerings) {
       return {
         programs: [],
         error: "Branch not found.",
       };
     }
 
-    const programsById = new Map<string, InternalProgramOption>();
-
-    for (const section of branch.sections) {
-      const programId = section.program.id.toString();
-      const allowedSlugs =
-        allowedAcademicLevelSlugsByProgramType[section.program.programType];
-
-      if (!allowedSlugs.includes(section.academicLevels.slug)) {
-        continue;
-      }
-
-      let program = programsById.get(programId);
-
-      if (!program) {
-        program = {
-          id: programId,
-          code: section.program.code,
-          label: section.program.label,
-          programType: section.program.programType,
-          academicLevels: new Map(),
-        };
-        programsById.set(programId, program);
-      }
-
-      program.academicLevels.set(section.academicLevels.id.toString(), {
-        id: section.academicLevels.id.toString(),
-        label: section.academicLevels.label,
-        slug: section.academicLevels.slug,
-      });
-    }
-
-    const programOptions = Array.from(programsById.values())
-      .toSorted(sortPrograms)
-      .map(({ academicLevels, ...program }) => ({
-        ...program,
-        academicLevels: Array.from(academicLevels.values()).toSorted(
-          sortAcademicLevels
-        ),
-      }));
-
     return {
-      branch: {
-        id: branch.id.toString(),
-        title: branch.title,
-        code: branch.slug,
-      },
-      programs: programOptions,
+      branch: offerings.branch,
+      programs: offerings.programs,
     };
   } catch (error) {
     console.error("Failed to fetch admission program options:", error);
@@ -604,7 +323,7 @@ export async function getAdmissionProgramOptions(
 }
 
 async function getCanonicalAdmissionProgramSelection(
-  form: Record<string, string>
+  form: Record<string, string>,
 ): Promise<CanonicalAdmissionProgramSelection | null> {
   const branchId = form.branch_id;
   const programId = form.program_id;
@@ -618,69 +337,17 @@ async function getCanonicalAdmissionProgramSelection(
     return null;
   }
 
-  const offering = await prisma.section.findFirst({
-    where: {
-      branchId: BigInt(branchId),
-      programId: BigInt(programId),
-      academicLevelsId: BigInt(academicLevelsId),
-    },
-    select: {
-      branch: {
-        select: {
-          id: true,
-          slug: true,
-          title: true,
-        },
-      },
-      program: {
-        select: {
-          id: true,
-          code: true,
-          label: true,
-          programType: true,
-        },
-      },
-      academicLevels: {
-        select: {
-          id: true,
-          label: true,
-          slug: true,
-        },
-      },
-    },
+  return getCanonicalAdmissionProgramSelectionByIds({
+    branchId: BigInt(branchId),
+    programId: BigInt(programId),
+    academicLevelsId: BigInt(academicLevelsId),
+    programType: form.program_type,
   });
-
-  if (!offering) {
-    return null;
-  }
-
-  const { branch, program, academicLevels: academicLevel } = offering;
-  const allowedAcademicLevelSlugs =
-    allowedAcademicLevelSlugsByProgramType[program.programType];
-
-  if (
-    program.programType !== form.program_type ||
-    !allowedAcademicLevelSlugs.includes(academicLevel.slug)
-  ) {
-    return null;
-  }
-
-  return {
-    branchId: branch.id,
-    branchCode: branch.slug,
-    branchTitle: branch.title,
-    programId: program.id,
-    programCode: program.code,
-    programLabel: program.label,
-    programType: program.programType satisfies ProgramTypeValue,
-    academicLevelsId: academicLevel.id,
-    academicLevelLabel: academicLevel.label,
-  };
 }
 
 function applyCanonicalProgramSelection(
   form: Record<string, string>,
-  selection: CanonicalAdmissionProgramSelection
+  selection: CanonicalAdmissionProgramSelection,
 ) {
   return {
     ...form,
@@ -696,237 +363,11 @@ function applyCanonicalProgramSelection(
   };
 }
 
-export async function verifyCurrentStudent(
-  input: VerifyCurrentStudentInput
-): Promise<VerifyCurrentStudentResult> {
-  const branchId = normalizeText(input.branchId);
-  const studentNumber = normalizeText(input.studentNumber);
-  const studentEmail = normalizeText(input.studentEmail);
-  const firstName = normalizeName(input.firstName);
-  const lastName = normalizeName(input.lastName);
-  const birthDate = normalizeText(input.birthDate);
 
-  if (
-    !branchId ||
-    !studentNumber ||
-    !studentEmail ||
-    !firstName ||
-    !lastName ||
-    !birthDate
-  ) {
-    return {
-      verified: false,
-      message: MISSING_FIELDS_MESSAGE,
-    };
-  }
-
-  if (!/^\d+$/.test(branchId)) {
-    return {
-      verified: false,
-      message: "Select a valid branch before checking the record.",
-    };
-  }
-
-  const birthDateRange = parseDateRange(birthDate);
-
-  if (!birthDateRange) {
-    return {
-      verified: false,
-      message: "Enter a valid birth date.",
-    };
-  }
-
-  const selectedBranchId = BigInt(branchId);
-
-  try {
-    const student = await prisma.student.findFirst({
-      where: {
-        studentNumber,
-        email: {
-          equals: studentEmail,
-          mode: "insensitive",
-        },
-        birthDate: {
-          gte: birthDateRange.start,
-          lt: birthDateRange.end,
-        },
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        middleName: true,
-        lastName: true,
-        suffix: true,
-        enrollments: {
-          where: {
-            branchId: selectedBranchId,
-          },
-          orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
-          take: 1,
-          select: {
-            schoolYear: {
-              select: {
-                name: true,
-              },
-            },
-            branch: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-            program: {
-              select: {
-                label: true,
-              },
-            },
-            academicLevels: {
-              select: {
-                label: true,
-              },
-            },
-            section: {
-              select: {
-                sectionCode: true,
-                sectionName: true,
-              },
-            },
-          },
-        },
-        applications: {
-          where: {
-            branchId: selectedBranchId,
-          },
-          orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
-          take: 1,
-          select: {
-            branch: {
-              select: {
-                title: true,
-              },
-            },
-            program: {
-              select: {
-                label: true,
-              },
-            },
-            academicLevels: {
-              select: {
-                label: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!student) {
-      console.info("Current student verification failed", {
-        reason: "student_not_found",
-      });
-
-      return {
-        verified: false,
-        message: VERIFICATION_FAILED_MESSAGE,
-      };
-    }
-
-    if (
-      normalizeName(student.firstName).toLowerCase() !==
-        firstName.toLowerCase() ||
-      normalizeName(student.lastName).toLowerCase() !== lastName.toLowerCase()
-    ) {
-      console.info("Current student verification failed", {
-        reason: "student_name_mismatch",
-      });
-
-      return {
-        verified: false,
-        message: VERIFICATION_FAILED_MESSAGE,
-      };
-    }
-
-    const latestEnrollment = student.enrollments[0];
-    const latestApplication = student.applications[0];
-
-    if (!latestEnrollment && !latestApplication) {
-      console.info("Current student verification failed", {
-        reason: "student_branch_mismatch",
-      });
-
-      return {
-        verified: false,
-        message: VERIFICATION_FAILED_MESSAGE,
-      };
-    }
-
-    const verificationMessage =
-      "Student record verified. We sent a secure update link to your email.";
-
-
-    try {
-      const updateUrl = await createStudentUpdateUrl(student.id.toString());
-      const email = buildStudentUpdateEmail({
-        studentName: formatStudentDisplayName(student),
-        updateUrl,
-      });
-
-      await sendEmail({
-        to: student.email,
-        ...email,
-      });
-    } catch (error) {
-      console.error("Failed to send student update link email:", error);
-
-      return {
-        verified: false,
-        message:
-          "Student record was found, but we could not send the update link email. Please contact the registrar or try again later.",
-      };
-    }
-
-    return {
-      verified: true,
-      message: verificationMessage,
-      student: {
-        id: student.id.toString(),
-        displayName: formatStudentDisplayName(student),
-        latestEnrollment: latestEnrollment
-          ? {
-              schoolYear: latestEnrollment.schoolYear.name,
-              branch: latestEnrollment.branch.title,
-              program: latestEnrollment.program.label,
-              yearLevel: latestEnrollment.academicLevels.label,
-              section:
-                latestEnrollment.section?.sectionName ??
-                latestEnrollment.section?.sectionCode ??
-                null,
-            }
-          : latestApplication
-            ? {
-                schoolYear: null,
-                branch: latestApplication.branch.title,
-                program: latestApplication.program.label,
-                yearLevel: latestApplication.academicLevels.label,
-                section: null,
-              }
-          : null,
-      },
-    };
-  } catch (error) {
-    console.error("Failed to verify student record:", error);
-
-    return {
-      verified: false,
-      message: "Failed to verify the student record.",
-    };
-  }
-}
 
 export async function submitAdmissionApplication(
   formInput: unknown,
-  consent: boolean
+  consent: boolean,
 ): Promise<AdmissionSubmissionResult> {
   const form =
     formInput && typeof formInput === "object" && !Array.isArray(formInput)
@@ -965,7 +406,7 @@ export async function submitAdmissionApplication(
     };
   }
 
-  const normalizedForm = normalizeForm(form);
+  const normalizedForm = normalizeForm(form, allowedSubmissionFields);
   const invalidField = firstInvalidField(normalizedForm, applicantType);
 
   if (invalidField) {
@@ -1001,13 +442,13 @@ export async function submitAdmissionApplication(
 
   const canonicalForm = applyCanonicalProgramSelection(
     normalizedForm,
-    programSelection
+    programSelection,
   );
 
   if (applicantType === EXISTING_STUDENT) {
     const missingExistingField = missingRequiredField(
       form,
-      existingStudentRequiredFields
+      existingStudentRequiredFields,
     );
 
     if (missingExistingField) {
@@ -1026,7 +467,8 @@ export async function submitAdmissionApplication(
       if (!verified) {
         return {
           submitted: false,
-          message: "Current student verification details do not match our records.",
+          message:
+            "Current student verification details do not match our records.",
         };
       }
     } catch (error) {
@@ -1040,7 +482,10 @@ export async function submitAdmissionApplication(
     }
   }
 
-  const submissionId = randomUUID().replace(/\D/g, "").padEnd(8, "0").slice(0, 8);
+  const submissionId = randomUUID()
+    .replace(/\D/g, "")
+    .padEnd(8, "0")
+    .slice(0, 8);
   const submittedAt = new Date().toISOString();
 
   try {
@@ -1063,7 +508,8 @@ export async function submitAdmissionApplication(
 
     return {
       submitted: false,
-      message: "We could not save your admission form right now. Please try again.",
+      message:
+        "We could not save your admission form right now. Please try again.",
     };
   }
 }

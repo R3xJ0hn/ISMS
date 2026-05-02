@@ -8,40 +8,25 @@ import {
   SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { isValidEmail, isValidPhone, normalizeText, optionalText } from "@/lib/utils";
+import {
+  enumIncludes,
+  getAppBaseUrl,
+  isValidEmail,
+  isValidPhone,
+  missingRequiredField,
+  normalizeNullableText,
+  normalizeText,
+  optionalText,
+  parseDateInput,
+} from "@/lib/utils";
 import type {
   StudentUpdateQueryResult,
   StudentUpdateRecord,
   StudentUpdateTokenPayload,
   UpdateStudentRecordInput,
-} from "./types";
+} from "../types";
 
 const STUDENT_UPDATE_LINK_TTL_MS = 1000 * 60 * 60;
-
-function parseDateInput(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-  if (!match) {
-    return null;
-  }
-
-  const [, yearText, monthText, dayText] = match;
-  const year = Number.parseInt(yearText, 10);
-  const month = Number.parseInt(monthText, 10);
-  const day = Number.parseInt(dayText, 10);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() + 1 !== month ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-
-  return date;
-}
 
 
 function getStudentUpdateLinkSecret() {
@@ -101,36 +86,6 @@ export function verifyStudentUpdateToken(token: string) {
   }
 }
 
-function normalizeAppBaseUrl(value: string) {
-  const url = new URL(value.trim());
-  const allowHttp = process.env.NODE_ENV === "development";
-
-  if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) {
-    throw new Error("APP_URL must use HTTPS outside development.");
-  }
-
-  url.search = "";
-  url.hash = "";
-  url.pathname = url.pathname.replace(/\/+$/, "");
-
-  return url.toString().replace(/\/$/, "");
-}
-
-function getAppBaseUrl() {
-  if (process.env.APP_URL) {
-    return normalizeAppBaseUrl(process.env.APP_URL);
-  }
-
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return normalizeAppBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
-  }
-
-  if (process.env.VERCEL_URL) {
-    return normalizeAppBaseUrl(`https://${process.env.VERCEL_URL}`);
-  }
-
-  return normalizeAppBaseUrl("http://localhost:3000");
-}
 
 function normalizeStudentUpdateInput(
   input: UpdateStudentRecordInput
@@ -180,61 +135,49 @@ function normalizeStudentUpdateInput(
   };
 }
 
-function normalizeNullableText(value: string | null | undefined) {
-  if (value == null) {
-    return null;
-  }
-
-  const normalizedValue = normalizeText(value);
-
-  return normalizedValue || null;
-}
 
 function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
-  const requiredFields: Array<[keyof UpdateStudentRecordInput, boolean]> = [
-    ["firstName", !input.firstName],
-    ["lastName", !input.lastName],
-    ["birthDate", !input.birthDate],
-    ["email", !input.email],
-    ["addressBarangay", !input.addressBarangay],
-    ["addressCity", !input.addressCity],
-    ["addressProvince", !input.addressProvince],
-    ["guardianFirstName", !input.guardianFirstName],
-    ["guardianLastName", !input.guardianLastName],
-    ["guardianRelationship", !input.guardianRelationship],
-    ["guardianContactNumber", !input.guardianContactNumber],
-    ["lastSchoolName", !input.lastSchoolName],
-    ["lastSchoolType", !input.lastSchoolType],
-    ["lastSchoolBarangay", !input.lastSchoolBarangay],
-    ["lastSchoolCity", !input.lastSchoolCity],
-    ["lastSchoolProvince", !input.lastSchoolProvince],
-    ["lastSchoolYear", !input.lastSchoolYear],
-    ["lastSchoolYearLevel", !input.lastSchoolYearLevel],
-  ];
+  const requiredFields = [
+    "firstName",
+    "lastName",
+    "birthDate",
+    "email",
+    "addressBarangay",
+    "addressCity",
+    "addressProvince",
+    "guardianFirstName",
+    "guardianLastName",
+    "guardianRelationship",
+    "guardianContactNumber",
+    "lastSchoolName",
+    "lastSchoolType",
+    "lastSchoolBarangay",
+    "lastSchoolCity",
+    "lastSchoolProvince",
+    "lastSchoolYear",
+    "lastSchoolYearLevel",
+  ] satisfies Array<keyof UpdateStudentRecordInput>;
 
-  const missingField = requiredFields.find(([, missing]) => missing)?.[0];
+  const missingField = missingRequiredField(
+    input as unknown as Record<string, unknown>,
+    requiredFields,
+  ) as keyof UpdateStudentRecordInput | null;
 
   if (missingField) {
     return missingField;
   }
 
-  if (!parseDateInput(input.birthDate)) {
+  try {
+    parseDateInput(input.birthDate);
+  } catch {
     return "birthDate";
   }
 
-  if (
-    input.gender &&
-    !Object.values(Gender).includes(input.gender as (typeof Gender)[keyof typeof Gender])
-  ) {
+  if (input.gender && !enumIncludes(Gender, input.gender)) {
     return "gender";
   }
 
-  if (
-    input.civilStatus &&
-    !Object.values(CivilStatus).includes(
-      input.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus]
-    )
-  ) {
+  if (input.civilStatus && !enumIncludes(CivilStatus, input.civilStatus)) {
     return "civilStatus";
   }
 
@@ -250,11 +193,7 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "guardianContactNumber";
   }
 
-  if (
-    !Object.values(SchoolType).includes(
-      input.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType]
-    )
-  ) {
+  if (!enumIncludes(SchoolType, input.lastSchoolType)) {
     return "lastSchoolType";
   }
 

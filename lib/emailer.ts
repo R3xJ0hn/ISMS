@@ -36,9 +36,16 @@ function getSmtpTransporter() {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
-  if (!host || !user || !pass || Number.isNaN(port)) {
+  if (
+    !host ||
+    !user ||
+    !pass ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  ) {
     throw new Error(
-      "SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS must be configured for SMTP email."
+      "SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS must be configured for SMTP email, and SMTP_PORT must be an integer from 1 to 65535."
     );
   }
 
@@ -46,6 +53,9 @@ function getSmtpTransporter() {
     host,
     port,
     secure: port === 465,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
     auth: { user, pass },
   });
 }

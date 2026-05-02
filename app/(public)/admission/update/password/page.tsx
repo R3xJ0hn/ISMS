@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import Footer from "@/components/public/footer";
 import { getStudentUpdatePasswordRecord } from "@/lib/admission/student-password-reset";
-import type { AdmissionUpdatePasswordPageProps } from "@/lib/admission/types";
+import type { AdmissionUpdatePasswordPageProps } from "@/lib/types";
 
 import SetStudentPasswordForm from "./set-student-password-form";
 

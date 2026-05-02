@@ -6,7 +6,7 @@ import {
   submitAdmissionApplication as submitAdmissionApplicationFromServer,
   verifyCurrentStudent as verifyCurrentStudentFromServer,
 } from "@/lib/admission/server";
-import type { VerifyCurrentStudentInput } from "@/lib/admission/types";
+import type { VerifyCurrentStudentInput } from "@/lib/types";
 
 export async function getAdmissionBranches() {
   return getAdmissionBranchesFromServer();

@@ -7,9 +7,9 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import type { AdmissionStep as Step } from "@/lib/admission/types";
+import type { AdmissionStep as Step } from "@/lib/types";
 
-export type { AdmissionStep as Step, AdmissionStepId as StepId } from "@/lib/admission/types";
+export type { AdmissionStep as Step, AdmissionStepId as StepId } from "@/lib/types";
 
 export const steps: Step[] = [
   {

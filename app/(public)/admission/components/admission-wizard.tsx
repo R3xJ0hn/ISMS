@@ -24,7 +24,7 @@ import type {
   CurrentStudentStepHandle,
   CurrentStudentVerification,
   ExistingStudentNotice,
-} from "@/lib/admission/types";
+} from "@/lib/types";
 import { steps } from "./config";
 import ApplicantStep from "./applicant-step";
 import ContactStep from "./contact-step";

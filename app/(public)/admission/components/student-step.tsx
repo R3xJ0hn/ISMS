@@ -2,7 +2,7 @@
 
 import { SelectField, TextField } from "./form-fields";
 import { civilStatusOptions, genderOptions } from "./config";
-import type { StudentStepProps } from "@/lib/admission/types";
+import type { StudentStepProps } from "@/lib/types";
 
 export default function StudentStep({ form, onChange }: StudentStepProps) {
   return (
