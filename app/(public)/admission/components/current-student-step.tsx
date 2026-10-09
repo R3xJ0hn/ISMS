@@ -12,7 +12,7 @@ import type {
   CurrentStudentStepProps,
   CurrentStudentVerificationStatus,
 } from "@/lib/types";
-import { verifyCurrentStudent } from "../actions";
+import { verifyExistingStudent } from "../actions";
 
 const inputClass =
   "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
@@ -208,7 +208,7 @@ const CurrentStudentStep = React.forwardRef<
       setStatus("verifying");
       setMessage("");
 
-      const data = await verifyCurrentStudent({
+      const data = await verifyExistingStudent({
         branchId: form.branch_id,
         studentNumber: form.current_student_number,
         studentEmail: form.current_student_email,

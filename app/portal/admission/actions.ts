@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
 
 import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
-import { parseId } from "@/lib/admission/parse-id";
+import { parseId } from "@/lib/utils";
 import { getCurrentSession } from "@/lib/auth";
 import {
   ApplicantType,
@@ -18,7 +18,7 @@ import {
   UserRole,
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
-import { validateEmail, validatePhone, validateSchoolYear } from "@/lib/admission/validation";
+import { validateEmail, validatePhone, validateSchoolYear } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
 export type AddAdmittedStudentState = {

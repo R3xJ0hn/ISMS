@@ -6,11 +6,8 @@ import { cookies } from "next/headers";
 
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { normalizeEmail } from "./utils";
-
-/* -------------------------------------------------------------------------- */
-/* Constants                                                                  */
-/* -------------------------------------------------------------------------- */
+import { normalizeEmail, parseStrictInteger } from "./utils";
+import { SessionTokenPayload, SessionUser } from "./types";
 
 const SESSION_COOKIE_NAME = "isms_session";
 
@@ -23,35 +20,7 @@ const JWT_SECRET_MIN_BYTES = 32;
 const DUMMY_PASSWORD_HASH =
   "$2b$12$w0LkwL5Dj1mh2EDkETZjS.uYL2Z1vq5Wm1QX/YTDtzG3wNAvWo6N6";
 
-const STRICT_INTEGER_PATTERN = /^\d+$/;
-
-const LEGACY_SCRYPT_KEY_LENGTH = 64;
-const LEGACY_SCRYPT_COST = 16384;
-const LEGACY_SCRYPT_BLOCK_SIZE = 8;
-const LEGACY_SCRYPT_PARALLELIZATION = 1;
-
 const textEncoder = new TextEncoder();
-
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
-
-export type SessionUser = {
-  id: string;
-  email: string;
-  role: UserRole;
-  emailVerified: boolean;
-};
-
-type SessionTokenPayload = JWTPayload & {
-  email: string;
-  role: UserRole;
-  emailVerified: boolean;
-};
-
-/* -------------------------------------------------------------------------- */
-/* JWT Secret                                                                 */
-/* -------------------------------------------------------------------------- */
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -122,19 +91,6 @@ function scrypt(
   });
 }
 
-function parseStrictInteger(value: string) {
-  if (!STRICT_INTEGER_PATTERN.test(value)) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    return null;
-  }
-
-  return parsed;
-}
 
 async function verifyLegacyScryptHash(password: string, storedHash: string) {
   const [
@@ -345,30 +301,3 @@ function isValidSessionPayload(
     typeof payload.emailVerified === "boolean"
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Formatters                                                                 */
-/* -------------------------------------------------------------------------- */
-
-export function formatRoleLabel(role: UserRole) {
-  return role
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (value) => value.toUpperCase());
-}
-
-/* -------------------------------------------------------------------------- */
-/* Defaults                                                                   */
-/* -------------------------------------------------------------------------- */
-
-export const passwordHashDefaults = {
-  algorithm: "bcrypt",
-  rounds: PASSWORD_HASH_ROUNDS,
-  legacyScrypt: {
-    keyLength: LEGACY_SCRYPT_KEY_LENGTH,
-    cost: LEGACY_SCRYPT_COST,
-    blockSize: LEGACY_SCRYPT_BLOCK_SIZE,
-    parallelization: LEGACY_SCRYPT_PARALLELIZATION,
-  },
-} as const;
-
-export { normalizeEmail };

@@ -4,6 +4,21 @@ export function parseId(value: string) {
   return BigInt(value);
 }
 
+export function parseStrictInteger(value: string) {
+  if (!/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    return null;
+  }
+
+  return parsed;
+}
+
+
 export function parseDateInput(value: string) {
   const parts = value.split("-");
 

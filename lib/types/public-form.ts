@@ -1,10 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 import type {
   AdmissionAcademicLevelOption,
-  AdmissionBranch,
-  AdmissionBranchSummary,
   AdmissionProgramOption,
-} from "./admission";
+} from "./programs";
+
+import type { SchoolBranch, SchoolBranchSummary } from "./branches";
 
 export type AdmissionStepId =
   | "applicant"
@@ -43,7 +43,7 @@ export type AdmissionApplicantTypeOption = {
   description: string;
 };
 
-export type ApplicantBranch = Omit<AdmissionBranch, "address">;
+export type ApplicantBranch = Omit<SchoolBranch, "address">;
 
 export type BranchesStatus = "loading" | "success" | "error";
 
@@ -197,7 +197,7 @@ export type ProgramStepProps = {
   onChange: (field: ProgramFieldName, value: string) => void;
 };
 
-export type BranchSummary = AdmissionBranchSummary;
+export type BranchSummary = SchoolBranchSummary;
 
 export type AcademicLevelOption = AdmissionAcademicLevelOption;
 

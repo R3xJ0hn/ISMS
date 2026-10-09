@@ -1,23 +1,23 @@
 import { emailPattern, phonePattern, schoolYearPattern } from "./patterns";
 
 export function validateEmail(value: string) {
-  const normalized = value.trim();
-  return emailPattern.test(normalized);
+  return isValidEmail(value);
 }
 
 export function isValidEmail(value: string) {
-  return emailPattern.test(value);
+  return emailPattern.test(value.trim());
 }
 
 export function validatePhone(value: string) {
-  const normalized = value.trim();
-  return isValidPhone(normalized);
+  return isValidPhone(value);
 }
 
 export function isValidPhone(value: string) {
-  if (!phonePattern.test(value)) return false;
+  const normalized = value.trim();
 
-  const digits = value.replace(/\D/g, "");
+  if (!phonePattern.test(normalized)) return false;
+
+  const digits = normalized.replace(/\D/g, "");
   return digits.length >= 7 && digits.length <= 15;
 }
 
@@ -38,7 +38,7 @@ export function validateSchoolYear(value: string) {
   return endYear === startYear + 1;
 }
 
-export function enumIncludes<T extends Record<string, string>>(
+export function isEnumIncludes<T extends Record<string, string>>(
   values: T,
   value: string,
 ) {

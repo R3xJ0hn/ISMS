@@ -7,7 +7,7 @@ import type {
   CanonicalAdmissionProgramSelection,
 } from "@/lib/types";
 import {
-  enumIncludes,
+  isEnumIncludes,
   missingRequiredField,
   normalizeForm,
   parseDateInput,
@@ -21,7 +21,7 @@ import {
   getCanonicalAdmissionProgramSelectionByIds,
   saveAdmissionSubmission,
 } from "@/lib/data-access/admission";
-import { getAdmissionProgramOfferings } from "@/lib/data-access/branches";
+import { getAdmissionProgramOfferings } from "@/lib/data-access/programs";
 
 const EXISTING_STUDENT = "Existing Student";
 const NEW_STUDENT = "New Student";
@@ -176,6 +176,15 @@ function firstInvalidField(
   form: Record<string, string>,
   applicantType: string,
 ) {
+  const isValidDate = (value: string) => {
+    try {
+      parseDateInput(value);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const validations: Array<{
     field: string;
     validate: (value: string) => boolean;
@@ -195,19 +204,19 @@ function firstInvalidField(
     },
     {
       field: "student_birth_date",
-      validate: (value) => parseDateInput(value) !== null,
+      validate: isValidDate,
     },
     {
       field: "student_gender",
-      validate: (value) => enumIncludes(Gender, value),
+      validate: (value) => isEnumIncludes(Gender, value),
     },
     {
       field: "student_civil_status",
-      validate: (value) => enumIncludes(CivilStatus, value),
+      validate: (value) => isEnumIncludes(CivilStatus, value),
     },
     {
       field: "last_school_type",
-      validate: (value) => enumIncludes(SchoolType, value),
+      validate: (value) => isEnumIncludes(SchoolType, value),
     },
     {
       field: "last_school_year",
@@ -215,7 +224,7 @@ function firstInvalidField(
     },
     {
       field: "last_school_graduation_date",
-      validate: (value) => parseDateInput(value) !== null,
+      validate: isValidDate,
       when: Boolean(form.last_school_graduation_date),
     },
     {
@@ -225,7 +234,7 @@ function firstInvalidField(
     },
     {
       field: "current_student_birth_date",
-      validate: (value) => parseDateInput(value) !== null,
+      validate: isValidDate,
       when: applicantType === EXISTING_STUDENT,
     },
   ];

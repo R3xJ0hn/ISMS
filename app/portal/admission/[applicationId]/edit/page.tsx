@@ -7,7 +7,7 @@ import {
 import { serializeAdmittedStudent } from "@/app/portal/admission/serialize-admitted-student";
 import { getCurrentSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
-import { parseId } from "@/lib/admission/parse-id";
+import { parseId } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
 type EditAdmittedStudentPageProps = {

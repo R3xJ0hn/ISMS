@@ -8,7 +8,7 @@ import {
 import { updateStudentRecordFromToken } from "@/lib/admission/student-update";
 import type {
   SetStudentPasswordFormState,
-  SetStudentPasswordInput,
+  SetPasswordInput,
   UpdateStudentFormState,
   UpdateStudentRecordInput,
 } from "@/lib/types";
@@ -100,7 +100,7 @@ export async function updateStudentInformation(
 
 function readPasswordFormValue(
   formData: FormData,
-  key: keyof SetStudentPasswordInput
+  key: keyof SetPasswordInput
 ) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
@@ -136,3 +136,5 @@ export async function setStudentPortalPassword(
     message: result.message,
   };
 }
+
+export type { SetStudentPasswordFormState, UpdateStudentFormState } from "@/lib/types";

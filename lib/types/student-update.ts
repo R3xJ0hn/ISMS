@@ -189,15 +189,3 @@ export type StudentUpdateQueryResult = {
     } | null;
   }>;
 };
-
-export type StudentUpdatePasswordRecord = {
-  token: string;
-  studentId: string;
-  displayName: string;
-  email: string;
-};
-
-export type SetStudentPasswordInput = {
-  password: string;
-  confirmPassword: string;
-};

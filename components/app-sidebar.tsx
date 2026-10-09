@@ -12,7 +12,7 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { formatRoleLabel } from "@/lib/auth";
+import { formatRoleLabel } from "@/lib/utils";
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 

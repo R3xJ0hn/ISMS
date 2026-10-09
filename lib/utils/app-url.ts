@@ -26,5 +26,11 @@ export function getAppBaseUrl() {
     return normalizeAppBaseUrl(`https://${process.env.VERCEL_URL}`);
   }
 
-  return normalizeAppBaseUrl("http://localhost:3000");
+  if (process.env.NODE_ENV === "development") {
+    return normalizeAppBaseUrl("http://localhost:3000");
+  }
+
+  throw new Error(
+    "APP_URL, NEXT_PUBLIC_APP_URL, or VERCEL_URL must be configured outside development.",
+  );
 }

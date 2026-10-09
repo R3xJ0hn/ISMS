@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyStudentUpdateToken } from "./student-update";
 import { formatDisplayName, normalizeEmail } from "../utils";
 import type {
-  SetStudentPasswordInput,
-  StudentUpdatePasswordRecord,
+  SetPasswordInput,
+  UpdatePasswordRecord,
 } from "../types";
 
 const PASSWORD_HASH_ROUNDS = 12;
@@ -61,12 +61,12 @@ export async function getStudentUpdatePasswordRecord(token: string) {
     studentId: student.id.toString(),
     displayName: formatDisplayName(student),
     email: student.email,
-  } satisfies StudentUpdatePasswordRecord;
+  } satisfies UpdatePasswordRecord;
 }
 
 export async function setStudentPortalPasswordFromToken(
   token: string,
-  input: SetStudentPasswordInput
+  input: SetPasswordInput
 ) {
   const payload = verifyStudentUpdateToken(token);
 

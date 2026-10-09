@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 
 import { BadgeCheck, Clock, Globe2, Monitor, ShieldCheck } from "lucide-react";
 
-import { formatRoleLabel, getCurrentSession } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/auth";
+import { formatRoleLabel } from "@/lib/utils";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 

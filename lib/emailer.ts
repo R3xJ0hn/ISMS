@@ -32,7 +32,8 @@ function getResendClient() {
 
 function getSmtpTransporter() {
   const host = process.env.SMTP_HOST;
-  const port = Number.parseInt(process.env.SMTP_PORT ?? "587", 10);
+  const rawPort = process.env.SMTP_PORT ?? "587";
+  const port = /^\d+$/.test(rawPort) ? Number.parseInt(rawPort, 10) : NaN;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 

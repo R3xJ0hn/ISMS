@@ -1,4 +1,5 @@
 import type { CompleteAddress } from "@/lib/types";
+import { UserRole } from "../generated/prisma/enums";
 
 export function formatDisplayName(student: {
   firstName: string;
@@ -32,4 +33,10 @@ export function formatCompleteAddress(address: CompleteAddress | null) {
   ]
     .filter(Boolean)
     .join(", ");
+}
+
+export function formatRoleLabel(role: UserRole) {
+  return role
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase());
 }

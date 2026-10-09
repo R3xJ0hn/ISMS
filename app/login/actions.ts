@@ -10,8 +10,8 @@ import {
   authenticateUser,
   clearSession,
   createSession,
-  normalizeEmail,
 } from "@/lib/auth";
+import { normalizeEmail } from "@/lib/utils";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";

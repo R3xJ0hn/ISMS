@@ -1,23 +1,16 @@
 "use server";
 
 import {
-  getAdmissionBranches as getAdmissionBranchesFromServer,
   getAdmissionProgramOptions as getAdmissionProgramOptionsFromServer,
   submitAdmissionApplication as submitAdmissionApplicationFromServer,
-  verifyCurrentStudent as verifyCurrentStudentFromServer,
 } from "@/lib/admission/server";
-import type { VerifyCurrentStudentInput } from "@/lib/types";
+import { verifyExistingStudentRecord } from "@/lib/admission/student-verification";
+import type { VerifyExistingStudentInput } from "@/lib/types";
 
-export async function getAdmissionBranches() {
-  return getAdmissionBranchesFromServer();
-}
-
-export async function getAdmissionProgramOptions(branchId: string) {
-  return getAdmissionProgramOptionsFromServer(branchId);
-}
-
-export async function verifyCurrentStudent(input: VerifyCurrentStudentInput) {
-  return verifyCurrentStudentFromServer(input);
+export async function verifyExistingStudent(
+  input: VerifyExistingStudentInput,
+) {
+  return verifyExistingStudentRecord(input);
 }
 
 export async function submitAdmissionApplication(
@@ -25,4 +18,8 @@ export async function submitAdmissionApplication(
   consent: boolean
 ) {
   return submitAdmissionApplicationFromServer(form, consent);
+}
+
+export async function getAdmissionProgramOptions(branchId: string) {
+  return getAdmissionProgramOptionsFromServer(branchId);
 }

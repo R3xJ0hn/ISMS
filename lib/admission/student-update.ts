@@ -9,7 +9,7 @@ import {
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import {
-  enumIncludes,
+  isEnumIncludes,
   getAppBaseUrl,
   isValidEmail,
   isValidPhone,
@@ -173,11 +173,11 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "birthDate";
   }
 
-  if (input.gender && !enumIncludes(Gender, input.gender)) {
+  if (input.gender && !isEnumIncludes(Gender, input.gender)) {
     return "gender";
   }
 
-  if (input.civilStatus && !enumIncludes(CivilStatus, input.civilStatus)) {
+  if (input.civilStatus && !isEnumIncludes(CivilStatus, input.civilStatus)) {
     return "civilStatus";
   }
 
@@ -193,7 +193,7 @@ function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
     return "guardianContactNumber";
   }
 
-  if (!enumIncludes(SchoolType, input.lastSchoolType)) {
+  if (!isEnumIncludes(SchoolType, input.lastSchoolType)) {
     return "lastSchoolType";
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { PasswordSetupForm } from "@/components/auth/password-setup-form";
-import type { StudentUpdatePasswordRecord } from "@/lib/types";
+import type { UpdatePasswordRecord } from "@/lib/types";
 
 import {
   setStudentPortalPassword,
@@ -16,7 +16,7 @@ const initialState: SetStudentPasswordFormState = {
 export default function SetStudentPasswordForm({
   student,
 }: {
-  student: StudentUpdatePasswordRecord;
+  student: UpdatePasswordRecord;
 }) {
   return (
     <PasswordSetupForm

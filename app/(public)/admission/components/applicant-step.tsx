@@ -13,7 +13,7 @@ import type {
   ApplicantStepProps,
   BranchesStatus,
 } from "@/lib/types";
-import { getAdmissionBranches } from "../actions";
+import { getSchoolBranches } from "../../actions";
 
 const applicantTypes: AdmissionApplicantTypeOption[] = [
   {
@@ -290,7 +290,7 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
       try {
         setBranchesStatus("loading");
 
-        const data = await getAdmissionBranches();
+        const data = await getSchoolBranches();
 
         if (cancelled) {
           return;
