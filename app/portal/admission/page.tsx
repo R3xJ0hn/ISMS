@@ -1,45 +1,11 @@
-import { redirect } from "next/navigation";
-
-import { AddAdmittedStudentModal } from "@/app/portal/admission/add-admitted-student-modal";
+import { AddAdmittedStudentModal, BulkAdmitStudentsModal } from "@/app/portal/admission/admitted-student-form";
 import { AdmittedStudentActions } from "@/app/portal/admission/admitted-student-actions";
-import { AdmissionBranchFilter } from "@/app/portal/admission/admission-branch-filter";
-import { ApplicationStatusSelect } from "@/app/portal/admission/application-status-select";
-import { BulkAdmitStudentsModal } from "@/app/portal/admission/bulk-admit-students-modal";
-import { getCurrentSession } from "@/lib/auth";
-import { ApplicationStatus, UserRole } from "@/lib/generated/prisma/enums";
+import { AdmissionBranchFilter, ApplicationStatusSelect } from "@/app/portal/admission/admission-controls";
+import { requireAdmin } from "@/lib/auth";
+import { parseId } from "@/lib/admission/validation";
+import { ApplicationStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-
-function formatStudentName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function formatDate(date: Date | null) {
-  if (!date) {
-    return "Not recorded";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-}
-
-function optionalValue(value: string | null | undefined) {
-  return value ?? "";
-}
+import { formatDate, formatStudentName } from "@/lib/utils";
 
 function formatStatusLabel(status: ApplicationStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -48,11 +14,7 @@ function formatStatusLabel(status: ApplicationStatus) {
 function parseBranchId(value: string | string[] | undefined) {
   const branchId = Array.isArray(value) ? value[0] : value;
 
-  if (!branchId || !/^\d+$/.test(branchId)) {
-    return null;
-  }
-
-  return BigInt(branchId);
+  return parseId(branchId ?? "");
 }
 
 type AdmissionPageProps = {
@@ -64,14 +26,7 @@ type AdmissionPageProps = {
 export default async function AdmissionPage({
   searchParams,
 }: AdmissionPageProps) {
-  const session = await getCurrentSession();
-
-  if (
-    !session ||
-    (session.role !== UserRole.admin && session.role !== UserRole.superAdmin)
-  ) {
-    redirect("/portal");
-  }
+  await requireAdmin();
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const selectedBranchId = parseBranchId(resolvedSearchParams.branchId);
@@ -167,10 +122,6 @@ export default async function AdmissionPage({
       label: level.label,
     })),
   };
-  const branchFilterOptions = branches.map((branch) => ({
-    id: branch.id.toString(),
-    title: branch.title,
-  }));
   const applicationStatuses = [
     ApplicationStatus.reviewing,
     ApplicationStatus.approved,
@@ -206,7 +157,7 @@ export default async function AdmissionPage({
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="border-b border-border px-4 py-4">
           <AdmissionBranchFilter
-            branches={branchFilterOptions}
+            branches={addStudentOptions.branches}
             selectedBranchId={selectedBranchId?.toString() ?? ""}
           />
         </div>
@@ -248,7 +199,7 @@ export default async function AdmissionPage({
                     </td>
                     <td className="px-4 py-4 align-top">
                       <div className="text-muted-foreground">
-                        {optionalValue(application.student.phone) || "Pending"}
+                        {application.student.phone || "Pending"}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         {application.student.email}

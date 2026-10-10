@@ -3,6 +3,7 @@ import { scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { compare, hash } from "bcryptjs";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -50,8 +51,6 @@ function getJwtSecret() {
 
   return encodedSecret;
 }
-
-const JWT_SECRET = getJwtSecret();
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -229,7 +228,7 @@ export async function createSession(
     .setSubject(user.id)
     .setIssuedAt()
     .setExpirationTime(`${maxAge}s`)
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 
   const cookieStore = await cookies();
 
@@ -250,7 +249,7 @@ export async function clearSession() {
 
 async function verifySessionToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify<SessionTokenPayload>(token, JWT_SECRET, {
+    const { payload } = await jwtVerify<SessionTokenPayload>(token, getJwtSecret(), {
       algorithms: ["HS256"],
     });
 
@@ -287,6 +286,22 @@ export async function getCurrentSession() {
 
 export function formatRoleLabel(role: UserRole) {
   return role.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
+}
+
+export function isAdminRole(role: UserRole) {
+  return role === "admin" || role === "superAdmin";
+}
+
+export async function requireSession() {
+  const session = await getCurrentSession();
+  if (!session) redirect("/login");
+  return session;
+}
+
+export async function requireAdmin() {
+  const session = await getCurrentSession();
+  if (!session || !isAdminRole(session.role)) redirect("/portal");
+  return session;
 }
 
 export const passwordHashDefaults = {

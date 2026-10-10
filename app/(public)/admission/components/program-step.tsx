@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import * as React from "react";
 import {
   AlertCircle,
@@ -10,8 +9,9 @@ import {
   LoaderCircle,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { getAdmissionProgramOptions } from "../actions";
+import type { AdmissionBranchSummary, AdmissionProgramOption } from "@/lib/admission/types";
+import { SelectField } from "./form-fields";
 
 export type ProgramFieldName =
   | "branch_code"
@@ -23,47 +23,19 @@ export type ProgramFieldName =
   | "academic_level_id"
   | "academic_level_label";
 
-type ProgramFormValues = {
-  branch_id: string;
-  branch_code: string;
-  branch_title: string;
-  program_type: string;
-  program_id: string;
-  program_code: string;
-  program_label: string;
-  academic_level_id: string;
-  academic_level_label: string;
-};
+type ProgramFormValues = Record<ProgramFieldName | "branch_id", string>;
 
 type ProgramStepProps = {
   form: ProgramFormValues;
   onChange: (field: ProgramFieldName, value: string) => void;
 };
 
-type BranchSummary = {
-  id: string;
-  title: string;
-  code: string;
+type ProgramOptions = {
+  branchId: string;
+  branch: AdmissionBranchSummary | null;
+  programs: AdmissionProgramOption[];
+  status: "success" | "error";
 };
-
-type AcademicLevelOption = {
-  id: string;
-  label: string;
-  slug: string;
-};
-
-type ProgramOption = {
-  id: string;
-  code: string;
-  label: string;
-  programType: string;
-  academicLevels: AcademicLevelOption[];
-};
-
-type ProgramOptionsStatus = "idle" | "loading" | "success" | "error";
-
-const selectClass =
-  "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 const programTypeLabels: Record<string, string> = {
   Bachelor: "Bachelor's Degree",
@@ -79,88 +51,12 @@ function formatProgramType(programType: string) {
   return programTypeLabels[programType] ?? programType;
 }
 
-function Field({
-  id,
-  label,
-  required,
-  hint,
-  children,
-}: {
-  id: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm font-semibold text-gray-800">
-        {label}
-        {required ? <span className="text-secondary"> *</span> : null}
-      </label>
-      {children}
-      {hint ? <p className="text-xs leading-5 text-gray-500">{hint}</p> : null}
-    </div>
-  );
-}
-
-function SelectField({
-  id,
-  label,
-  value,
-  placeholder,
-  required,
-  disabled,
-  hint,
-  children,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  placeholder: string;
-  required?: boolean;
-  disabled?: boolean;
-  hint?: string;
-  children: ReactNode;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Field id={id} label={label} required={required} hint={hint}>
-      <select
-        id={id}
-        name={id}
-        value={value}
-        required={required}
-        aria-required={required}
-        disabled={disabled}
-        onChange={(event) => {
-          event.currentTarget.setCustomValidity("");
-          onChange(event.target.value);
-        }}
-        onInvalid={(event) => {
-          event.currentTarget.setCustomValidity(
-            `Please ${label.toLowerCase()}.`
-          );
-        }}
-        className={cn(
-          selectClass,
-          disabled && "cursor-not-allowed bg-gray-100 text-gray-500"
-        )}
-      >
-        <option value="" disabled hidden>
-          {placeholder}
-        </option>
-        {children}
-      </select>
-    </Field>
-  );
-}
-
 export default function ProgramStep({ form, onChange }: ProgramStepProps) {
-  const [branch, setBranch] = React.useState<BranchSummary | null>(null);
-  const [programs, setPrograms] = React.useState<ProgramOption[]>([]);
-  const [status, setStatus] = React.useState<ProgramOptionsStatus>("idle");
+  const [options, setOptions] = React.useState<ProgramOptions | null>(null);
+  const currentOptions = options?.branchId === form.branch_id ? options : null;
+  const branch = currentOptions?.branch ?? null;
+  const programs = React.useMemo(() => currentOptions?.programs ?? [], [currentOptions]);
+  const status = !form.branch_id ? "idle" : currentOptions?.status ?? "loading";
   const resetDependentFields = React.useEffectEvent(() => {
     onChange("branch_code", "");
     onChange("branch_title", "");
@@ -172,7 +68,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
     onChange("academic_level_label", "");
   });
   const updateBranchMetadata = React.useEffectEvent(
-    (nextBranch: BranchSummary | null) => {
+    (nextBranch: AdmissionBranchSummary | null) => {
       onChange("branch_code", nextBranch?.code ?? "");
       onChange("branch_title", nextBranch?.title ?? "");
     }
@@ -181,20 +77,10 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
   React.useEffect(() => {
     let cancelled = false;
 
-    if (!form.branch_id) {
-      setBranch(null);
-      setPrograms([]);
-      setStatus("idle");
-      resetDependentFields();
-      return () => {
-        cancelled = true;
-      };
-    }
+    if (!form.branch_id) return;
 
     async function loadPrograms() {
       try {
-        setStatus("loading");
-
         const data = await getAdmissionProgramOptions(form.branch_id);
 
         if (cancelled) {
@@ -205,15 +91,16 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
           throw new Error(data.error);
         }
 
-        setBranch(data.branch ?? null);
-        setPrograms(data.programs);
+        setOptions({
+          branchId: form.branch_id,
+          branch: data.branch ?? null,
+          programs: data.programs,
+          status: "success",
+        });
         updateBranchMetadata(data.branch ?? null);
-        setStatus("success");
       } catch {
         if (!cancelled) {
-          setBranch(null);
-          setPrograms([]);
-          setStatus("error");
+          setOptions({ branchId: form.branch_id, branch: null, programs: [], status: "error" });
           resetDependentFields();
         }
       }
@@ -391,7 +278,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
               value={form.program_type}
               required
               placeholder="Select program type"
-              onChange={handleProgramTypeChange}
+              onChange={(_, value) => handleProgramTypeChange(value)}
               hint="Choose the academic category first."
             >
               {availableProgramTypes.map((programType) => (
@@ -410,7 +297,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
               placeholder={
                 form.program_type ? "Select program" : "Select program type first"
               }
-              onChange={handleProgramChange}
+              onChange={(_, value) => handleProgramChange(value)}
               hint={
                 form.program_type
                   ? "Only programs available in the selected branch are shown."
@@ -434,7 +321,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
             placeholder={
               selectedProgram ? "Select entry level" : "Select program first"
             }
-            onChange={handleAcademicLevelChange}
+            onChange={(_, value) => handleAcademicLevelChange(value)}
             hint={
               selectedProgram
                 ? "Choose the year or grade level available for the selected program."

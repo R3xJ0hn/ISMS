@@ -1,8 +1,9 @@
+import { formatStudentName } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 
 import { GradesView } from "@/app/portal/grades/grades-view";
-import { getCurrentSession } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { getStudentGrades, normalizeSemester } from "@/lib/student-grades";
@@ -13,28 +14,9 @@ type PageProps = {
   }>;
 };
 
-function formatStudentName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
 export default async function StudentGradesPage({ searchParams }: PageProps) {
-  const session = await getCurrentSession();
+  const session = await requireSession();
 
-  if (!session) {
-    redirect("/login");
-  }
 
   if (session.role !== UserRole.student) {
     redirect("/portal");

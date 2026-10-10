@@ -1,11 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
 import * as React from "react";
 import { AlertTriangle, CheckCircle2, MapPin, ShieldCheck, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { verifyCurrentStudent } from "../actions";
+import { TextField } from "./form-fields";
 
 export type CurrentStudentFieldName =
   | "current_student_number"
@@ -49,9 +49,6 @@ type CurrentStudentStepProps = {
 
 type VerificationStatus = "idle" | "verifying" | "failed" | "verified";
 
-const inputClass =
-  "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-
 function PreviousSelectionSummary({ form }: { form: CurrentStudentFormValues }) {
   const branchName = form.branch_title || "Selected branch";
 
@@ -81,76 +78,6 @@ function PreviousSelectionSummary({ form }: { form: CurrentStudentFormValues }) 
         </div>
       </dl>
     </div>
-  );
-}
-
-function Field({
-  id,
-  label,
-  required,
-  hint,
-  children,
-}: {
-  id: CurrentStudentFieldName;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm font-semibold text-gray-800">
-        {label}
-        {required && <span className="text-secondary"> *</span>}
-      </label>
-      {children}
-      {hint && <p className="text-xs leading-5 text-gray-500">{hint}</p>}
-    </div>
-  );
-}
-
-function TextField({
-  id,
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-  autoComplete,
-  required,
-  hint,
-  disabled,
-}: {
-  id: CurrentStudentFieldName;
-  label: string;
-  value: string;
-  onChange: (field: CurrentStudentFieldName, value: string) => void;
-  type?: React.HTMLInputTypeAttribute;
-  placeholder?: string;
-  autoComplete?: string;
-  required?: boolean;
-  hint?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <Field id={id} label={label} required={required} hint={hint}>
-      <input
-        id={id}
-        name={id}
-        type={type}
-        value={value}
-        required={required}
-        aria-required={required}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        disabled={disabled}
-        onChange={(event) => onChange(id, event.target.value)}
-        className={cn(
-          inputClass,
-          disabled && "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"
-        )}
-      />
-    </Field>
   );
 }
 
@@ -373,6 +300,7 @@ const CurrentStudentStep = React.forwardRef<
 
       <div className="grid gap-5 md:grid-cols-2">
         <TextField
+          validationMessage={false}
           id="current_student_number"
           label="Student number"
           value={form.current_student_number}
@@ -383,6 +311,7 @@ const CurrentStudentStep = React.forwardRef<
           disabled={verifying}
         />
         <TextField
+          validationMessage={false}
           id="current_student_email"
           label="Student email"
           type="email"
@@ -394,6 +323,7 @@ const CurrentStudentStep = React.forwardRef<
           disabled={verifying}
         />
         <TextField
+          validationMessage={false}
           id="current_student_first_name"
           label="First name"
           value={form.current_student_first_name}
@@ -403,6 +333,7 @@ const CurrentStudentStep = React.forwardRef<
           disabled={verifying}
         />
         <TextField
+          validationMessage={false}
           id="current_student_last_name"
           label="Last name"
           value={form.current_student_last_name}
@@ -412,6 +343,7 @@ const CurrentStudentStep = React.forwardRef<
           disabled={verifying}
         />
         <TextField
+          validationMessage={false}
           id="current_student_birth_date"
           label="Birth date"
           type="date"

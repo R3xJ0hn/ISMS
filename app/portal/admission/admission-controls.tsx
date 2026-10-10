@@ -6,6 +6,7 @@ import {
   updateApplicationStatusAction,
   type UpdateApplicationStatusState,
 } from "@/app/portal/admission/actions";
+import { AdmissionSelect } from "@/app/portal/admission/admission-ui";
 
 type ApplicationStatusSelectProps = {
   applicationId: string;
@@ -46,7 +47,7 @@ export function ApplicationStatusSelect({
   return (
     <form ref={formRef} action={formAction} className="space-y-1">
       <input type="hidden" name="applicationId" value={applicationId} />
-      <select
+      <AdmissionSelect
         name="applicationStatus"
         aria-label="Application status"
         aria-describedby={
@@ -62,14 +63,14 @@ export function ApplicationStatusSelect({
             requestAnimationFrame(() => formRef.current?.requestSubmit());
           });
         }}
-        className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="w-auto px-2"
       >
         {statuses.map((option) => (
           <option key={option} value={option}>
             {formatStatusLabel(option)}
           </option>
         ))}
-      </select>
+      </AdmissionSelect>
       {pending ? (
         <p className="text-xs text-muted-foreground">Saving...</p>
       ) : state.message && !state.success ? (
@@ -80,3 +81,44 @@ export function ApplicationStatusSelect({
     </form>
   );
 }
+
+type AdmissionBranchFilterProps = {
+  branches: Array<{
+    id: string;
+    title: string;
+  }>;
+  selectedBranchId: string;
+};
+
+export function AdmissionBranchFilter({
+  branches,
+  selectedBranchId,
+}: AdmissionBranchFilterProps) {
+  const formRef = useRef<HTMLFormElement>(null);
+
+  return (
+    <form ref={formRef} action="/portal/admission" className="space-y-2">
+      <label
+        htmlFor="branch-filter"
+        className="text-sm font-medium text-foreground"
+      >
+        Branch
+      </label>
+      <AdmissionSelect
+        id="branch-filter"
+        name="branchId"
+        defaultValue={selectedBranchId}
+        onChange={() => formRef.current?.requestSubmit()}
+        className="w-auto min-w-60"
+      >
+        <option value="">All branches</option>
+        {branches.map((branch) => (
+          <option key={branch.id} value={branch.id}>
+            {branch.title}
+          </option>
+        ))}
+      </AdmissionSelect>
+    </form>
+  );
+}
+

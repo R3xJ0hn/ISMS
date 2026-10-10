@@ -1,11 +1,10 @@
-import { hash } from "bcryptjs";
+import { hashPassword, normalizeEmail } from "@/lib/auth";
+import { formatStudentName } from "@/lib/utils";
 
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 import { verifyStudentUpdateToken } from "./student-update";
-
-const PASSWORD_HASH_ROUNDS = 12;
 
 export type StudentUpdatePasswordRecord = {
   token: string;
@@ -18,26 +17,6 @@ export type SetStudentPasswordInput = {
   password: string;
   confirmPassword: string;
 };
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function formatStudentDisplayName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
 
 export async function getStudentUpdatePasswordRecord(token: string) {
   const payload = verifyStudentUpdateToken(token);
@@ -87,7 +66,7 @@ export async function getStudentUpdatePasswordRecord(token: string) {
   return {
     token,
     studentId: student.id.toString(),
-    displayName: formatStudentDisplayName(student),
+    displayName: formatStudentName(student),
     email: student.email,
   } satisfies StudentUpdatePasswordRecord;
 }
@@ -200,7 +179,7 @@ export async function setStudentPortalPasswordFromToken(
       };
     }
 
-    const passwordHash = await hash(password, PASSWORD_HASH_ROUNDS);
+    const passwordHash = await hashPassword(password);
 
     await prisma.$transaction(async (tx) => {
       const consumedToken = await tx.studentUpdateToken.updateMany({

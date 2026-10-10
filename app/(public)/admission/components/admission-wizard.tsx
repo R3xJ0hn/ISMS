@@ -15,17 +15,14 @@ import {
 import { cn } from "@/lib/utils";
 import { steps, type Step, type StepId } from "./config";
 import ApplicantStep from "./applicant-step";
-import ContactStep from "./contact-step";
+import { DetailsStep } from "./form-sections";
 import CurrentStudentStep, {
   type CurrentStudentFieldName,
   type CurrentStudentStepHandle,
   type CurrentStudentVerification,
 } from "./current-student-step";
-import GuardianStep from "./guardian-step";
-import LastSchoolStep from "./last-school-step";
 import ProgramStep from "./program-step";
 import ReviewStep from "./review-step";
-import StudentStep from "./student-step";
 import { submitAdmissionApplication } from "../actions";
 
 export const initialFormValues = {
@@ -784,12 +781,6 @@ export default function AdmissionWizard() {
   );
   const formComplete = incompleteStepIndex === -1;
 
-  React.useEffect(() => {
-    if (currentIndex !== safeCurrentIndex) {
-      setCurrentIndex(safeCurrentIndex);
-    }
-  }, [currentIndex, safeCurrentIndex]);
-
   function canNavigateToStep(index: number) {
     if (index === safeCurrentIndex) {
       return true;
@@ -801,6 +792,9 @@ export default function AdmissionWizard() {
   }
 
   function updateField(field: FieldName, value: string) {
+    if (field === "applicant_type") {
+      setCurrentIndex((index) => Math.min(index, getVisibleSteps(value).length - 1));
+    }
     setVerifyingCurrentStudent(false);
     setSubmissionError("");
     setConsent(false);
@@ -944,13 +938,10 @@ export default function AdmissionWizard() {
       case "program":
         return <ProgramStep form={form} onChange={updateField} />;
       case "student":
-        return <StudentStep form={form} onChange={updateField} />;
       case "contact":
-        return <ContactStep form={form} onChange={updateField} />;
       case "lastSchool":
-        return <LastSchoolStep form={form} onChange={updateField} />;
       case "guardian":
-        return <GuardianStep form={form} onChange={updateField} />;
+        return <DetailsStep stepId={currentStep.id} form={form} onChange={updateField} />;
       case "currentStudent":
         if (showingExistingStudentNotice && existingStudentNotice) {
           return (

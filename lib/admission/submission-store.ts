@@ -1,3 +1,4 @@
+import { optionalText } from "./validation";
 import {
   ApplicantType,
   ApplicationStatus,
@@ -26,10 +27,6 @@ export type SaveAdmissionSubmissionInput = {
   form: Record<string, string>;
   programSelection: CanonicalAdmissionProgramSelection;
 };
-
-function optionalText(value: string) {
-  return value ? value : null;
-}
 
 function parseDateInput(value: string) {
   const date = new Date(`${value}T00:00:00.000Z`);

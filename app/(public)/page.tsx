@@ -7,7 +7,49 @@ import { BookMarked, GraduationCap, ToolCase } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
-export default function page() {
+type ProgramGroup = {
+  title: string;
+  description: string;
+  icon: typeof GraduationCap;
+  programs: { title: string; note?: string }[];
+};
+
+const PROGRAM_GROUPS: ProgramGroup[] = [
+  {
+    title: "College Courses",
+    description: "Degree programs for long-term careers",
+    icon: GraduationCap,
+    programs: [
+      { title: "Bachelor of Science in Information Technology" },
+      { title: "Bachelor of Science in Office Administration" },
+      { title: "Bachelor of Science in Tourism Management" },
+      { title: "Bachelor of Science in Hotel Management" },
+      { title: "Associate in Computer Technology", note: "(2-year course ladderized to BSIT)" },
+    ],
+  },
+  {
+    title: "TVL Track",
+    description: "Skills-based training for work readiness",
+    icon: ToolCase,
+    programs: [
+      { title: "Information and Communications Technology" },
+      { title: "Home Economics" },
+    ],
+  },
+  {
+    title: "Academic Track",
+    description: "Strong foundation for university pathways",
+    icon: BookMarked,
+    programs: [
+      { title: "Science, Technology, Engineering & Mathematics" },
+      { title: "Accountancy, Business & Management" },
+      { title: "Humanities & Social Sciences" },
+      { title: "General Academic Strand" },
+    ],
+  },
+];
+
+export default function HomePage() {
   return (
     <>
       <Hero />
@@ -90,119 +132,32 @@ export default function page() {
             </p>
           </div>
 
-          {/* CARDS */}
           <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-3">
-            {/* College Courses */}
-            <div className="group rounded-2xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h5 className="text-lg font-bold">College Courses</h5>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Degree programs for long-term careers
-                  </p>
+            {PROGRAM_GROUPS.map((group) => (
+              <div key={group.title} className="group rounded-2xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h5 className="text-lg font-bold">{group.title}</h5>
+                    <p className="mt-1 text-xs text-gray-500">{group.description}</p>
+                  </div>
+                  <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-white transition group-hover:scale-105">
+                    <group.icon />
+                  </div>
                 </div>
-
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-white transition group-hover:scale-105">
-                  <GraduationCap />
-                </div>
+                <div className="mt-5 h-px w-full bg-gray-100" />
+                <ul className="mt-5 space-y-3 text-sm text-gray-700">
+                  {group.programs.map((program) => (
+                    <li key={program.title} className="flex gap-3">
+                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
+                      <span>
+                        {program.title}
+                        {program.note && <span className="mt-1 block text-xs text-gray-500">{program.note}</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-
-              <div className="mt-5 h-px w-full bg-gray-100" />
-
-              <ul className="mt-5 space-y-3 text-sm text-gray-700">
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Bachelor of Science in Information Technology
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Bachelor of Science in Office Administration
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Bachelor of Science in Tourism Management
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Bachelor of Science in Hotel Management
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  <span>
-                    Associate in Computer Technology
-                    <span className="mt-1 block text-xs text-gray-500">
-                      (2-year course ladderized to BSIT)
-                    </span>
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            {/* TVL Track */}
-            <div className="group rounded-2xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h5 className="text-lg font-bold">TVL Track</h5>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Skills-based training for work readiness
-                  </p>
-                </div>
-
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-white transition group-hover:scale-105">
-                  <ToolCase />
-                </div>
-              </div>
-
-              <div className="mt-5 h-px w-full bg-gray-100" />
-
-              <ul className="mt-5 space-y-3 text-sm text-gray-700">
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Information and Communications Technology
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Home Economics
-                </li>
-              </ul>
-            </div>
-
-            {/* Academic Track */}
-            <div className="group rounded-2xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h5 className="text-lg font-bold">Academic Track</h5>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Strong foundation for university pathways
-                  </p>
-                </div>
-
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-white transition group-hover:scale-105">
-                  <BookMarked />
-                </div>
-              </div>
-
-              <div className="mt-5 h-px w-full bg-gray-100" />
-
-              <ul className="mt-5 space-y-3 text-sm text-gray-700">
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Science, Technology, Engineering &amp; Mathematics
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Accountancy, Business &amp; Management
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  Humanities &amp; Social Sciences
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                  General Academic Strand
-                </li>
-              </ul>
-            </div>
+            ))}
           </div>
         </div>
       </section>

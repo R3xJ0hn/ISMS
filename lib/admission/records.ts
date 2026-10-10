@@ -1,84 +1,208 @@
-import type { ReviewFormValues } from "@/app/(public)/admission/components/review-step";
-import type { PortalAdmittedStudentRecord } from "@/app/portal/admission/admitted-student-actions";
-import type { AdmittedStudentEditRecord } from "@/app/portal/admission/edit-admitted-student-form";
-
-type SerializableAdmittedApplication = {
-  id: bigint;
-  applicantType: string;
-  branchId: bigint;
-  programId: bigint;
-  academicLevelsId: bigint;
-  LSSchoolYearEnd: string | null;
-  LSAttainedLevelText: string | null;
-  LSGraduationDate: Date | null;
-  branch: {
-    slug: string;
-    title: string;
-  };
-  program: {
-    code: string;
-    label: string;
-    programType: string;
-  };
+import type { ReviewFormValues } from "./types";
+import type { Prisma } from "@/lib/generated/prisma/client";
+export const addressSelect = {
+  houseNumber: true,
+  subdivision: true,
+  street: true,
+  barangay: true,
+  city: true,
+  province: true,
+  postalCode: true,
+} as const satisfies Prisma.AddressSelect;
+export const admittedStudentInclude = {
   academicLevels: {
-    label: string;
-  };
-  student: {
-    id: bigint;
-    studentNumber: string | null;
-    firstName: string;
-    lastName: string;
-    middleName: string | null;
-    suffix: string | null;
-    birthDate: Date;
-    gender: string | null;
-    civilStatus: string | null;
-    citizenship: string | null;
-    birthplace: string | null;
-    religion: string | null;
-    email: string;
-    phone: string | null;
-    facebookAccount: string | null;
-    address: {
-      houseNumber: string | null;
-      subdivision: string | null;
-      street: string | null;
-      barangay: string;
-      city: string;
-      province: string;
-      postalCode: string | null;
-    } | null;
-    guardians: Array<{
-      relationship: string;
-      guardian: {
-        firstName: string;
-        lastName: string;
-        middleName: string | null;
-        suffix: string | null;
-        contactNumber: string;
-        occupation: string | null;
-      };
-    }>;
-  };
+    select: {
+      label: true,
+    },
+  },
+  branch: {
+    select: {
+      slug: true,
+      title: true,
+    },
+  },
+  program: {
+    select: {
+      code: true,
+      label: true,
+      programType: true,
+    },
+  },
   lastSchool: {
-    schoolName: string;
-    schoolId: string | null;
-    shortName: string | null;
-    schoolType: string;
-    address: {
-      houseNumber: string | null;
-      subdivision: string | null;
-      street: string | null;
-      barangay: string;
-      city: string;
-      province: string;
-      postalCode: string | null;
-    } | null;
-  } | null;
-};
+    select: {
+      schoolName: true,
+      schoolId: true,
+      shortName: true,
+      schoolType: true,
+      address: {
+        select: addressSelect,
+      },
+    },
+  },
+  student: {
+    select: {
+      email: true,
+      birthDate: true,
+      id: true,
+      firstName: true,
+      lastName: true,
+      middleName: true,
+      phone: true,
+      gender: true,
+      civilStatus: true,
+      citizenship: true,
+      birthplace: true,
+      religion: true,
+      facebookAccount: true,
+      studentNumber: true,
+      suffix: true,
+      address: {
+        select: addressSelect,
+      },
+      guardians: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          relationship: true,
+          guardian: {
+            select: {
+              firstName: true,
+              lastName: true,
+              middleName: true,
+              suffix: true,
+              contactNumber: true,
+              occupation: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} as const satisfies Prisma.AdmissionApplicationInclude;
+export type AdmittedStudentQueryResult = Prisma.AdmissionApplicationGetPayload<{
+  include: typeof admittedStudentInclude;
+}>;
+export const studentUpdateSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  middleName: true,
+  suffix: true,
+  birthDate: true,
+  gender: true,
+  civilStatus: true,
+  citizenship: true,
+  birthplace: true,
+  religion: true,
+  email: true,
+  phone: true,
+  facebookAccount: true,
+  address: {
+    select: addressSelect,
+  },
+  guardians: {
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+    take: 1,
+    select: {
+      relationship: true,
+      isPrimary: true,
+      guardian: {
+        select: {
+          firstName: true,
+          lastName: true,
+          middleName: true,
+          suffix: true,
+          contactNumber: true,
+          occupation: true,
+        },
+      },
+    },
+  },
+  applications: {
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    take: 1,
+    select: {
+      id: true,
+      branchId: true,
+      programId: true,
+      academicLevelsId: true,
+      programType: true,
+      lastSchoolId: true,
+      LSSchoolYearEnd: true,
+      LSAttainedLevelText: true,
+      LSGraduationDate: true,
+      applicationStatus: true,
+      submittedAt: true,
+      branch: {
+        select: {
+          title: true,
+        },
+      },
+      program: {
+        select: {
+          label: true,
+        },
+      },
+      academicLevels: {
+        select: {
+          label: true,
+        },
+      },
+      lastSchool: {
+        select: {
+          schoolName: true,
+          schoolId: true,
+          shortName: true,
+          schoolType: true,
+          address: {
+            select: addressSelect,
+          },
+        },
+      },
+    },
+  },
+  enrollments: {
+    orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
+    take: 1,
+    select: {
+      branchId: true,
+      programId: true,
+      academicLevelsId: true,
+      enrollmentStatus: true,
+      schoolYear: {
+        select: {
+          name: true,
+        },
+      },
+      branch: {
+        select: {
+          title: true,
+        },
+      },
+      program: {
+        select: {
+          label: true,
+          programType: true,
+        },
+      },
+      academicLevels: {
+        select: {
+          label: true,
+        },
+      },
+      section: {
+        select: {
+          sectionName: true,
+          sectionCode: true,
+        },
+      },
+    },
+  },
+} as const satisfies Prisma.StudentSelect;
+export type StudentUpdateQueryResult = Prisma.StudentGetPayload<{
+  select: typeof studentUpdateSelect;
+}>;
 
-export type AdmittedStudentPayload = PortalAdmittedStudentRecord &
-  AdmittedStudentEditRecord;
 
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -93,8 +217,8 @@ function optionalValue(value: string | null | undefined) {
 }
 
 export function serializeAdmittedStudent(
-  application: SerializableAdmittedApplication
-): AdmittedStudentPayload {
+  application: AdmittedStudentQueryResult
+) {
   const guardianLink = application.student.guardians[0];
   const guardian = guardianLink?.guardian;
   const address = application.student.address;
@@ -212,3 +336,6 @@ export function serializeAdmittedStudent(
     reviewForm,
   };
 }
+
+export type AdmittedStudentPayload = ReturnType<typeof serializeAdmittedStudent>;
+

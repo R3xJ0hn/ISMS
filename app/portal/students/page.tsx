@@ -1,50 +1,15 @@
-import { redirect } from "next/navigation";
+import { formatStudentName, formatDate } from "@/lib/utils";
 
-import { getCurrentSession } from "@/lib/auth";
-import { ApplicationStatus, UserRole } from "@/lib/generated/prisma/enums";
+import { requireAdmin } from "@/lib/auth";
+import { ApplicationStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-
-function formatStudentName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function formatDate(date: Date | null) {
-  if (!date) {
-    return "Not recorded";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-}
 
 function optionalValue(value: string | null | undefined) {
   return value || "Pending";
 }
 
 export default async function StudentsPage() {
-  const session = await getCurrentSession();
-
-  if (
-    !session ||
-    (session.role !== UserRole.admin && session.role !== UserRole.superAdmin)
-  ) {
-    redirect("/portal");
-  }
+  await requireAdmin();
 
   const students = await prisma.admissionApplication.findMany({
     where: {

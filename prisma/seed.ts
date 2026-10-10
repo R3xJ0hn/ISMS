@@ -74,7 +74,10 @@ function createSeedContext(): SeedContext {
 
 async function loadSeedModules(): Promise<SeedModule[]> {
   const seedDir = path.resolve(process.cwd(), "prisma/seed-data");
-  const entries = await fs.readdir(seedDir, { withFileTypes: true });
+  const entries = await fs.readdir(seedDir, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  });
 
   const seedFiles = entries
     .filter((entry) => entry.isFile())
@@ -135,6 +138,11 @@ async function runSeedData(ctx: SeedContext, modules: SeedModule[]) {
 async function seed() {
   const ctx = createSeedContext();
   const modules = await loadSeedModules();
+
+  if (!modules.length) {
+    console.info("No seed modules configured in prisma/seed-data.");
+    return;
+  }
 
   await clearSeedData(ctx, modules);
   await runSeedData(ctx, modules);

@@ -1,13 +1,13 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import {
   EditAdmittedStudentForm,
   type AdmittedStudentEditOptions,
-} from "@/app/portal/admission/edit-admitted-student-form";
-import { serializeAdmittedStudent } from "@/app/portal/admission/serialize-admitted-student";
-import { getCurrentSession } from "@/lib/auth";
-import { UserRole } from "@/lib/generated/prisma/enums";
-import { parseId } from "@/lib/admission/parse-id";
+} from "@/app/portal/admission/admitted-student-form";
+import { serializeAdmittedStudent } from "@/lib/admission/records";
+import { admittedStudentInclude } from "@/lib/admission/records";
+import { requireAdmin } from "@/lib/auth";
+import { parseId } from "@/lib/admission/validation";
 import { prisma } from "@/lib/prisma";
 
 type EditAdmittedStudentPageProps = {
@@ -19,14 +19,7 @@ type EditAdmittedStudentPageProps = {
 export default async function EditAdmittedStudentPage({
   params,
 }: EditAdmittedStudentPageProps) {
-  const session = await getCurrentSession();
-
-  if (
-    !session ||
-    (session.role !== UserRole.admin && session.role !== UserRole.superAdmin)
-  ) {
-    redirect("/portal");
-  }
+  await requireAdmin();
 
   const { applicationId } = await params;
   const parsedApplicationId = parseId(applicationId);
@@ -40,92 +33,7 @@ export default async function EditAdmittedStudentPage({
       where: {
         id: parsedApplicationId,
       },
-      include: {
-        student: {
-          select: {
-            id: true,
-            studentNumber: true,
-            firstName: true,
-            lastName: true,
-            middleName: true,
-            suffix: true,
-            birthDate: true,
-            gender: true,
-            civilStatus: true,
-            citizenship: true,
-            birthplace: true,
-            religion: true,
-            email: true,
-            phone: true,
-            facebookAccount: true,
-            address: {
-              select: {
-                houseNumber: true,
-                subdivision: true,
-                street: true,
-                barangay: true,
-                city: true,
-                province: true,
-                postalCode: true,
-              },
-            },
-            guardians: {
-              orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-              take: 1,
-              select: {
-                relationship: true,
-                guardian: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                    middleName: true,
-                    suffix: true,
-                    contactNumber: true,
-                    occupation: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        lastSchool: {
-          select: {
-            schoolName: true,
-            schoolId: true,
-            shortName: true,
-            schoolType: true,
-            address: {
-              select: {
-                houseNumber: true,
-                subdivision: true,
-                street: true,
-                barangay: true,
-                city: true,
-                province: true,
-                postalCode: true,
-              },
-            },
-          },
-        },
-        branch: {
-          select: {
-            slug: true,
-            title: true,
-          },
-        },
-        program: {
-          select: {
-            code: true,
-            label: true,
-            programType: true,
-          },
-        },
-        academicLevels: {
-          select: {
-            label: true,
-          },
-        },
-      },
+      include: admittedStudentInclude,
     }),
     prisma.branch.findMany({
       orderBy: {

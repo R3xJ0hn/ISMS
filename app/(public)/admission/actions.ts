@@ -1,12 +1,14 @@
 "use server";
 
 import {
-  getAdmissionBranches as getAdmissionBranchesFromServer,
-  getAdmissionProgramOptions as getAdmissionProgramOptionsFromServer,
   submitAdmissionApplication as submitAdmissionApplicationFromServer,
   verifyCurrentStudent as verifyCurrentStudentFromServer,
-  type VerifyCurrentStudentInput,
-} from "@/lib/admission/server";
+} from "@/lib/admission/applications";
+import {
+  getAdmissionBranches as getAdmissionBranchesFromServer,
+  getAdmissionProgramOptions as getAdmissionProgramOptionsFromServer,
+} from "@/lib/admission/catalog";
+import type { VerifyCurrentStudentInput } from "@/lib/admission/types";
 
 export async function getAdmissionBranches() {
   return getAdmissionBranchesFromServer();

@@ -8,12 +8,12 @@ import { Phone, Mail, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { label: "Home", href: "/", dropdown: false },
-  { label: "Admissions", href: "/admission", dropdown: true },
-  { label: "Programs", href: "/", dropdown: true },
-  { label: "Branches", href: "/", dropdown: false },
-  { label: "Contact", href: "/", dropdown: false },
-  { label: "About Us", href: "/", dropdown: true },
+  { label: "Home", href: "/" },
+  { label: "Admissions", href: "/admission" },
+  { label: "Programs", href: "/" },
+  { label: "Branches", href: "/" },
+  { label: "Contact", href: "/" },
+  { label: "About Us", href: "/" },
 ];
 
 function isActiveLink(
@@ -24,7 +24,7 @@ function isActiveLink(
     return item.label === "Home" && pathname === "/";
   }
 
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  return isActiveHref(pathname, item.href);
 }
 
 function isActiveHref(pathname: string, href: string) {
@@ -35,6 +35,29 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const portalActive = isActiveHref(pathname, "/portal");
+
+  function renderLinks(mobile = false) {
+    return NAV_ITEMS.map((item) => {
+      const active = isActiveLink(pathname, item);
+
+      return (
+        <li key={item.label} className={mobile ? undefined : "flex items-center gap-1"}>
+          <Link
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            onClick={mobile ? () => setOpen(false) : undefined}
+            className={cn(
+              "border-b-2 border-transparent px-3 transition-colors hover:text-accent",
+              mobile ? "block py-4" : "inline-flex py-2",
+              active && "border-accent font-bold text-accent"
+            )}
+          >
+            {item.label}
+          </Link>
+        </li>
+      );
+    });
+  }
 
   return (
     <>
@@ -85,26 +108,8 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <ul className="hidden lg:flex items-center gap-10 font-medium text-gray-600">
-            {NAV_ITEMS.map((item) => {
-              const active = isActiveLink(pathname, item);
-
-              return (
-                <li key={item.label} className="flex items-center gap-1">
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "inline-flex border-b-2 border-transparent px-3 py-2 transition-colors hover:text-accent",
-                      active && "border-accent font-bold text-accent"
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
+            {renderLinks()}
           </ul>
-          {/* TODO: NAV_ITEMS includes dropdown flags; add a real dropdown UI before restoring ChevronDown indicators. */}
 
           {/* Right Link */}
           <Link
@@ -137,25 +142,7 @@ export default function Navbar() {
             className="lg:hidden border-t bg-white absolute w-full px-5 shadow-md/30"
           >
             <ul className="flex flex-col divide-y text-center font-medium">
-              {NAV_ITEMS.map((item) => {
-                const active = isActiveLink(pathname, item);
-
-                return (
-                  <li key={item.label}>
-                    <Link
-                      href={item.href}
-                      aria-current={active ? "page" : undefined}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "block border-b-2 border-transparent px-3 py-4 transition-colors hover:text-accent",
-                        active && "border-accent font-bold text-accent"
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                );
-              })}
+              {renderLinks(true)}
               <li className="font-semibold">
                 <Link
                   href="/portal"

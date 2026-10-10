@@ -15,6 +15,7 @@ import {
 import { formatRoleLabel } from "@/lib/auth";
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { formatStudentName } from "@/lib/utils";
 
 type AppSidebarProps = ComponentProps<typeof Sidebar> & {
   session: {
@@ -48,22 +49,6 @@ function getDisplayName(email: string, role: UserRoleValue) {
   }
 
   return toTitleCase(normalizedEmailName.toLowerCase());
-}
-
-function formatStudentName(student: {
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  suffix: string | null;
-}) {
-  return [
-    student.firstName,
-    student.middleName,
-    student.lastName,
-    student.suffix,
-  ]
-    .filter(Boolean)
-    .join(" ");
 }
 
 function getInitials(name: string) {

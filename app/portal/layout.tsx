@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import {
@@ -14,7 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { getCurrentSession } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { portalTheme } from "@/lib/portal/theme";
 
 export default async function PortalLayout({
@@ -22,11 +21,8 @@ export default async function PortalLayout({
 }: {
   children: ReactNode;
 }) {
-  const session = await getCurrentSession();
+  const session = await requireSession();
 
-  if (!session) {
-    redirect("/login");
-  }
 
   return (
     <SidebarProvider style={portalTheme}>

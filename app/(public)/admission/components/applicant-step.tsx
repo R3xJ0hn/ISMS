@@ -7,6 +7,8 @@ import { Check, Facebook, MapPin, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { getAdmissionBranches } from "../actions";
+import type { AdmissionBranch } from "@/lib/admission/types";
+import { SelectField } from "./form-fields";
 
 export type ApplicantFieldName =
   | "applicant_type"
@@ -27,17 +29,6 @@ type ApplicantType = {
   description: string;
 };
 
-type Branch = {
-  id: string;
-  code: string;
-  title: string;
-  image: string | null;
-  phone: string | null;
-  facebookText: string | null;
-  mapLink: string | null;
-  formattedAddress: string;
-};
-
 type BranchesStatus = "loading" | "success" | "error";
 
 const applicantTypes: ApplicantType[] = [
@@ -54,11 +45,6 @@ const applicantTypes: ApplicantType[] = [
       "For currently or previously enrolled DCSA students",
   },
 ];
-
-const selectClass =
-  "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-
-
 
 function ChoiceButton({
   type,
@@ -103,92 +89,6 @@ function ChoiceButton({
   );
 }
 
-function Field({
-  id,
-  label,
-  required,
-  hint,
-  children,
-}: {
-  id: ApplicantFieldName;
-  label: string;
-  required?: boolean;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm font-semibold text-gray-800">
-        {label}
-        {required && <span className="text-secondary"> *</span>}
-      </label>
-      {children}
-      {hint && <p className="text-xs leading-5 text-gray-500">{hint}</p>}
-    </div>
-  );
-}
-
-function SelectField({
-  id,
-  label,
-  value,
-  onChange,
-  branches,
-  required,
-  placeholder,
-  disabled,
-  hint,
-}: {
-  id: "branch_id";
-  label: string;
-  value: string;
-  onChange: (field: ApplicantFieldName, value: string) => void;
-  branches: Branch[];
-  required?: boolean;
-  placeholder: string;
-  disabled?: boolean;
-  hint?: string;
-}) {
-  return (
-    <Field id={id} label={label} required={required} hint={hint}>
-      <select
-        id={id}
-        name={id}
-        value={value}
-        required={required}
-        aria-required={required}
-        onChange={(event) => {
-          event.currentTarget.setCustomValidity("");
-          const selectedBranch = branches.find(
-            (branch) => branch.id === event.target.value
-          );
-
-          onChange(id, event.target.value);
-          onChange("branch_code", selectedBranch?.code ?? "");
-          onChange("branch_title", selectedBranch?.title ?? "");
-        }}
-        onInvalid={(event) => {
-          event.currentTarget.setCustomValidity(`Please ${placeholder.toLowerCase()}.`);
-        }}
-        disabled={disabled}
-        className={cn(
-          selectClass,
-          disabled && "cursor-not-allowed bg-gray-100 text-gray-500"
-        )}
-      >
-        <option value="" disabled hidden>
-          {placeholder}
-        </option>
-        {branches.map((branch) => (
-          <option key={branch.id} value={branch.id}>
-            {branch.title}
-          </option>
-        ))}
-      </select>
-    </Field>
-  );
-}
-
 function DetailRow({
   icon,
   label,
@@ -215,7 +115,7 @@ function BranchDetails({
   branch,
   status,
 }: {
-  branch?: Branch;
+  branch?: AdmissionBranch;
   status: BranchesStatus;
 }) {
   if (status === "loading") {
@@ -304,7 +204,7 @@ function BranchDetails({
 }
 
 export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
-  const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [branches, setBranches] = React.useState<AdmissionBranch[]>([]);
   const [branchesStatus, setBranchesStatus] =
     React.useState<BranchesStatus>("loading");
 
@@ -381,13 +281,20 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
           id="branch_id"
           label="Preferred Branch"
           value={form.branch_id}
-          onChange={onChange}
+          onChange={(_, value) => {
+            const branch = branches.find((entry) => entry.id === value);
+            onChange("branch_id", value);
+            onChange("branch_code", branch?.code ?? "");
+            onChange("branch_title", branch?.title ?? "");
+          }}
           required
-          branches={branches}
           placeholder={branchSelectPlaceholder}
           disabled={branchSelectDisabled}
           hint={branchSelectHint}
-        />
+          validationMessage={`Please ${branchSelectPlaceholder.toLowerCase()}.`}
+        >
+          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.title}</option>)}
+        </SelectField>
         <BranchDetails branch={selectedBranch} status={branchesStatus} />
       </div>
     </div>

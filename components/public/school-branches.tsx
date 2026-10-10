@@ -1,30 +1,17 @@
-"use client";
-
-import * as React from "react";
+import { Suspense, type ReactNode } from "react";
 import Image from "next/image";
+import { connection } from "next/server";
 import { MapPin, Phone, Facebook, ArrowUpRight } from "lucide-react";
 
-import { getSchoolBranches } from "@/app/(public)/actions";
-
-type Branch = {
-  id: string;
-  code: string;
-  title: string;
-  image: string | null;
-  phone: string | null;
-  facebookText: string | null;
-  mapLink: string | null;
-  formattedAddress: string;
-};
-
-type BranchesStatus = "loading" | "success" | "error";
+import { getAdmissionBranches } from "@/lib/admission/catalog";
+import type { AdmissionBranch } from "@/lib/admission/types";
 
 function InfoRow({
   icon,
   children,
 }: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="flex items-start gap-2 text-sm text-neutral-700">
@@ -34,7 +21,7 @@ function InfoRow({
   );
 }
 
-const BranchCard = ({ branch }: { branch: Branch }) => (
+const BranchCard = ({ branch }: { branch: AdmissionBranch }) => (
   <article
     className="
       group
@@ -130,44 +117,26 @@ const BranchCard = ({ branch }: { branch: Branch }) => (
   </article>
 );
 
+async function BranchList() {
+  await connection();
+  const { branches, error } = await getAdmissionBranches();
+
+  if (error) {
+    return <p className="mt-6 text-sm text-red-600">Branches are unavailable right now.</p>;
+  }
+
+  if (branches.length === 0) {
+    return <p className="mt-6 text-sm text-neutral-600">No branches are available yet.</p>;
+  }
+
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {branches.map((branch) => <BranchCard key={branch.id} branch={branch} />)}
+    </div>
+  );
+}
+
 export default function Branches() {
-  const [branches, setBranches] = React.useState<Branch[]>([]);
-  const [status, setStatus] = React.useState<BranchesStatus>("loading");
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    async function loadBranches() {
-      try {
-        setStatus("loading");
-
-        const data = await getSchoolBranches();
-
-        if (cancelled) {
-          return;
-        }
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        setBranches(data.branches);
-        setStatus("success");
-      } catch {
-        if (!cancelled) {
-          setBranches([]);
-          setStatus("error");
-        }
-      }
-    }
-
-    void loadBranches();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <section className="w-full bg-background">
       <div className="mx-auto max-w-7xl px-4 py-8">
@@ -175,29 +144,9 @@ export default function Branches() {
           School Branches
         </h1>
 
-        {status === "loading" && (
-          <p className="mt-6 text-sm text-neutral-600">Loading branches...</p>
-        )}
-
-        {status === "error" && (
-          <p className="mt-6 text-sm text-red-600">
-            Branches are unavailable right now.
-          </p>
-        )}
-
-        {status === "success" && branches.length === 0 && (
-          <p className="mt-6 text-sm text-neutral-600">
-            No branches are available yet.
-          </p>
-        )}
-
-        {status === "success" && branches.length > 0 && (
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {branches.map((branch) => (
-              <BranchCard key={branch.id} branch={branch} />
-            ))}
-          </div>
-        )}
+        <Suspense fallback={<p className="mt-6 text-sm text-neutral-600">Loading branches...</p>}>
+          <BranchList />
+        </Suspense>
       </div>
     </section>
   );

@@ -12,6 +12,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Card, CardContent } from "@/components/ui/card";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 type LifeCard = {
   id: string;
@@ -98,7 +99,7 @@ const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
 export default function SchoolLife() {
-  const [reducedMotion, setReducedMotion] = React.useState(false);
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const autoScroll = React.useMemo(() => {
     if (reducedMotion) {
       return null;
@@ -113,15 +114,6 @@ export default function SchoolLife() {
   }, [reducedMotion]);
 
   const sectionRef = React.useRef<HTMLElement | null>(null);
-
-  React.useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updatePreference = () => setReducedMotion(mediaQuery.matches);
-
-    updatePreference();
-    mediaQuery.addEventListener("change", updatePreference);
-    return () => mediaQuery.removeEventListener("change", updatePreference);
-  }, []);
 
   React.useEffect(() => {
     const el = sectionRef.current;

@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 
 import { BadgeCheck, Clock, Globe2, Monitor, ShieldCheck } from "lucide-react";
 
-import { formatRoleLabel, getCurrentSession } from "@/lib/auth";
-import { UserRole } from "@/lib/generated/prisma/enums";
+import { formatRoleLabel, isAdminRole, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 100;
@@ -35,14 +34,10 @@ function getDeviceLabel(userAgent: string | null) {
 }
 
 export default async function LoginHistoryPage() {
-  const session = await getCurrentSession();
+  const session = await requireSession();
 
-  if (!session) {
-    redirect("/login");
-  }
 
-  const isAdmin =
-    session.role === UserRole.admin || session.role === UserRole.superAdmin;
+  const isAdmin = isAdminRole(session.role);
   const hasNumericSessionId = /^\d+$/.test(session.id);
 
   if (!hasNumericSessionId) {
