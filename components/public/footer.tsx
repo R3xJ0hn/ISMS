@@ -15,20 +15,20 @@ export default function Footer() {
             </h3>
             <ul className="mt-4 space-y-2 text-sm">
               <li>
-                <a
-                  href="#"
+                <Link
+                  href="/programs#senior-high"
                   className="text-slate-300 transition-colors hover:text-white"
                 >
                   Senior High School
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  href="/programs#college"
                   className="text-slate-300 transition-colors hover:text-white"
                 >
                   College
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

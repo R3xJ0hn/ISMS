@@ -3,51 +3,9 @@ import Footer from "@/components/public/footer";
 import Hero from "@/components/public/hero";
 import SchoolBranches from "@/components/public/school-branches";
 import SchoolLife from "@/components/public/school-life";
-import { BookMarked, GraduationCap, ToolCase } from "lucide-react";
+import { PROGRAM_GROUPS } from "@/lib/public/programs";
 import Image from "next/image";
 import Link from "next/link";
-
-type ProgramGroup = {
-  title: string;
-  description: string;
-  icon: typeof GraduationCap;
-  programs: { title: string; note?: string }[];
-};
-
-const PROGRAM_GROUPS: ProgramGroup[] = [
-  {
-    title: "College Courses",
-    description: "Degree programs for long-term careers",
-    icon: GraduationCap,
-    programs: [
-      { title: "Bachelor of Science in Information Technology" },
-      { title: "Bachelor of Science in Office Administration" },
-      { title: "Bachelor of Science in Tourism Management" },
-      { title: "Bachelor of Science in Hotel Management" },
-      { title: "Associate in Computer Technology", note: "(2-year course ladderized to BSIT)" },
-    ],
-  },
-  {
-    title: "TVL Track",
-    description: "Skills-based training for work readiness",
-    icon: ToolCase,
-    programs: [
-      { title: "Information and Communications Technology" },
-      { title: "Home Economics" },
-    ],
-  },
-  {
-    title: "Academic Track",
-    description: "Strong foundation for university pathways",
-    icon: BookMarked,
-    programs: [
-      { title: "Science, Technology, Engineering & Mathematics" },
-      { title: "Accountancy, Business & Management" },
-      { title: "Humanities & Social Sciences" },
-      { title: "General Academic Strand" },
-    ],
-  },
-];
 
 export default function HomePage() {
   return (
