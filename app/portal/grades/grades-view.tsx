@@ -4,7 +4,7 @@ import { useOptimistic, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpenCheck, ChevronDown } from "lucide-react";
 
-import { Skeleton } from "@/components/ui/skeleton";
+import { GradesTableSkeleton } from "@/components/portal/grades-table-skeleton";
 
 type GradesViewProps = {
   semester: string;
@@ -12,45 +12,6 @@ type GradesViewProps = {
   studentNumber: string | null;
   children: ReactNode;
 };
-
-function GradesTableSkeleton({ semester }: { semester: string }) {
-  return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div className="border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            {semester === "1stSem" ? "1st Semester" : "2nd Semester"}
-          </h2>
-          <span className="text-xs font-medium text-muted-foreground">
-            Loading grades...
-          </span>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <div className="min-w-240">
-          <div className="grid grid-cols-[0.8fr_2.4fr_repeat(9,0.8fr)] gap-4 border-b border-border bg-muted/50 px-4 py-3">
-            {Array.from({ length: 11 }).map((_, index) => (
-              <Skeleton key={index} className="h-4 w-full" />
-            ))}
-          </div>
-          {Array.from({ length: 7 }).map((_, rowIndex) => (
-            <div
-              key={rowIndex}
-              className="grid grid-cols-[0.8fr_2.4fr_repeat(9,0.8fr)] gap-4 border-b border-border px-4 py-4 last:border-b-0"
-            >
-              {Array.from({ length: 11 }).map((_, columnIndex) => (
-                <Skeleton
-                  key={columnIndex}
-                  className={columnIndex === 1 ? "h-4 w-full" : "h-4 w-16"}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 export function GradesView({
   semester,

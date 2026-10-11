@@ -1,5 +1,5 @@
 import type { VerifyCurrentStudentInput, VerifyCurrentStudentResult, AdmissionSubmissionResult } from "./types";
-import { parseDateInput } from "./validation";
+import { studentSubmissionFields } from "./student-fields";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -15,16 +15,16 @@ import {
 import { sendStudentUpdateLinkEmail } from "@/lib/admission/resend";
 import { createStudentUpdateUrl } from "@/lib/admission/student-update";
 import {
+  enumIncludes,
+  parseDateInput,
   validateEmail,
   validatePhone,
   validateSchoolYear,
 } from "@/lib/admission/validation";
-import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
+import { allowedAcademicLevelSlugsByProgramType, EXISTING_STUDENT, NEW_STUDENT } from "./constants";
 import { prisma } from "@/lib/prisma";
 import { formatStudentName, normalizeName, normalizeText } from "@/lib/utils";
 
-const EXISTING_STUDENT = "Existing Student";
-const NEW_STUDENT = "New Student";
 const MISSING_FIELDS_MESSAGE =
   "Complete all verification fields before checking the record.";
 const VERIFICATION_FAILED_MESSAGE = "Verification failed.";
@@ -80,47 +80,7 @@ const allowedSubmissionFields = [
   "program_label",
   "academic_level_id",
   "academic_level_label",
-  "student_first_name",
-  "student_last_name",
-  "student_middle_name",
-  "student_suffix",
-  "student_birth_date",
-  "student_gender",
-  "student_civil_status",
-  "student_citizenship",
-  "student_birthplace",
-  "student_religion",
-  "contact_email",
-  "contact_phone",
-  "contact_facebook",
-  "address_house_number",
-  "address_subdivision",
-  "address_street",
-  "address_barangay",
-  "address_city",
-  "address_province",
-  "address_postal_code",
-  "last_school_name",
-  "last_school_id",
-  "last_school_short_name",
-  "last_school_type",
-  "last_school_house_number",
-  "last_school_subdivision",
-  "last_school_street",
-  "last_school_barangay",
-  "last_school_city",
-  "last_school_province",
-  "last_school_postal_code",
-  "last_school_year",
-  "last_school_graduation_date",
-  "last_school_year_level",
-  "guardian_last_name",
-  "guardian_first_name",
-  "guardian_middle_name",
-  "guardian_suffix",
-  "guardian_relationship",
-  "guardian_contact_number",
-  "guardian_occupation",
+  ...Object.values(studentSubmissionFields),
   "current_student_number",
   "current_student_email",
   "current_student_first_name",
@@ -199,76 +159,25 @@ function parseDateRange(value: string) {
   return { start, end };
 }
 
-function enumIncludes<T extends Record<string, string>>(
-  values: T,
-  value: string
-) {
-  return Object.values(values).includes(value);
-}
-
 function firstInvalidField(
   form: Record<string, string>,
   applicantType: string
 ) {
-  const validations: Array<{
-    field: string;
-    validate: (value: string) => boolean;
-    when?: boolean;
-  }> = [
-    {
-      field: "contact_email",
-      validate: validateEmail,
-    },
-    {
-      field: "contact_phone",
-      validate: validatePhone,
-    },
-    {
-      field: "guardian_contact_number",
-      validate: validatePhone,
-    },
-    {
-      field: "student_birth_date",
-      validate: (value) => parseDateRange(value) !== null,
-    },
-    {
-      field: "student_gender",
-      validate: (value) => enumIncludes(Gender, value),
-    },
-    {
-      field: "student_civil_status",
-      validate: (value) => enumIncludes(CivilStatus, value),
-    },
-    {
-      field: "last_school_type",
-      validate: (value) => enumIncludes(SchoolType, value),
-    },
-    {
-      field: "last_school_year",
-      validate: validateSchoolYear,
-    },
-    {
-      field: "last_school_graduation_date",
-      validate: (value) => parseDateRange(value) !== null,
-      when: Boolean(form.last_school_graduation_date),
-    },
-    {
-      field: "current_student_email",
-      validate: validateEmail,
-      when: applicantType === EXISTING_STUDENT,
-    },
-    {
-      field: "current_student_birth_date",
-      validate: (value) => parseDateRange(value) !== null,
-      when: applicantType === EXISTING_STUDENT,
-    },
+  const validations: Array<[string, (value: string) => boolean, boolean?]> = [
+    ["contact_email", validateEmail],
+    ["contact_phone", validatePhone],
+    ["guardian_contact_number", validatePhone],
+    ["student_birth_date", (value) => parseDateInput(value) !== null],
+    ["student_gender", (value) => enumIncludes(Gender, value)],
+    ["student_civil_status", (value) => enumIncludes(CivilStatus, value)],
+    ["last_school_type", (value) => enumIncludes(SchoolType, value)],
+    ["last_school_year", validateSchoolYear],
+    ["last_school_graduation_date", (value) => parseDateInput(value) !== null, Boolean(form.last_school_graduation_date)],
+    ["current_student_email", validateEmail, applicantType === EXISTING_STUDENT],
+    ["current_student_birth_date", (value) => parseDateInput(value) !== null, applicantType === EXISTING_STUDENT],
   ];
 
-  return (
-    validations.find(
-      ({ field, validate, when = true }) => when && !validate(form[field] ?? "")
-    )?.field ?? null
-  );
+  return validations.find(([field, validate, when = true]) => when && !validate(form[field] ?? ""))?.[0] ?? null;
 }
 
 async function existingStudentVerificationMatches(form: Record<string, string>) {

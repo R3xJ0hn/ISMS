@@ -1,11 +1,11 @@
 import { optionalText } from "./validation";
+import { EXISTING_STUDENT } from "./constants";
+import { studentProfileFromSubmission } from "./student-fields";
+import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
 import {
   ApplicantType,
   ApplicationStatus,
-  CivilStatus,
-  Gender,
   ProgramType,
-  SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
@@ -39,7 +39,7 @@ function parseDateInput(value: string) {
 }
 
 function applicantTypeFromForm(value: string) {
-  return value === "Existing Student" ? ApplicantType.existing : ApplicantType.new;
+  return value === EXISTING_STUDENT ? ApplicantType.existing : ApplicantType.new;
 }
 
 export async function saveAdmissionSubmission({
@@ -48,38 +48,20 @@ export async function saveAdmissionSubmission({
   form,
   programSelection,
 }: SaveAdmissionSubmissionInput) {
+  const profile = studentProfileFromSubmission(form);
+
   await prisma.$transaction(async (tx) => {
     const studentAddress = await tx.address.create({
-      data: {
-        houseNumber: optionalText(form.address_house_number),
-        subdivision: optionalText(form.address_subdivision),
-        street: optionalText(form.address_street),
-        barangay: form.address_barangay,
-        city: form.address_city,
-        province: form.address_province,
-        postalCode: optionalText(form.address_postal_code),
-      },
+      data: addressDataFromProfile(profile, "address"),
     });
 
     const studentData = {
-      firstName: form.student_first_name,
-      lastName: form.student_last_name,
-      middleName: optionalText(form.student_middle_name),
-      suffix: optionalText(form.student_suffix),
-      birthDate: parseDateInput(form.student_birth_date),
-      gender: form.student_gender as (typeof Gender)[keyof typeof Gender],
-      civilStatus: form.student_civil_status as (typeof CivilStatus)[keyof typeof CivilStatus],
-      citizenship: form.student_citizenship,
-      birthplace: form.student_birthplace,
-      religion: optionalText(form.student_religion),
-      email: form.contact_email,
-      phone: form.contact_phone,
-      facebookAccount: optionalText(form.contact_facebook),
+      ...studentDataFromProfile(profile, parseDateInput(form.student_birth_date)),
       addressId: studentAddress.id,
     };
 
     const student =
-      form.applicant_type === "Existing Student"
+      form.applicant_type === EXISTING_STUDENT
         ? await tx.student.update({
             where: {
               id: BigInt(form.current_student_record_id),
@@ -95,12 +77,7 @@ export async function saveAdmissionSubmission({
 
     const guardian = await tx.guardian.create({
       data: {
-        firstName: form.guardian_first_name,
-        lastName: form.guardian_last_name,
-        middleName: optionalText(form.guardian_middle_name),
-        suffix: optionalText(form.guardian_suffix),
-        contactNumber: form.guardian_contact_number,
-        occupation: optionalText(form.guardian_occupation),
+        ...guardianDataFromProfile(profile),
         email: null,
         addressId: null,
         facebookAccount: null,
@@ -117,23 +94,12 @@ export async function saveAdmissionSubmission({
     });
 
     const lastSchoolAddress = await tx.address.create({
-      data: {
-        houseNumber: optionalText(form.last_school_house_number),
-        subdivision: optionalText(form.last_school_subdivision),
-        street: optionalText(form.last_school_street),
-        barangay: form.last_school_barangay,
-        city: form.last_school_city,
-        province: form.last_school_province,
-        postalCode: optionalText(form.last_school_postal_code),
-      },
+      data: addressDataFromProfile(profile, "lastSchool"),
     });
 
     const lastSchool = await tx.lastSchool.create({
       data: {
-        schoolName: form.last_school_name,
-        schoolId: optionalText(form.last_school_id),
-        shortName: optionalText(form.last_school_short_name),
-        schoolType: form.last_school_type as (typeof SchoolType)[keyof typeof SchoolType],
+        ...lastSchoolDataFromProfile(profile),
         addressId: lastSchoolAddress.id,
       },
     });

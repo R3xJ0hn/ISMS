@@ -1,16 +1,16 @@
-import { studentUpdateSelect, type StudentUpdateQueryResult } from "@/lib/admission/records";
-import { optionalText, parseDateInput, validateEmail, validatePhone } from "@/lib/admission/validation";
+import { studentProfileFromRecord, studentUpdateSelect, type StudentUpdateQueryResult } from "@/lib/admission/records";
+import { parseDateInput } from "./validation";
+import { firstInvalidStudentUpdateField, normalizeStudentUpdateInput, type UpdateStudentRecordInput } from "./student-fields";
+import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   ApplicantType,
   ApplicationStatus,
-  CivilStatus,
-  Gender,
-  SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { normalizeText } from "@/lib/utils";
+
+export { studentUpdateFields, type UpdateStudentRecordInput } from "./student-fields";
 
 const STUDENT_UPDATE_LINK_TTL_MS = 1000 * 60 * 60;
 
@@ -22,59 +22,6 @@ export type StudentUpdateTokenPayload = {
 };
 
 export type StudentUpdateRecord = ReturnType<typeof mapStudentRecord>;
-
-export const studentUpdateFields = [
-  "firstName",
-  "lastName",
-  "middleName",
-  "suffix",
-  "birthDate",
-  "gender",
-  "civilStatus",
-  "citizenship",
-  "birthplace",
-  "religion",
-  "email",
-  "phone",
-  "facebookAccount",
-  "addressHouseNumber",
-  "addressSubdivision",
-  "addressStreet",
-  "addressBarangay",
-  "addressCity",
-  "addressProvince",
-  "addressPostalCode",
-  "guardianFirstName",
-  "guardianLastName",
-  "guardianMiddleName",
-  "guardianSuffix",
-  "guardianRelationship",
-  "guardianContactNumber",
-  "guardianOccupation",
-  "lastSchoolName",
-  "lastSchoolId",
-  "lastSchoolShortName",
-  "lastSchoolType",
-  "lastSchoolHouseNumber",
-  "lastSchoolSubdivision",
-  "lastSchoolStreet",
-  "lastSchoolBarangay",
-  "lastSchoolCity",
-  "lastSchoolProvince",
-  "lastSchoolPostalCode",
-  "lastSchoolYear",
-  "lastSchoolGraduationDate",
-  "lastSchoolYearLevel",
-] as const;
-
-const nullableStudentUpdateFields: ReadonlySet<string> = new Set([
-  "gender", "civilStatus", "citizenship", "birthplace", "phone",
-]);
-
-type StudentUpdateField = (typeof studentUpdateFields)[number];
-type NullableStudentUpdateField = "gender" | "civilStatus" | "citizenship" | "birthplace" | "phone";
-export type UpdateStudentRecordInput = Record<Exclude<StudentUpdateField, NullableStudentUpdateField>, string> &
-  Partial<Record<NullableStudentUpdateField, string | null>>;
 
 function getStudentUpdateLinkSecret() {
   const secret =
@@ -164,96 +111,6 @@ function getAppBaseUrl() {
   return normalizeAppBaseUrl("http://localhost:3000");
 }
 
-function normalizeStudentUpdateInput(input: UpdateStudentRecordInput): UpdateStudentRecordInput {
-  return Object.fromEntries(studentUpdateFields.map((field) => [
-    field,
-    nullableStudentUpdateFields.has(field)
-      ? normalizeNullableText(input[field])
-      : normalizeText(input[field]),
-  ])) as UpdateStudentRecordInput;
-}
-
-function normalizeNullableText(value: string | null | undefined) {
-  if (value == null) {
-    return null;
-  }
-
-  const normalizedValue = normalizeText(value);
-
-  return normalizedValue || null;
-}
-
-function firstInvalidStudentUpdateField(input: UpdateStudentRecordInput) {
-  const requiredFields: Array<[keyof UpdateStudentRecordInput, boolean]> = [
-    ["firstName", !input.firstName],
-    ["lastName", !input.lastName],
-    ["birthDate", !input.birthDate],
-    ["email", !input.email],
-    ["addressBarangay", !input.addressBarangay],
-    ["addressCity", !input.addressCity],
-    ["addressProvince", !input.addressProvince],
-    ["guardianFirstName", !input.guardianFirstName],
-    ["guardianLastName", !input.guardianLastName],
-    ["guardianRelationship", !input.guardianRelationship],
-    ["guardianContactNumber", !input.guardianContactNumber],
-    ["lastSchoolName", !input.lastSchoolName],
-    ["lastSchoolType", !input.lastSchoolType],
-    ["lastSchoolBarangay", !input.lastSchoolBarangay],
-    ["lastSchoolCity", !input.lastSchoolCity],
-    ["lastSchoolProvince", !input.lastSchoolProvince],
-    ["lastSchoolYear", !input.lastSchoolYear],
-    ["lastSchoolYearLevel", !input.lastSchoolYearLevel],
-  ];
-
-  const missingField = requiredFields.find(([, missing]) => missing)?.[0];
-
-  if (missingField) {
-    return missingField;
-  }
-
-  if (!parseDateInput(input.birthDate)) {
-    return "birthDate";
-  }
-
-  if (
-    input.gender &&
-    !Object.values(Gender).includes(input.gender as (typeof Gender)[keyof typeof Gender])
-  ) {
-    return "gender";
-  }
-
-  if (
-    input.civilStatus &&
-    !Object.values(CivilStatus).includes(
-      input.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus]
-    )
-  ) {
-    return "civilStatus";
-  }
-
-  if (!validateEmail(input.email)) {
-    return "email";
-  }
-
-  if (input.phone && !validatePhone(input.phone)) {
-    return "phone";
-  }
-
-  if (!validatePhone(input.guardianContactNumber)) {
-    return "guardianContactNumber";
-  }
-
-  if (
-    !Object.values(SchoolType).includes(
-      input.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType]
-    )
-  ) {
-    return "lastSchoolType";
-  }
-
-  return null;
-}
-
 function mapStudentRecord(
   token: string,
   student: StudentUpdateQueryResult
@@ -262,54 +119,12 @@ function mapStudentRecord(
     student.guardians.find((guardian) => guardian.isPrimary) ??
     student.guardians[0];
   const latestApplication = student.applications[0];
-  const lastSchool = latestApplication?.lastSchool;
   const latestEnrollment = student.enrollments[0];
 
   return {
     token,
     studentId: student.id.toString(),
-    firstName: student.firstName,
-    lastName: student.lastName,
-    middleName: student.middleName ?? "",
-    suffix: student.suffix ?? "",
-    birthDate: student.birthDate.toISOString().slice(0, 10),
-    gender: student.gender,
-    civilStatus: student.civilStatus,
-    citizenship: student.citizenship,
-    birthplace: student.birthplace,
-    religion: student.religion ?? "",
-    email: student.email,
-    phone: student.phone,
-    facebookAccount: student.facebookAccount ?? "",
-    addressHouseNumber: student.address?.houseNumber ?? "",
-    addressSubdivision: student.address?.subdivision ?? "",
-    addressStreet: student.address?.street ?? "",
-    addressBarangay: student.address?.barangay ?? "",
-    addressCity: student.address?.city ?? "",
-    addressProvince: student.address?.province ?? "",
-    addressPostalCode: student.address?.postalCode ?? "",
-    guardianFirstName: primaryGuardian?.guardian.firstName ?? "",
-    guardianLastName: primaryGuardian?.guardian.lastName ?? "",
-    guardianMiddleName: primaryGuardian?.guardian.middleName ?? "",
-    guardianSuffix: primaryGuardian?.guardian.suffix ?? "",
-    guardianRelationship: primaryGuardian?.relationship ?? "",
-    guardianContactNumber: primaryGuardian?.guardian.contactNumber ?? "",
-    guardianOccupation: primaryGuardian?.guardian.occupation ?? "",
-    lastSchoolName: lastSchool?.schoolName ?? "",
-    lastSchoolId: lastSchool?.schoolId ?? "",
-    lastSchoolShortName: lastSchool?.shortName ?? "",
-    lastSchoolType: lastSchool?.schoolType ?? "",
-    lastSchoolHouseNumber: lastSchool?.address?.houseNumber ?? "",
-    lastSchoolSubdivision: lastSchool?.address?.subdivision ?? "",
-    lastSchoolStreet: lastSchool?.address?.street ?? "",
-    lastSchoolBarangay: lastSchool?.address?.barangay ?? "",
-    lastSchoolCity: lastSchool?.address?.city ?? "",
-    lastSchoolProvince: lastSchool?.address?.province ?? "",
-    lastSchoolPostalCode: lastSchool?.address?.postalCode ?? "",
-    lastSchoolYear: latestApplication?.LSSchoolYearEnd ?? "",
-    lastSchoolGraduationDate:
-      latestApplication?.LSGraduationDate?.toISOString().slice(0, 10) ?? "",
-    lastSchoolYearLevel: latestApplication?.LSAttainedLevelText ?? "",
+    ...studentProfileFromRecord(student, latestApplication, primaryGuardian),
     latestEnrollmentStatus:
       latestEnrollment?.enrollmentStatus ??
       latestApplication?.applicationStatus ??
@@ -467,15 +282,7 @@ export async function updateStudentRecordFromToken(
         throw new Error("Student record not found.");
       }
 
-      const addressData = {
-        houseNumber: optionalText(normalizedInput.addressHouseNumber),
-        subdivision: optionalText(normalizedInput.addressSubdivision),
-        street: optionalText(normalizedInput.addressStreet),
-        barangay: normalizedInput.addressBarangay,
-        city: normalizedInput.addressCity,
-        province: normalizedInput.addressProvince,
-        postalCode: optionalText(normalizedInput.addressPostalCode),
-      };
+      const addressData = addressDataFromProfile(normalizedInput, "address");
 
       let addressId = student.addressId;
 
@@ -507,16 +314,9 @@ export async function updateStudentRecordFromToken(
       }
 
       const primaryGuardianLink = student.guardians[0];
+      const guardianData = guardianDataFromProfile(normalizedInput);
 
       if (primaryGuardianLink) {
-        const guardianData = {
-          firstName: normalizedInput.guardianFirstName,
-          lastName: normalizedInput.guardianLastName,
-          middleName: optionalText(normalizedInput.guardianMiddleName),
-          suffix: optionalText(normalizedInput.guardianSuffix),
-          contactNumber: normalizedInput.guardianContactNumber,
-          occupation: optionalText(normalizedInput.guardianOccupation),
-        };
         const guardianLinkCount = await tx.studentGuardian.count({
           where: {
             guardianId: primaryGuardianLink.guardianId,
@@ -553,12 +353,7 @@ export async function updateStudentRecordFromToken(
       } else {
         const guardian = await tx.guardian.create({
           data: {
-            firstName: normalizedInput.guardianFirstName,
-            lastName: normalizedInput.guardianLastName,
-            middleName: optionalText(normalizedInput.guardianMiddleName),
-            suffix: optionalText(normalizedInput.guardianSuffix),
-            contactNumber: normalizedInput.guardianContactNumber,
-            occupation: optionalText(normalizedInput.guardianOccupation),
+            ...guardianData,
             email: null,
             addressId: null,
             facebookAccount: null,
@@ -575,27 +370,13 @@ export async function updateStudentRecordFromToken(
         });
       }
 
-      const lastSchoolAddressData = {
-        houseNumber: optionalText(normalizedInput.lastSchoolHouseNumber),
-        subdivision: optionalText(normalizedInput.lastSchoolSubdivision),
-        street: optionalText(normalizedInput.lastSchoolStreet),
-        barangay: normalizedInput.lastSchoolBarangay,
-        city: normalizedInput.lastSchoolCity,
-        province: normalizedInput.lastSchoolProvince,
-        postalCode: optionalText(normalizedInput.lastSchoolPostalCode),
-      };
+      const lastSchoolAddressData = addressDataFromProfile(normalizedInput, "lastSchool");
 
       const latestApplication = student.applications[0];
       const latestEnrollment = student.enrollments[0];
       let lastSchoolId = latestApplication?.lastSchoolId ?? null;
       let lastSchoolAddressId = latestApplication?.lastSchool?.addressId ?? null;
-      const lastSchoolData = {
-        schoolName: normalizedInput.lastSchoolName,
-        schoolId: optionalText(normalizedInput.lastSchoolId),
-        shortName: optionalText(normalizedInput.lastSchoolShortName),
-        schoolType:
-          normalizedInput.lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
-      };
+      const lastSchoolData = lastSchoolDataFromProfile(normalizedInput);
 
       if (lastSchoolId) {
         const lastSchoolApplicationCount = await tx.admissionApplication.count({
@@ -708,25 +489,7 @@ export async function updateStudentRecordFromToken(
           id: student.id,
         },
         data: {
-          firstName: normalizedInput.firstName,
-          lastName: normalizedInput.lastName,
-          middleName: optionalText(normalizedInput.middleName),
-          suffix: optionalText(normalizedInput.suffix),
-          birthDate,
-          gender:
-            normalizedInput.gender === null
-              ? null
-              : normalizedInput.gender as (typeof Gender)[keyof typeof Gender],
-          civilStatus:
-            normalizedInput.civilStatus === null
-              ? null
-              : normalizedInput.civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus],
-          citizenship: normalizedInput.citizenship,
-          birthplace: normalizedInput.birthplace,
-          religion: optionalText(normalizedInput.religion),
-          email: normalizedInput.email,
-          phone: normalizedInput.phone,
-          facebookAccount: optionalText(normalizedInput.facebookAccount),
+          ...studentDataFromProfile(normalizedInput, birthDate),
           addressId,
         },
       });

@@ -1,6 +1,4 @@
-import { scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-
-import { compare, hash } from "bcryptjs";
+import { hashPassword, isBcryptHash, normalizeEmail, verifyPassword } from "@/lib/auth/credentials";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -8,19 +6,12 @@ import { redirect } from "next/navigation";
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
+export { hashPassword, normalizeEmail, passwordHashDefaults } from "@/lib/auth/credentials";
+
 const SESSION_COOKIE_NAME = "isms_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const REMEMBER_ME_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
-const PASSWORD_HASH_ROUNDS = 12;
 const JWT_SECRET_MIN_BYTES = 32;
-const DUMMY_PASSWORD_HASH =
-  "$2b$12$w0LkwL5Dj1mh2EDkETZjS.uYL2Z1vq5Wm1QX/YTDtzG3wNAvWo6N6";
-const STRICT_INTEGER_PATTERN = /^\d+$/;
-
-const LEGACY_SCRYPT_KEY_LENGTH = 64;
-const LEGACY_SCRYPT_COST = 16384;
-const LEGACY_SCRYPT_BLOCK_SIZE = 8;
-const LEGACY_SCRYPT_PARALLELIZATION = 1;
 const textEncoder = new TextEncoder();
 
 type SessionUser = {
@@ -52,109 +43,6 @@ function getJwtSecret() {
   return encodedSecret;
 }
 
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function scrypt(
-  password: string,
-  salt: Buffer,
-  keyLength: number,
-  options: {
-    N: number;
-    r: number;
-    p: number;
-    maxmem: number;
-  }
-) {
-  return new Promise<Buffer>((resolve, reject) => {
-    scryptCallback(password, salt, keyLength, options, (error, derivedKey) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve(Buffer.from(derivedKey));
-    });
-  });
-}
-
-function isBcryptHash(value: string) {
-  return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
-}
-
-function parseStrictInteger(value: string) {
-  if (!STRICT_INTEGER_PATTERN.test(value)) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    return null;
-  }
-
-  return parsed;
-}
-
-async function verifyLegacyScryptHash(password: string, storedHash: string) {
-  const [algorithm, costText, blockSizeText, parallelizationText, saltHex, derivedKeyHex] =
-    storedHash.split("$");
-
-  if (
-    algorithm !== "scrypt" ||
-    !costText ||
-    !blockSizeText ||
-    !parallelizationText ||
-    !saltHex ||
-    !derivedKeyHex
-  ) {
-    return false;
-  }
-
-  const cost = parseStrictInteger(costText);
-  const blockSize = parseStrictInteger(blockSizeText);
-  const parallelization = parseStrictInteger(parallelizationText);
-
-  if (
-    cost === null ||
-    blockSize === null ||
-    parallelization === null ||
-    !Number.isFinite(cost) ||
-    !Number.isFinite(blockSize) ||
-    !Number.isFinite(parallelization)
-  ) {
-    return false;
-  }
-
-  const expectedKey = Buffer.from(derivedKeyHex, "hex");
-  const actualKey = await scrypt(
-    password,
-    Buffer.from(saltHex, "hex"),
-    expectedKey.length,
-    {
-      N: cost,
-      r: blockSize,
-      p: parallelization,
-      maxmem: 32 * 1024 * 1024,
-    }
-  );
-
-  return timingSafeEqual(actualKey, expectedKey);
-}
-
-async function verifyPassword(password: string, storedHash: string) {
-  if (isBcryptHash(storedHash)) {
-    return compare(password, storedHash);
-  }
-
-  return verifyLegacyScryptHash(password, storedHash);
-}
-
-export async function hashPassword(password: string) {
-  return hash(password, PASSWORD_HASH_ROUNDS);
-}
-
 export async function authenticateUser(email: string, password: string) {
   const normalizedEmail = normalizeEmail(email);
 
@@ -171,10 +59,7 @@ export async function authenticateUser(email: string, password: string) {
     },
   });
 
-  const passwordMatches = await verifyPassword(
-    password,
-    user?.passwordHash ?? DUMMY_PASSWORD_HASH
-  );
+  const passwordMatches = await verifyPassword(password, user?.passwordHash);
 
   if (!user || !passwordMatches) {
     return {
@@ -303,14 +188,3 @@ export async function requireAdmin() {
   if (!session || !isAdminRole(session.role)) redirect("/portal");
   return session;
 }
-
-export const passwordHashDefaults = {
-  algorithm: "bcrypt",
-  rounds: PASSWORD_HASH_ROUNDS,
-  legacyScrypt: {
-    keyLength: LEGACY_SCRYPT_KEY_LENGTH,
-    cost: LEGACY_SCRYPT_COST,
-    blockSize: LEGACY_SCRYPT_BLOCK_SIZE,
-    parallelization: LEGACY_SCRYPT_PARALLELIZATION,
-  },
-} as const;

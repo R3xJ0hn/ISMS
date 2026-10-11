@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, GraduationCap } from "lucide-react";
+import { ArrowRight, GraduationCap } from "lucide-react";
 
-import Footer from "@/components/public/footer";
-import { PROGRAM_GROUPS } from "@/lib/public/programs";
+import { getProgramGroups } from "@/lib/public/programs";
 
 export const metadata: Metadata = {
   title: "Programs | Datamex College of Saint Adeline",
@@ -11,11 +10,16 @@ export const metadata: Metadata = {
     "Explore college courses and senior high school academic and TVL tracks at Datamex College of Saint Adeline.",
 };
 
-export default function ProgramsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ProgramsPage() {
+  const programGroups = await getProgramGroups();
+  const firstSeniorHighGroup = programGroups.find((group) => group.educationLevel === "Senior High School");
+
   return (
     <>
       <section className="relative overflow-hidden bg-primary text-white">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full border-[48px] border-white/5" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full border-48 border-white/5" />
         <div className="relative mx-auto max-w-7xl px-5 py-12 sm:px-6 sm:py-16 lg:px-8">
           <p className="mt-5 text-sm font-semibold uppercase tracking-widest text-accent">
             Your path to success starts here
@@ -45,14 +49,14 @@ export default function ProgramsPage() {
       </section>
 
       <div className="mx-auto max-w-7xl space-y-14 px-5 py-14 sm:px-6 sm:py-16 lg:px-8">
-        {PROGRAM_GROUPS.map((group, index) => (
+        {programGroups.map((group) => (
           <section
             key={group.id}
             id={group.id}
             aria-labelledby={`${group.id}-heading`}
             className="scroll-mt-28"
           >
-            {index === 1 && (
+            {group.id === firstSeniorHighGroup?.id && (
               <div id="senior-high" className="mb-8 scroll-mt-28">
                 <p className="text-sm font-semibold uppercase tracking-widest text-secondary">
                   Senior High School
@@ -66,33 +70,43 @@ export default function ProgramsPage() {
                 </p>
               </div>
             )}
-            <div className="mb-6 flex items-center gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <header
+              className="mb-6 flex items-start gap-4 rounded-xl border-l-4 p-5 shadow-sm sm:items-center sm:p-6 border-accent bg-primary text-white"
+            >
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/20">
                 <group.icon size={24} aria-hidden="true" />
               </span>
-              <div>
-                {index === 0 ? (
-                  <h2 id={`${group.id}-heading`} className="text-2xl font-bold text-primary sm:text-3xl">
+              <div className="min-w-0">
+                {group.educationLevel === "College" ? (
+                  <h2 id={`${group.id}-heading`} className="text-2xl font-bold sm:text-3xl">
                     {group.title}
                   </h2>
                 ) : (
-                  <h3 id={`${group.id}-heading`} className="text-2xl font-bold text-primary">
+                  <h3 id={`${group.id}-heading`} className="text-2xl font-bold sm:text-3xl">
                     {group.title}
                   </h3>
                 )}
-                <p className="mt-1 text-sm text-gray-600">{group.description}</p>
+                <p className="mt-1 text-sm leading-6 opacity-85">{group.description}</p>
               </div>
-            </div>
+            </header>
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {group.programs.map((program) => (
-                <li key={program.title} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <span aria-hidden="true" className="mb-4 block h-1 w-10 rounded-full bg-accent" />
-                  <p className="text-base font-semibold leading-6 text-gray-900">
-                    {program.title}
-                  </p>
-                  {program.note && (
-                    <p className="mt-2 text-sm leading-6 text-gray-600">{program.note}</p>
-                  )}
+                <li key={program.slug}>
+                  <Link
+                    href={`/programs/${program.slug}`}
+                    className="group flex h-full flex-col rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:border-primary/40 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                  >
+                    <span aria-hidden="true" className="mb-4 block h-1 w-10 rounded-full bg-accent" />
+                    <p className="text-base font-semibold leading-6 text-gray-900 group-hover:text-primary">
+                      {program.title}
+                    </p>
+                    {program.note && (
+                      <p className="mt-2 text-sm leading-6 text-gray-600">{program.note}</p>
+                    )}
+                    <span className="mt-auto inline-flex items-center gap-2 pt-5 text-sm font-semibold text-primary">
+                      View program details <ArrowRight size={16} aria-hidden="true" />
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -121,7 +135,6 @@ export default function ProgramsPage() {
         </section>
       </div>
 
-      <Footer />
     </>
   );
 }

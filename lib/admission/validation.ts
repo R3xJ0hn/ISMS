@@ -11,6 +11,15 @@ export function readFormText(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export function readFormFields<const Fields extends readonly string[]>(formData: FormData, fields: Fields) {
+  return Object.fromEntries(fields.map((field) => [field, readFormText(formData, field)])) as
+    Record<Fields[number], string>;
+}
+
+export function enumIncludes<T extends Record<string, string>>(values: T, value: string): value is T[keyof T] {
+  return Object.values(values).includes(value);
+}
+
 export function optionalText(value: string) {
   return value || null;
 }

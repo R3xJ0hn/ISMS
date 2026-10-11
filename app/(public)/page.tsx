@@ -1,13 +1,17 @@
+import { SCHOOL } from "@/lib/public/site";
 import CoreValuesSection from "@/components/public/core-values";
-import Footer from "@/components/public/footer";
 import Hero from "@/components/public/hero";
 import SchoolBranches from "@/components/public/school-branches";
 import SchoolLife from "@/components/public/school-life";
-import { PROGRAM_GROUPS } from "@/lib/public/programs";
+import { getProgramGroups } from "@/lib/public/programs";
 import Image from "next/image";
 import Link from "next/link";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const programGroups = await getProgramGroups();
+
   return (
     <>
       <Hero />
@@ -17,7 +21,7 @@ export default function HomePage() {
         <div className="relative rounded-xl">
           {/* Banner Image */}
           <Image
-            src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772361809/uploads/tsulcyttkz5ijntl5wpi.png"
+            src={SCHOOL.assets.banner}
             alt="School Banner"
             width={1600}
             height={500}
@@ -58,7 +62,7 @@ export default function HomePage() {
 
           <div className="relative w-full h-64 lg:h-auto p-5">
             <Image
-              src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772362161/uploads/uzmj1kgeurubodkbxpu4.jpg"
+              src={SCHOOL.assets.campus}
               alt="Future of Education"
               fill
               className="object-cover"
@@ -91,7 +95,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-3">
-            {PROGRAM_GROUPS.map((group) => (
+            {programGroups.map((group) => (
               <div key={group.title} className="group rounded-2xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -105,12 +109,17 @@ export default function HomePage() {
                 <div className="mt-5 h-px w-full bg-gray-100" />
                 <ul className="mt-5 space-y-3 text-sm text-gray-700">
                   {group.programs.map((program) => (
-                    <li key={program.title} className="flex gap-3">
-                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
-                      <span>
-                        {program.title}
-                        {program.note && <span className="mt-1 block text-xs text-gray-500">{program.note}</span>}
-                      </span>
+                    <li key={program.slug}>
+                      <Link
+                        href={`/programs/${program.slug}`}
+                        className="flex gap-3 rounded-sm transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                      >
+                        <span aria-hidden="true" className="mt-1 h-2 w-2 shrink-0 rounded-full bg-black" />
+                        <span>
+                          <span className="underline decoration-gray-300 underline-offset-4">{program.title}</span>
+                          {program.note && <span className="mt-1 block text-xs text-gray-500">{program.note}</span>}
+                        </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -130,7 +139,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-4xl">
             <div className="flex items-center gap-4">
               <div className="relative h-14 w-14">
-            <Image src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772363064/uploads/czeccbdle54njfottdz1.png"
+            <Image src={SCHOOL.assets.logo}
                   alt="Datamex College of Saint Adeline"
                   fill
                   className="object-contain"
@@ -188,8 +197,6 @@ export default function HomePage() {
     </section>
 
       <SchoolBranches />
-      
-      <Footer />
     </>
   );
 }

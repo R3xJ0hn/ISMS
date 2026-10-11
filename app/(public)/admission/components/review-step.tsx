@@ -141,6 +141,60 @@ export function AdmissionReviewDetails({
     form.academic_level_label,
   ]);
 
+  const rows = (...fields: [string, keyof ReviewFormValues][]) =>
+    fields.map(([label, field]) => ({ label, value: displayValue(form[field]) }));
+  const sections = [
+    {
+      title: "Applicant and program", eyebrow: "Selection",
+      items: [
+        ...rows(["Applicant type", "applicant_type"]),
+        { label: "Branch", value: branchSummary },
+        { label: "Program type", value: formatProgramType(form.program_type) },
+        { label: "Program", value: selectedProgram },
+      ],
+    },
+    {
+      title: "Student details", eyebrow: "Student",
+      items: [
+        { label: "Student name", value: studentName },
+        ...rows(["Birth date", "student_birth_date"], ["Gender", "student_gender"],
+          ["Civil status", "student_civil_status"], ["Citizenship", "student_citizenship"],
+          ["Birthplace", "student_birthplace"], ["Religion", "student_religion"]),
+      ],
+    },
+    {
+      title: "Contact and address", eyebrow: "Contact",
+      items: [
+        ...rows(["Email", "contact_email"], ["Mobile number", "contact_phone"], ["Facebook", "contact_facebook"]),
+        { label: "Home address", value: homeAddress, fullWidth: true },
+      ],
+    },
+    {
+      title: "Previous school", eyebrow: "Academic record",
+      items: [
+        ...rows(["School name", "last_school_name"], ["Short name", "last_school_short_name"],
+          ["School ID", "last_school_id"], ["School type", "last_school_type"]),
+        { label: "School address", value: lastSchoolAddress, fullWidth: true },
+        ...rows(["Last school year", "last_school_year"], ["Year level completed", "last_school_year_level"],
+          ["Graduation date", "last_school_graduation_date"]),
+      ],
+    },
+    {
+      title: "Parent or guardian", eyebrow: "Guardian",
+      items: [
+        { label: "Guardian name", value: guardianName },
+        ...rows(["Relationship", "guardian_relationship"], ["Contact number", "guardian_contact_number"],
+          ["Occupation", "guardian_occupation"]),
+      ],
+    },
+    ...(form.current_student_record_id ? [{
+      title: "Verified current student record", eyebrow: "Verification",
+      items: rows(["Verified student", "current_student_verified_name"],
+        ["Latest school year", "current_student_verified_school_year"],
+        ["Verified program", "current_student_verified_program"], ["Verified branch", "current_student_verified_branch"]),
+    }] : []),
+  ];
+
   return (
     <div className="space-y-8">
       <div>
@@ -184,178 +238,11 @@ export function AdmissionReviewDetails({
             </div>
           </header>
 
-          <ResumeSection title="Applicant and program" eyebrow="Selection" first>
-            <ResumeRows
-              items={[
-                {
-                  label: "Applicant type",
-                  value: displayValue(form.applicant_type),
-                },
-                {
-                  label: "Branch",
-                  value: branchSummary,
-                },
-                {
-                  label: "Program type",
-                  value: formatProgramType(form.program_type),
-                },
-                {
-                  label: "Program",
-                  value: selectedProgram,
-                },
-              ]}
-            />
-          </ResumeSection>
-
-          <ResumeSection title="Student details" eyebrow="Student">
-            <ResumeRows
-              items={[
-                {
-                  label: "Student name",
-                  value: studentName,
-                },
-                {
-                  label: "Birth date",
-                  value: displayValue(form.student_birth_date),
-                },
-                {
-                  label: "Gender",
-                  value: displayValue(form.student_gender),
-                },
-                {
-                  label: "Civil status",
-                  value: displayValue(form.student_civil_status),
-                },
-                {
-                  label: "Citizenship",
-                  value: displayValue(form.student_citizenship),
-                },
-                {
-                  label: "Birthplace",
-                  value: displayValue(form.student_birthplace),
-                },
-                {
-                  label: "Religion",
-                  value: displayValue(form.student_religion),
-                },
-              ]}
-            />
-          </ResumeSection>
-
-          <ResumeSection title="Contact and address" eyebrow="Contact">
-            <ResumeRows
-              items={[
-                {
-                  label: "Email",
-                  value: displayValue(form.contact_email),
-                },
-                {
-                  label: "Mobile number",
-                  value: displayValue(form.contact_phone),
-                },
-                {
-                  label: "Facebook",
-                  value: displayValue(form.contact_facebook),
-                },
-                {
-                  label: "Home address",
-                  value: homeAddress,
-                  fullWidth: true,
-                },
-              ]}
-            />
-          </ResumeSection>
-
-          <ResumeSection title="Previous school" eyebrow="Academic record">
-            <ResumeRows
-              items={[
-                {
-                  label: "School name",
-                  value: displayValue(form.last_school_name),
-                },
-                {
-                  label: "Short name",
-                  value: displayValue(form.last_school_short_name),
-                },
-                {
-                  label: "School ID",
-                  value: displayValue(form.last_school_id),
-                },
-                {
-                  label: "School type",
-                  value: displayValue(form.last_school_type),
-                },
-                {
-                  label: "School address",
-                  value: lastSchoolAddress,
-                  fullWidth: true,
-                },
-                {
-                  label: "Last school year",
-                  value: displayValue(form.last_school_year),
-                },
-                {
-                  label: "Year level completed",
-                  value: displayValue(form.last_school_year_level),
-                },
-                {
-                  label: "Graduation date",
-                  value: displayValue(form.last_school_graduation_date),
-                },
-              ]}
-            />
-          </ResumeSection>
-
-          <ResumeSection title="Parent or guardian" eyebrow="Guardian">
-            <ResumeRows
-              items={[
-                {
-                  label: "Guardian name",
-                  value: guardianName,
-                },
-                {
-                  label: "Relationship",
-                  value: displayValue(form.guardian_relationship),
-                },
-                {
-                  label: "Contact number",
-                  value: displayValue(form.guardian_contact_number),
-                },
-                {
-                  label: "Occupation",
-                  value: displayValue(form.guardian_occupation),
-                },
-              ]}
-            />
-          </ResumeSection>
-
-          {form.current_student_record_id ? (
-            <ResumeSection
-              title="Verified current student record"
-              eyebrow="Verification"
-            >
-              <ResumeRows
-                items={[
-                  {
-                    label: "Verified student",
-                    value: displayValue(form.current_student_verified_name),
-                  },
-                  {
-                    label: "Latest school year",
-                    value: displayValue(form.current_student_verified_school_year),
-                  },
-                  {
-                    label: "Verified program",
-                    value: displayValue(form.current_student_verified_program),
-                  },
-                  {
-                    label: "Verified branch",
-                    value: displayValue(form.current_student_verified_branch),
-                  },
-                ]}
-              />
+          {sections.map((section, index) => (
+            <ResumeSection key={section.title} title={section.title} eyebrow={section.eyebrow} first={index === 0}>
+              <ResumeRows items={section.items} />
             </ResumeSection>
-          ) : null}
+          ))}
 
           {showConsent ? (
           <ResumeSection title="Declaration and consent" eyebrow="Final check">

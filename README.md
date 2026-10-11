@@ -25,19 +25,28 @@ Configure `.env` first. `dev` and `build` generate the Prisma client automatical
 
 `NEXT_PUBLIC_APP_URL` and `VERCEL_URL` are fallback base URLs when `APP_URL` is absent. Secrets stay in server modules and local environment configuration.
 
+## Public program catalog
+
+The homepage, Programs page, and course detail pages read their catalog from PostgreSQL. `program_groups` stores category descriptions, education levels, pathway headings, and display order. `programs` stores both admission data and public course details, including slugs, notes, overviews, topics, pathways, and category membership. Its `public_title` and `public_code` fields preserve public display names while keeping existing admission labels and codes intact.
+
+Public entries require `slug`, `publicTitle`, `publicCode`, `overview`, and `groupId`. Programs without these fields remain valid for admission and are excluded from public listings. Update course content directly in these database records; display icons are selected in `lib/public/programs.ts`. Branch availability comes from `sections`, independently of public catalog membership.
+
+This checkout contains the Prisma schema and an optional seed runner, with no configured seed modules or catalog SQL scripts. Set up a new database separately and populate its catalog records before serving public pages. Generating the Prisma client does not create tables or seed data.
+
 ## Architecture
 
 ```text
 app/
-  (public)/                 Public pages and admission workflow
-    admission/components/  Wizard, shared fields, dynamic steps, review
+  (public)/                 Public pages; layout owns navbar and footer
+    admission/components/  Field schema, wizard reducer, steps, review, confirmation
     admission/update/      Student updates and password setup
   login/                   Authentication page and actions
   portal/                  Authenticated pages
     admission/             Shared add/edit/import forms, modals, controls, actions
 components/
   public/                  Homepage sections
-  auth/                    Shared password setup form
+  auth/                    Shared password setup and unavailable-link UI
+  portal/                  Typed table, student columns, page header, grade skeleton
   ui/                      Used UI primitives
   app-sidebar*.tsx         Server data and client navigation
 hooks/                     Shared browser subscriptions
@@ -47,26 +56,35 @@ lib/
     admin.ts               Portal admission operations and spreadsheet imports
     catalog.ts             Branch and program queries, branch cache
     records.ts             Prisma selections, inferred query types, serialization
+    student-fields.ts      Submission/edit field names and profile validation
+    profile-data.ts        Shared student, address, guardian, and school write data
     student-update.ts      Signed links and transactional record updates
     student-password-reset.ts  Password setup and token consumption
     submission-store.ts    Transactional admission persistence
     validation.ts          Shared date, ID, contact, and school year validation
     types.ts, constants.ts Shared contracts and program rules
     resend.ts              SMTP/Resend delivery
-  auth.ts                  Password hashing, sessions, role guards
+  auth.ts                  Authentication, sessions, role guards; public auth exports
+  auth/credentials.ts      Email normalization, bcrypt and legacy scrypt verification
+  portal/admission-options.ts  Shared portal admission choices and ID serialization
+  public/
+    programs.ts            Database catalog queries and public course mapping
+    site.ts                School contact details and shared image URLs
   prisma.ts                Database client lifecycle
   student-grades.ts        Grades retrieval and transformation
   encryption.ts            Grades encryption
   utils.ts                 Shared formatting and class utilities
 prisma/                    Database schema and optional seed runner
-tests/                    Validation and record serialization tests
+tests/                     Admission, wizard, credentials, and grades regressions
 ```
 
 Pages compose queries and UI. Route `actions.ts` files define explicit async server boundaries and delegate admission business logic to `lib/admission`. Client components call those boundaries; imports of server record types use `import type`. Feature services do not import route or UI modules.
 
-Public form fields live in `form-sections.tsx` and reuse `form-fields.tsx`; student updates reuse the same field metadata. Portal add/edit forms share their definitions in `admitted-student-form.tsx`, with modal and control behavior in `admission-ui.tsx`. Dynamic verification/program steps stay separate because they have their own asynchronous state.
+Public form fields live in `form-schema.ts` and render through `form-fields.tsx` and `form-sections.tsx`. The same schema supplies empty values, step requirements, and student update fields. `wizard-state.ts` owns state transitions and dependency resets; `admission-wizard.tsx` connects them to server actions. `admission-confirmation.tsx` handles the slip and QR code. Portal add/edit forms share their definitions in `admitted-student-form.tsx`, with modal and control behavior in `admission-ui.tsx`.
 
-`records.ts` defines each Prisma selection once and derives query types from it. Update selections and serialization together when adding stored fields. Group components by feature and extract shared code when it has multiple consumers.
+`student-fields.ts` maps public submission keys to saved profile fields. Submission, admin edits, and secure updates reuse the builders in `profile-data.ts`. `records.ts` defines Prisma selections and saved profile serialization, including the edit/review mapping. When adding a stored field, update its schema, field map, UI definition, and serialization together.
+
+Portal tables use `components/portal/data-table.tsx`; admissions and students share their columns in `student-columns.tsx`. List and edit pages load admission options through `lib/portal/admission-options.ts`. Update common table markup or queries in these modules instead of copying it into each page.
 
 ## Checks
 
@@ -77,6 +95,6 @@ npm test
 npm run build
 ```
 
-On PowerShell systems with script execution disabled, use `npm.cmd` and `npx.cmd`. Production builds download the configured Google fonts and need access to Google Fonts. Tests cover calendar validation, database ID precision, contact rules, and admission record serialization without database access.
+On PowerShell systems with script execution disabled, use `npm.cmd` and `npx.cmd`. Production builds download the configured Google fonts and need access to Google Fonts. `npm test` discovers every `tests/*.test.ts` file. Tests cover wizard branching and resets, profile mapping and validation, record serialization, current and legacy passwords, and grades service responses without database access.
 
-The optional seed runner loads modules from `prisma/seed-data` in order. There are currently no seed modules; `npx prisma db seed` reports that and exits without changing database records. Generated Prisma files, build output, and environment files are ignored by Git.
+The optional seed runner loads enabled modules from `prisma/seed-data` in order. If modules are added, review their `down` handlers before running `npx prisma db seed`: the runner executes those handlers before `up`. With no modules configured, it exits without changing records. Generated Prisma files, build output, and environment files are ignored by Git.

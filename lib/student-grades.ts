@@ -1,5 +1,6 @@
 const DEFAULT_SEMESTER = "1stSem";
 const STUDENT_GRADES_FETCH_TIMEOUT_MS = 10_000;
+const NESTED_GRADE_LABELS = new Set(["prelim", "midterm", "prefinals", "finals", "ave", "remarks", "note"]);
 
 type GradeRecord = Record<string, unknown>;
 
@@ -33,192 +34,106 @@ export type StudentGradesResult =
       message: string;
     };
 
+function isRecord(value: unknown): value is GradeRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function hasValue(value: unknown) {
+  return value !== undefined && value !== null && value !== "";
+}
+
+function normalizeKey(key: string) {
+  return key.toLowerCase().replace(/[\s_-]+/g, "");
+}
+
 function getValue(record: GradeRecord, keys: string[]) {
   const entries = Object.entries(record);
-
   for (const key of keys) {
-    const directValue = record[key];
-
-    if (directValue !== undefined && directValue !== null && directValue !== "") {
-      return directValue;
-    }
-
-    const normalizedKey = key.toLowerCase().replace(/[\s_-]+/g, "");
-    const matchedEntry = entries.find(
-      ([entryKey, value]) =>
-        entryKey.toLowerCase().replace(/[\s_-]+/g, "") === normalizedKey &&
-        value !== undefined &&
-        value !== null &&
-        value !== ""
-    );
-
-    if (matchedEntry) {
-      return matchedEntry[1];
-    }
+    if (hasValue(record[key])) return record[key];
+    const normalizedKey = normalizeKey(key);
+    const match = entries.find(([entryKey, value]) => hasValue(value) && normalizeKey(entryKey) === normalizedKey);
+    if (match) return match[1];
   }
-
   return null;
 }
 
-function stringifyValue(value: unknown) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === "string" || typeof value === "number") {
-    return value;
-  }
-
-  return String(value);
-}
-
 function stringifyNullable(value: unknown) {
-  const stringified = stringifyValue(value)?.toString().trim() ?? null;
-
-  return stringified || null;
+  return value === null || value === undefined ? null : String(value).trim() || null;
 }
 
-function getNestedGradeValue(record: GradeRecord, label: string) {
-  const gradeItems = record.grades;
-
-  if (!Array.isArray(gradeItems)) {
-    return null;
-  }
-
-  const normalizedLabel = label.toLowerCase();
-  const match = gradeItems.find((item) => {
-    if (!item || typeof item !== "object") {
-      return false;
+function getNestedGrades(record: GradeRecord) {
+  const values = new Map<string, string | null>();
+  if (Array.isArray(record.grades)) {
+    for (const item of record.grades) {
+      if (!isRecord(item)) continue;
+      const label = stringifyNullable(item.Label)?.toLowerCase();
+      // The first matching label wins, including a blank value.
+      if (label && NESTED_GRADE_LABELS.has(label) && !values.has(label)) {
+        values.set(label, stringifyNullable(item.Value));
+      }
     }
-
-    const itemRecord = item as GradeRecord;
-
-    return stringifyNullable(itemRecord.Label)?.toLowerCase() === normalizedLabel;
-  });
-
-  if (!match || typeof match !== "object") {
-    return null;
   }
-
-  return stringifyNullable((match as GradeRecord).Value);
+  return values;
 }
 
 function normalizeGrade(record: GradeRecord): StudentGrade {
-  const subject =
-    stringifyValue(
-      getValue(record, [
-        "subject_title",
-        "subjectTitle",
-        "subject",
-        "subject_name",
-        "subjectName",
-        "description",
-        "course",
-      ])
-    ) ?? "Untitled subject";
+  const subject = getValue(record, [
+    "subject_title", "subjectTitle", "subject", "subject_name", "subjectName", "description", "course",
+  ]);
+  const grades = getNestedGrades(record);
 
   return {
-    subject: String(subject),
+    subject: subject === null ? "Untitled subject" : String(subject),
     code: stringifyNullable(getValue(record, ["subject_code", "subjectCode", "code"])),
     units: stringifyNullable(getValue(record, ["unit", "units", "credit", "credits"])),
     instructor_id: stringifyNullable(getValue(record, ["instructor_id", "teacher_id", "faculty_id"])),
     instructor_name: stringifyNullable(getValue(record, ["instructor_name", "teacher_name", "faculty_name"])),
-    prelim: getNestedGradeValue(record, "Prelim"),
-    midterm: getNestedGradeValue(record, "Midterm"),
-    prefinals: getNestedGradeValue(record, "Prefinals"),
-    finals: getNestedGradeValue(record, "Finals"),
-    average:
-      getNestedGradeValue(record, "Ave") ??
-      stringifyNullable(getValue(record, ["grade", "final_grade", "finalGrade", "average"])),
-    remarks:
-      getNestedGradeValue(record, "Remarks") ??
-      stringifyNullable(getValue(record, ["remarks", "remark", "status"])),
-    note: getNestedGradeValue(record, "Note"),
+    prelim: grades.get("prelim") ?? null,
+    midterm: grades.get("midterm") ?? null,
+    prefinals: grades.get("prefinals") ?? null,
+    finals: grades.get("finals") ?? null,
+    average: grades.get("ave") ?? stringifyNullable(getValue(record, ["grade", "final_grade", "finalGrade", "average"])),
+    remarks: grades.get("remarks") ?? stringifyNullable(getValue(record, ["remarks", "remark", "status"])),
+    note: grades.get("note") ?? null,
     raw: record,
   };
 }
 
 function extractGradeRows(payload: unknown): GradeRecord[] {
-  if (Array.isArray(payload)) {
-    return payload.filter(
-      (item): item is GradeRecord => typeof item === "object" && item !== null
-    );
-  }
-
-  if (!payload || typeof payload !== "object") {
-    return [];
-  }
-
-  const record = payload as GradeRecord;
-  const candidates = [
-    record.Grades,
-    record.grades,
-    record.data,
-    record.records,
-    record.subjects,
-    record.result,
-  ];
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      return candidate.filter(
-        (item): item is GradeRecord => typeof item === "object" && item !== null
-      );
-    }
-  }
-
-  return [];
+  const rows = Array.isArray(payload)
+    ? payload
+    : isRecord(payload)
+      ? ["Grades", "grades", "data", "records", "subjects", "result"].map((key) => payload[key]).find(Array.isArray)
+      : undefined;
+  return rows?.filter(isRecord) ?? [];
 }
 
 function isRealGradeRow(grade: StudentGrade) {
-  return !(
-    grade.code?.toLowerCase() === "code:" &&
-    grade.subject.toLowerCase() === "subject:"
-  );
+  return !(grade.code?.toLowerCase() === "code:" && grade.subject.toLowerCase() === "subject:");
 }
 
 function extractStudentName(payload: unknown) {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  return stringifyNullable((payload as GradeRecord).student_name);
+  return isRecord(payload) ? stringifyNullable(payload.student_name) : null;
 }
 
 export function normalizeSemester(value: string | string[] | undefined) {
   const semester = Array.isArray(value) ? value[0] : value;
-
-  if (semester === "2" || semester === "2ndSem") {
-    return "2ndSem";
-  }
-
-  return DEFAULT_SEMESTER;
+  return semester === "2" || semester === "2ndSem" ? "2ndSem" : DEFAULT_SEMESTER;
 }
 
 export async function getStudentGrades(
   studentNumber: string,
   semester: string
 ): Promise<StudentGradesResult> {
+  const failure = (message: string) => ({ success: false as const, semester, message });
   const endpoint = process.env.STUDENT_GRADES_APPS_SCRIPT_URL;
-
-  if (!endpoint) {
-    return {
-      success: false,
-      semester,
-      message: "Student grades Apps Script URL is not configured.",
-    };
-  }
+  if (!endpoint) return failure("Student grades Apps Script URL is not configured.");
 
   let url: URL;
-
   try {
     url = new URL(endpoint);
   } catch {
-    return {
-      success: false,
-      semester,
-      message: "Student grades Apps Script URL is not configured or malformed.",
-    };
+    return failure("Student grades Apps Script URL is not configured or malformed.");
   }
 
   url.searchParams.set("student_no", studentNumber);
@@ -226,17 +141,11 @@ export async function getStudentGrades(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      STUDENT_GRADES_FETCH_TIMEOUT_MS
-    );
+    const timeout = setTimeout(() => controller.abort(), STUDENT_GRADES_FETCH_TIMEOUT_MS);
     let response: Response;
-
     try {
       response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-        },
+        headers: { Accept: "application/json" },
         cache: "no-store",
         signal: controller.signal,
       });
@@ -244,30 +153,17 @@ export async function getStudentGrades(
       clearTimeout(timeout);
     }
 
-    if (!response.ok) {
-      return {
-        success: false,
-        semester,
-        message: `Grades service returned ${response.status}.`,
-      };
-    }
+    if (!response.ok) return failure(`Grades service returned ${response.status}.`);
 
     const payload: unknown = await response.json();
-    const rows = extractGradeRows(payload);
-    const grades = rows.map(normalizeGrade).filter(isRealGradeRow);
-
     return {
       success: true,
       semester,
       studentName: extractStudentName(payload),
-      grades,
+      grades: extractGradeRows(payload).map(normalizeGrade).filter(isRealGradeRow),
       raw: payload,
     };
   } catch {
-    return {
-      success: false,
-      semester,
-      message: "Unable to load grades right now.",
-    };
+    return failure("Unable to load grades right now.");
   }
 }

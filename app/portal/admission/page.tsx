@@ -1,249 +1,103 @@
 import { AddAdmittedStudentModal, BulkAdmitStudentsModal } from "@/app/portal/admission/admitted-student-form";
 import { AdmittedStudentActions } from "@/app/portal/admission/admitted-student-actions";
 import { AdmissionBranchFilter, ApplicationStatusSelect } from "@/app/portal/admission/admission-controls";
+import { PortalTable } from "@/components/portal/data-table";
+import { PortalCount, PortalEmptyState, PortalPageHeader } from "@/components/portal/page-header";
+import { studentColumns } from "@/components/portal/student-columns";
 import { requireAdmin } from "@/lib/auth";
 import { parseId } from "@/lib/admission/validation";
 import { ApplicationStatus } from "@/lib/generated/prisma/enums";
+import { getPortalAdmissionOptions } from "@/lib/portal/admission-options";
 import { prisma } from "@/lib/prisma";
-import { formatDate, formatStudentName } from "@/lib/utils";
-
-function formatStatusLabel(status: ApplicationStatus) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function parseBranchId(value: string | string[] | undefined) {
-  const branchId = Array.isArray(value) ? value[0] : value;
-
-  return parseId(branchId ?? "");
-}
+import { formatDate } from "@/lib/utils";
 
 type AdmissionPageProps = {
-  searchParams?: Promise<{
-    branchId?: string | string[];
-  }>;
+  searchParams?: Promise<{ branchId?: string | string[] }>;
 };
 
-export default async function AdmissionPage({
-  searchParams,
-}: AdmissionPageProps) {
+const applicationStatuses = [ApplicationStatus.reviewing, ApplicationStatus.approved, ApplicationStatus.rejected];
+
+export default async function AdmissionPage({ searchParams }: AdmissionPageProps) {
   await requireAdmin();
 
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  const selectedBranchId = parseBranchId(resolvedSearchParams.branchId);
-
-  const [admittedStudents, branches, programs, academicLevels] = await Promise.all([
+  const branchId = (await searchParams)?.branchId;
+  const selectedBranchId = parseId((Array.isArray(branchId) ? branchId[0] : branchId) ?? "");
+  const [admittedStudents, options] = await Promise.all([
     prisma.admissionApplication.findMany({
       where: {
-        applicationStatus: {
-          not: ApplicationStatus.approved,
-        },
+        applicationStatus: { not: ApplicationStatus.approved },
         ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
       },
-      orderBy: [
-        {
-          submittedAt: "desc",
-        },
-        {
-          createdAt: "desc",
-        },
-      ],
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
       select: {
         id: true,
         applicantType: true,
         applicationStatus: true,
         submittedAt: true,
-        academicLevels: {
-          select: {
-            label: true,
-          },
-        },
-        program: {
-          select: {
-            label: true,
-          },
-        },
+        academicLevels: { select: { label: true } },
+        program: { select: { label: true } },
         student: {
           select: {
-            email: true,
-            firstName: true,
-            lastName: true,
-            middleName: true,
-            phone: true,
-            studentNumber: true,
-            suffix: true,
+            email: true, firstName: true, lastName: true, middleName: true,
+            phone: true, studentNumber: true, suffix: true,
           },
         },
       },
     }),
-    prisma.branch.findMany({
-      orderBy: {
-        title: "asc",
-      },
-      select: {
-        id: true,
-        title: true,
-      },
-    }),
-    prisma.program.findMany({
-      orderBy: {
-        code: "asc",
-      },
-      select: {
-        id: true,
-        code: true,
-        label: true,
-        programType: true,
-      },
-    }),
-    prisma.academicLevels.findMany({
-      orderBy: {
-        id: "asc",
-      },
-      select: {
-        id: true,
-        label: true,
-      },
-    }),
+    getPortalAdmissionOptions(),
   ]);
-
-  const addStudentOptions = {
-    branches: branches.map((branch) => ({
-      id: branch.id.toString(),
-      title: branch.title,
-    })),
-    programs: programs.map((program) => ({
-      id: program.id.toString(),
-      code: program.code,
-      label: program.label,
-      programType: program.programType,
-    })),
-    academicLevels: academicLevels.map((level) => ({
-      id: level.id.toString(),
-      label: level.label,
-    })),
-  };
-  const applicationStatuses = [
-    ApplicationStatus.reviewing,
-    ApplicationStatus.approved,
-    ApplicationStatus.rejected,
-  ];
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <section className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-muted-foreground">Admission</p>
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-normal text-foreground">
-              Admitted Students
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Admission applications ready for review and enrollment processing.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-fit rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">
-                {admittedStudents.length}
-              </span>{" "}
-              applications
-            </div>
-            <BulkAdmitStudentsModal options={addStudentOptions} />
-            <AddAdmittedStudentModal options={addStudentOptions} />
-          </div>
+      <PortalPageHeader
+        label="Admission"
+        title="Admitted Students"
+        description="Admission applications ready for review and enrollment processing."
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <PortalCount count={admittedStudents.length} label="applications" />
+          <BulkAdmitStudentsModal options={options} />
+          <AddAdmittedStudentModal options={options} />
         </div>
-      </section>
+      </PortalPageHeader>
 
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="border-b border-border px-4 py-4">
-          <AdmissionBranchFilter
-            branches={addStudentOptions.branches}
-            selectedBranchId={selectedBranchId?.toString() ?? ""}
-          />
+          <AdmissionBranchFilter branches={options.branches} selectedBranchId={selectedBranchId?.toString() ?? ""} />
         </div>
         {admittedStudents.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-225 border-collapse text-left text-sm">
-              <thead className="border-b border-border bg-muted/50 text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Student</th>
-                  <th className="px-4 py-3 font-semibold">Student No.</th>
-                  <th className="px-4 py-3 font-semibold">Program</th>
-                  <th className="px-4 py-3 font-semibold">Contact</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Submitted</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {admittedStudents.map((application) => (
-                  <tr key={application.id.toString()} className="hover:bg-muted/30">
-                    <td className="px-4 py-4 align-top">
-                      <div className="font-medium text-foreground">
-                        {formatStudentName(application.student)}
-                      </div>
-                      <div className="mt-1 text-xs capitalize text-muted-foreground">
-                        {application.applicantType} applicant
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">
-                      {application.student.studentNumber ?? "Pending"}
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="font-medium text-foreground">
-                        {application.program.label}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {application.academicLevels.label}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-muted-foreground">
-                        {application.student.phone || "Pending"}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {application.student.email}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      {application.applicationStatus === ApplicationStatus.draft ? (
-                        <span className="inline-flex rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                          {formatStatusLabel(application.applicationStatus)}
-                        </span>
-                      ) : (
-                        <ApplicationStatusSelect
-                          applicationId={application.id.toString()}
-                          status={application.applicationStatus}
-                          statuses={applicationStatuses}
-                        />
-                      )}
-                    </td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">
-                      {formatDate(application.submittedAt)}
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <AdmittedStudentActions
-                        student={{
-                          applicationId: application.id.toString(),
-                          firstName: application.student.firstName,
-                          lastName: application.student.lastName,
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PortalTable<(typeof admittedStudents)[number]>
+            rows={admittedStudents}
+            rowKey={(application) => application.id.toString()}
+            className="min-w-225 border-collapse"
+            columns={[
+              studentColumns.student,
+              studentColumns.studentNumber,
+              studentColumns.program,
+              studentColumns.contact,
+              {
+                header: "Status",
+                cell: (application) => application.applicationStatus === ApplicationStatus.draft ? (
+                  <span className="inline-flex rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+                    {application.applicationStatus.charAt(0).toUpperCase() + application.applicationStatus.slice(1)}
+                  </span>
+                ) : (
+                  <ApplicationStatusSelect applicationId={application.id.toString()} status={application.applicationStatus} statuses={applicationStatuses} />
+                ),
+              },
+              { header: "Submitted", className: "text-muted-foreground", cell: (application) => formatDate(application.submittedAt) },
+              {
+                header: "Actions",
+                cell: (application) => <AdmittedStudentActions student={{
+                  applicationId: application.id.toString(),
+                  firstName: application.student.firstName,
+                  lastName: application.student.lastName,
+                }} />,
+              },
+            ]}
+          />
         ) : (
-          <div className="px-6 py-14 text-center">
-            <h2 className="text-base font-semibold text-foreground">
-              No admission applications yet
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Admission applications will appear here.
-            </p>
-          </div>
+          <PortalEmptyState title="No admission applications yet" description="Admission applications will appear here." />
         )}
       </section>
     </main>

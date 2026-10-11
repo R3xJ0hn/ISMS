@@ -15,7 +15,9 @@ import {
   SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
-import { parseId, parseDateInput, optionalText, readFormText, validateEmail, validatePhone, validateSchoolYear } from "@/lib/admission/validation";
+import { enumIncludes, parseId, parseDateInput, readFormFields, readFormText, validateEmail, validatePhone, validateSchoolYear } from "./validation";
+import { studentUpdateFields } from "./student-fields";
+import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
 import { prisma } from "@/lib/prisma";
 
 export type AddAdmittedStudentState = {
@@ -47,6 +49,14 @@ function isAcademicLevelAllowedForProgram(
   return allowedAcademicLevelSlugsByProgramType[programType].includes(
     academicLevel.slug
   );
+}
+
+function getAdminProgramSelection(branchId: bigint, programId: bigint, academicLevelsId: bigint) {
+  return Promise.all([
+    prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }),
+    prisma.program.findUnique({ where: { id: programId }, select: { id: true, programType: true } }),
+    prisma.academicLevels.findUnique({ where: { id: academicLevelsId }, select: { id: true, slug: true } }),
+  ]);
 }
 
 function normalizeHeader(value: unknown) {
@@ -210,8 +220,8 @@ export async function addAdmittedStudentAction(
   }
 
   if (
-    !Object.values(ApplicantType).includes(applicantType as ApplicantTypeValue) ||
-    !Object.values(Gender).includes(gender as (typeof Gender)[keyof typeof Gender]) ||
+    !enumIncludes(ApplicantType, applicantType) ||
+    !enumIncludes(Gender, gender) ||
     !validateEmail(email) ||
     !validatePhone(phone)
   ) {
@@ -221,34 +231,7 @@ export async function addAdmittedStudentAction(
     };
   }
 
-  const [branch, program, academicLevel] = await Promise.all([
-    prisma.branch.findUnique({
-      where: {
-        id: branchId,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.program.findUnique({
-      where: {
-        id: programId,
-      },
-      select: {
-        id: true,
-        programType: true,
-      },
-    }),
-    prisma.academicLevels.findUnique({
-      where: {
-        id: academicLevelsId,
-      },
-      select: {
-        id: true,
-        slug: true,
-      },
-    }),
-  ]);
+  const [branch, program, academicLevel] = await getAdminProgramSelection(branchId, programId, academicLevelsId);
 
   if (!branch || !program || !academicLevel) {
     return {
@@ -353,41 +336,14 @@ export async function bulkAdmitStudentsAction(
     };
   }
 
-  if (!Object.values(ApplicantType).includes(applicantType as ApplicantTypeValue)) {
+  if (!enumIncludes(ApplicantType, applicantType)) {
     return {
       success: false,
       message: "Select a valid applicant type.",
     };
   }
 
-  const [branch, program, academicLevel] = await Promise.all([
-    prisma.branch.findUnique({
-      where: {
-        id: branchId,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.program.findUnique({
-      where: {
-        id: programId,
-      },
-      select: {
-        id: true,
-        programType: true,
-      },
-    }),
-    prisma.academicLevels.findUnique({
-      where: {
-        id: academicLevelsId,
-      },
-      select: {
-        id: true,
-        slug: true,
-      },
-    }),
-  ]);
+  const [branch, program, academicLevel] = await getAdminProgramSelection(branchId, programId, academicLevelsId);
 
   if (!branch || !program || !academicLevel) {
     return {
@@ -755,47 +711,16 @@ export async function editAdmittedStudentAction(
   const programId = parseId(readFormText(formData, "programId"));
   const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
   const studentNumber = readFormText(formData, "studentNumber");
-  const firstName = readFormText(formData, "firstName");
-  const lastName = readFormText(formData, "lastName");
-  const middleName = readFormText(formData, "middleName");
-  const suffix = readFormText(formData, "suffix");
-  const birthDate = parseDateInput(readFormText(formData, "birthDate"));
-  const gender = readFormText(formData, "gender");
-  const civilStatus = readFormText(formData, "civilStatus");
-  const citizenship = readFormText(formData, "citizenship");
-  const birthplace = readFormText(formData, "birthplace");
-  const religion = readFormText(formData, "religion");
-  const email = readFormText(formData, "email").toLowerCase();
-  const phone = readFormText(formData, "phone");
-  const facebookAccount = readFormText(formData, "facebookAccount");
-  const addressHouseNumber = readFormText(formData, "addressHouseNumber");
-  const addressSubdivision = readFormText(formData, "addressSubdivision");
-  const addressStreet = readFormText(formData, "addressStreet");
-  const addressBarangay = readFormText(formData, "addressBarangay");
-  const addressCity = readFormText(formData, "addressCity");
-  const addressProvince = readFormText(formData, "addressProvince");
-  const addressPostalCode = readFormText(formData, "addressPostalCode");
-  const guardianFirstName = readFormText(formData, "guardianFirstName");
-  const guardianLastName = readFormText(formData, "guardianLastName");
-  const guardianMiddleName = readFormText(formData, "guardianMiddleName");
-  const guardianSuffix = readFormText(formData, "guardianSuffix");
-  const guardianRelationship = readFormText(formData, "guardianRelationship");
-  const guardianContactNumber = readFormText(formData, "guardianContactNumber");
-  const guardianOccupation = readFormText(formData, "guardianOccupation");
-  const lastSchoolName = readFormText(formData, "lastSchoolName");
-  const lastSchoolIdText = readFormText(formData, "lastSchoolId");
-  const lastSchoolShortName = readFormText(formData, "lastSchoolShortName");
-  const lastSchoolType = readFormText(formData, "lastSchoolType");
-  const lastSchoolHouseNumber = readFormText(formData, "lastSchoolHouseNumber");
-  const lastSchoolSubdivision = readFormText(formData, "lastSchoolSubdivision");
-  const lastSchoolStreet = readFormText(formData, "lastSchoolStreet");
-  const lastSchoolBarangay = readFormText(formData, "lastSchoolBarangay");
-  const lastSchoolCity = readFormText(formData, "lastSchoolCity");
-  const lastSchoolProvince = readFormText(formData, "lastSchoolProvince");
-  const lastSchoolPostalCode = readFormText(formData, "lastSchoolPostalCode");
-  const lastSchoolYear = readFormText(formData, "lastSchoolYear");
-  const lastSchoolYearLevel = readFormText(formData, "lastSchoolYearLevel");
-  const lastSchoolGraduationDate = readFormText(formData, "lastSchoolGraduationDate");
+  const profile = readFormFields(formData, studentUpdateFields);
+  profile.email = profile.email.toLowerCase();
+  const {
+    firstName, lastName, gender, civilStatus, birthplace, email, phone,
+    addressBarangay, addressCity, addressProvince,
+    guardianFirstName, guardianLastName, guardianRelationship, guardianContactNumber,
+    lastSchoolName, lastSchoolType, lastSchoolBarangay, lastSchoolCity, lastSchoolProvince,
+    lastSchoolYear, lastSchoolYearLevel, lastSchoolGraduationDate,
+  } = profile;
+  const birthDate = parseDateInput(profile.birthDate);
   const parsedLastSchoolGraduationDate = lastSchoolGraduationDate
     ? parseDateInput(lastSchoolGraduationDate)
     : null;
@@ -837,19 +762,11 @@ export async function editAdmittedStudentAction(
   }
 
   if (
-    !Object.values(Gender).includes(
-      gender as (typeof Gender)[keyof typeof Gender]
-    ) ||
-    !Object.values(ApplicantType).includes(
-      applicantType as ApplicantTypeValue
-    ) ||
+    !enumIncludes(Gender, gender) ||
+    !enumIncludes(ApplicantType, applicantType) ||
     (civilStatus &&
-      !Object.values(CivilStatus).includes(
-        civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus]
-      )) ||
-    !Object.values(SchoolType).includes(
-      lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType]
-    ) ||
+      !enumIncludes(CivilStatus, civilStatus)) ||
+    !enumIncludes(SchoolType, lastSchoolType) ||
     !validateEmail(email) ||
     !validatePhone(phone) ||
     !validatePhone(guardianContactNumber) ||
@@ -862,34 +779,7 @@ export async function editAdmittedStudentAction(
     };
   }
 
-  const [branch, program, academicLevel] = await Promise.all([
-    prisma.branch.findUnique({
-      where: {
-        id: branchId,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.program.findUnique({
-      where: {
-        id: programId,
-      },
-      select: {
-        id: true,
-        programType: true,
-      },
-    }),
-    prisma.academicLevels.findUnique({
-      where: {
-        id: academicLevelsId,
-      },
-      select: {
-        id: true,
-        slug: true,
-      },
-    }),
-  ]);
+  const [branch, program, academicLevel] = await getAdminProgramSelection(branchId, programId, academicLevelsId);
 
   if (!branch || !program || !academicLevel) {
     return {
@@ -943,15 +833,7 @@ export async function editAdmittedStudentAction(
         throw new Error("Student admission record not found.");
       }
 
-      const addressData = {
-        houseNumber: optionalText(addressHouseNumber),
-        subdivision: optionalText(addressSubdivision),
-        street: optionalText(addressStreet),
-        barangay: addressBarangay,
-        city: addressCity,
-        province: addressProvince,
-        postalCode: optionalText(addressPostalCode),
-      };
+      const addressData = addressDataFromProfile(profile, "address");
       let addressId: bigint;
 
       if (student.addressId) {
@@ -983,16 +865,9 @@ export async function editAdmittedStudentAction(
       }
 
       const primaryGuardianLink = student.guardians[0];
+      const guardianData = guardianDataFromProfile(profile);
 
       if (primaryGuardianLink) {
-        const guardianData = {
-          firstName: guardianFirstName,
-          lastName: guardianLastName,
-          middleName: optionalText(guardianMiddleName),
-          suffix: optionalText(guardianSuffix),
-          contactNumber: guardianContactNumber,
-          occupation: optionalText(guardianOccupation),
-        };
         const guardianLinkCount = await transaction.studentGuardian.count({
           where: {
             guardianId: primaryGuardianLink.guardianId,
@@ -1023,14 +898,7 @@ export async function editAdmittedStudentAction(
         });
       } else {
         const guardian = await transaction.guardian.create({
-          data: {
-            firstName: guardianFirstName,
-            lastName: guardianLastName,
-            middleName: optionalText(guardianMiddleName),
-            suffix: optionalText(guardianSuffix),
-            contactNumber: guardianContactNumber,
-            occupation: optionalText(guardianOccupation),
-          },
+          data: guardianData,
         });
         await transaction.studentGuardian.create({
           data: {
@@ -1042,15 +910,7 @@ export async function editAdmittedStudentAction(
         });
       }
 
-      const lastSchoolAddressData = {
-        houseNumber: optionalText(lastSchoolHouseNumber),
-        subdivision: optionalText(lastSchoolSubdivision),
-        street: optionalText(lastSchoolStreet),
-        barangay: lastSchoolBarangay,
-        city: lastSchoolCity,
-        province: lastSchoolProvince,
-        postalCode: optionalText(lastSchoolPostalCode),
-      };
+      const lastSchoolAddressData = addressDataFromProfile(profile, "lastSchool");
       const lastSchoolAddress = application.lastSchool?.addressId
         ? await transaction.address.update({
             where: {
@@ -1062,10 +922,7 @@ export async function editAdmittedStudentAction(
             data: lastSchoolAddressData,
           });
       const lastSchoolData = {
-        schoolName: lastSchoolName,
-        schoolId: optionalText(lastSchoolIdText),
-        shortName: optionalText(lastSchoolShortName),
-        schoolType: lastSchoolType as (typeof SchoolType)[keyof typeof SchoolType],
+        ...lastSchoolDataFromProfile(profile),
         addressId: lastSchoolAddress.id,
       };
       const lastSchool = application.lastSchoolId
@@ -1101,22 +958,8 @@ export async function editAdmittedStudentAction(
           id: studentId,
         },
         data: {
+          ...studentDataFromProfile(profile, birthDate),
           studentNumber,
-          firstName,
-          lastName,
-          middleName: optionalText(middleName),
-          suffix: optionalText(suffix),
-          birthDate,
-          gender: gender as (typeof Gender)[keyof typeof Gender],
-          civilStatus: civilStatus
-            ? (civilStatus as (typeof CivilStatus)[keyof typeof CivilStatus])
-            : null,
-          citizenship: optionalText(citizenship),
-          birthplace,
-          religion: optionalText(religion),
-          email,
-          phone,
-          facebookAccount: optionalText(facebookAccount),
           addressId,
         },
       });
