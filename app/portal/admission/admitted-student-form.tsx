@@ -22,11 +22,10 @@ import type { AdmittedStudentPayload } from "@/lib/admission/records";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
+import type { AdmissionEditOptions } from "@/lib/portal/admission-options";
 
 export type AdmittedStudentEditRecord = Omit<AdmittedStudentPayload, "reviewForm">;
-export type AdmittedStudentEditOptions = AdmissionOptions & {
-  academicLevels: Array<{ id: string; label: string; slug: string }>;
-};
+export type AdmittedStudentEditOptions = AdmissionEditOptions;
 
 const initialState = { success: false, message: "" } satisfies AddAdmittedStudentState;
 

@@ -8,6 +8,7 @@ import { Check, Facebook, MapPin, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAdmissionBranches } from "../actions";
 import type { AdmissionBranch } from "@/lib/admission/types";
+import { EXISTING_STUDENT, NEW_STUDENT } from "@/lib/admission/constants";
 import { SelectField } from "./form-fields";
 
 export type ApplicantFieldName =
@@ -33,13 +34,13 @@ type BranchesStatus = "loading" | "success" | "error";
 
 const applicantTypes: ApplicantType[] = [
   {
-    value: "New Student",
+    value: NEW_STUDENT,
     title: "New student",
     description:
       "For applicants starting a new college record with Datamex College of Saint Adeline.",
   },
   {
-    value: "Existing Student",
+    value: EXISTING_STUDENT,
     title: "Existing student",
     description:
       "For currently or previously enrolled DCSA students",
