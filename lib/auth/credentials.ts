@@ -1,6 +1,7 @@
 import { scrypt as scryptCallback, timingSafeEqual, type ScryptOptions } from "node:crypto";
 import { promisify } from "node:util";
 import { compare, hash } from "bcryptjs";
+import { parsePositiveSafeInteger } from "@/lib/utils";
 
 export const passwordHashDefaults = {
   algorithm: "bcrypt",
@@ -14,17 +15,8 @@ const scrypt = promisify(scryptCallback) as (
   password: string, salt: Buffer, keyLength: number, options: ScryptOptions
 ) => Promise<Buffer>;
 
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
 export function isBcryptHash(value: string) {
   return /^\$2[aby]\$/.test(value);
-}
-
-function parseStrictInteger(value: string) {
-  const parsed = /^\d+$/.test(value) ? Number.parseInt(value, 10) : NaN;
-  return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
 }
 
 async function verifyLegacyScryptHash(password: string, storedHash: string) {
@@ -36,9 +28,9 @@ async function verifyLegacyScryptHash(password: string, storedHash: string) {
     return false;
   }
 
-  const cost = parseStrictInteger(costText);
-  const blockSize = parseStrictInteger(blockSizeText);
-  const parallelization = parseStrictInteger(parallelizationText);
+  const cost = parsePositiveSafeInteger(costText);
+  const blockSize = parsePositiveSafeInteger(blockSizeText);
+  const parallelization = parsePositiveSafeInteger(parallelizationText);
   if (cost === null || blockSize === null || parallelization === null) return false;
 
   const expectedKey = Buffer.from(derivedKeyHex, "hex");

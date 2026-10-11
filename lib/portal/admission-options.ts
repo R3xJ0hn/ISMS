@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import type { AcademicLevelOption, BranchSummary, ProgramOption } from "@/lib/types/catalog";
 
 export type AdmissionOptions = {
-  branches: Array<{ id: string; title: string }>;
-  programs: Array<{ id: string; code: string; label: string; programType: string }>;
-  academicLevels: Array<{ id: string; label: string; slug?: string }>;
+  branches: Array<Pick<BranchSummary, "id" | "title">>;
+  programs: Array<Omit<ProgramOption, "academicLevels">>;
+  academicLevels: Array<Omit<AcademicLevelOption, "slug"> & { slug?: string }>;
 };
 
 export type AdmissionEditOptions = AdmissionOptions & {
-  academicLevels: Array<{ id: string; label: string; slug: string }>;
+  academicLevels: AcademicLevelOption[];
 };
 
 export async function getPortalAdmissionOptions(includeSlugs: true): Promise<AdmissionEditOptions>;

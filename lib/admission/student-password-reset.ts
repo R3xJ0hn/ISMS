@@ -1,5 +1,6 @@
-import { hashPassword, normalizeEmail } from "@/lib/auth";
-import { formatStudentName } from "@/lib/utils";
+import { hashPassword } from "@/lib/auth";
+import { formatStudentName, normalizeEmail } from "@/lib/utils";
+import { getPasswordValidationError } from "@/lib/validation";
 
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -85,39 +86,11 @@ export async function setStudentPortalPasswordFromToken(
   }
 
   const password = input.password;
-  const confirmPassword = input.confirmPassword;
-
-  if (!password || !confirmPassword) {
+  const passwordError = getPasswordValidationError(password, input.confirmPassword);
+  if (passwordError) {
     return {
       success: false,
-      message: "Password and confirmation are required.",
-    };
-  }
-
-  if (password.length < 8) {
-    return {
-      success: false,
-      message: "Password must be at least 8 characters.",
-    };
-  }
-
-  if (
-    !/[A-Z]/.test(password) ||
-    !/[a-z]/.test(password) ||
-    !/\d/.test(password) ||
-    !/[^A-Za-z0-9]/.test(password)
-  ) {
-    return {
-      success: false,
-      message:
-        "Password must include uppercase and lowercase letters, a number, and a special character.",
-    };
-  }
-
-  if (password !== confirmPassword) {
-    return {
-      success: false,
-      message: "Passwords do not match.",
+      message: passwordError,
     };
   }
 

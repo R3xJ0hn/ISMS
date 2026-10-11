@@ -1,6 +1,6 @@
 import type { CivilStatus, Gender, SchoolType } from "@/lib/generated/prisma/enums";
 import type { UpdateStudentRecordInput } from "./student-fields";
-import { optionalText } from "./validation";
+import { optionalText } from "@/lib/utils";
 
 export function addressDataFromProfile(input: UpdateStudentRecordInput, prefix: "address" | "lastSchool") {
   return {

@@ -49,7 +49,7 @@ export default async function ProgramDetailPage({ params }: ProgramPageProps) {
   return (
     <>
       <section className="relative overflow-hidden bg-primary text-white">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full border-[48px] border-white/5" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full border-48 border-white/5" />
         <div className="relative mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-14 lg:px-8">
           <nav aria-label="Breadcrumb">
             <ol className="flex flex-wrap items-center gap-2 text-sm text-white/75">

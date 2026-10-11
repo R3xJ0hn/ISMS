@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { MapPin, Phone, Facebook, ArrowUpRight } from "lucide-react";
 
 import { getAdmissionBranches } from "@/lib/admission/catalog";
-import type { AdmissionBranch } from "@/lib/admission/types";
+import type { Branch } from "@/lib/types/catalog";
 
 function InfoRow({
   icon,
@@ -21,7 +21,7 @@ function InfoRow({
   );
 }
 
-const BranchCard = ({ branch }: { branch: AdmissionBranch }) => (
+const BranchCard = ({ branch }: { branch: Branch }) => (
   <article
     className="
       group

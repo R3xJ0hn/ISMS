@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 
 import { getAdmissionProgramOptions } from "../actions";
-import type { AdmissionBranchSummary, AdmissionProgramOption } from "@/lib/admission/types";
+import type { AdmissionBranchSummary, AdmissionProgramOption } from "@/lib/types/admission";
 import { SelectField } from "./form-fields";
+import { formatProgramType } from "@/lib/utils";
 
 export type ProgramFieldName =
   | "branch_code"
@@ -37,19 +38,9 @@ type ProgramOptions = {
   status: "success" | "error";
 };
 
-const programTypeLabels: Record<string, string> = {
-  Bachelor: "Bachelor's Degree",
-  SeniorHigh: "Senior High School",
-  Associate: "Associate Degree",
-};
-
 const programTypeOrder = new Map(
   ["Bachelor", "SeniorHigh", "Associate"].map((value, index) => [value, index])
 );
-
-function formatProgramType(programType: string) {
-  return programTypeLabels[programType] ?? programType;
-}
 
 export default function ProgramStep({ form, onChange }: ProgramStepProps) {
   const [options, setOptions] = React.useState<ProgramOptions | null>(null);

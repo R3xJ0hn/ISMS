@@ -8,7 +8,7 @@ import {
 import {
   addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile,
 } from "../lib/admission/profile-data";
-import { readFormFields } from "../lib/admission/validation";
+import { readFormFields } from "../lib/utils";
 import { studentProfileFromRecord, type StudentUpdateQueryResult } from "../lib/admission/records";
 
 function studentFixture(): UpdateStudentRecordInput {

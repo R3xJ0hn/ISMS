@@ -1,4 +1,5 @@
-import { hashPassword, isBcryptHash, normalizeEmail, verifyPassword } from "@/lib/auth/credentials";
+import { hashPassword, isBcryptHash, verifyPassword } from "@/lib/auth/credentials";
+import { normalizeEmail } from "@/lib/utils";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -6,7 +7,7 @@ import { redirect } from "next/navigation";
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
-export { hashPassword, normalizeEmail, passwordHashDefaults } from "@/lib/auth/credentials";
+export { hashPassword, passwordHashDefaults } from "@/lib/auth/credentials";
 
 const SESSION_COOKIE_NAME = "isms_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -169,10 +170,6 @@ export async function getCurrentSession() {
   return verifySessionToken(token);
 }
 
-export function formatRoleLabel(role: UserRole) {
-  return role.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
-}
-
 export function isAdminRole(role: UserRole) {
   return role === "admin" || role === "superAdmin";
 }
@@ -186,5 +183,11 @@ export async function requireSession() {
 export async function requireAdmin() {
   const session = await getCurrentSession();
   if (!session || !isAdminRole(session.role)) redirect("/portal");
+  return session;
+}
+
+export async function requireSuperAdmin() {
+  const session = await requireSession();
+  if (session.role !== "superAdmin") redirect("/portal");
   return session;
 }

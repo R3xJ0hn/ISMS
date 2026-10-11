@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Phone, Mail, Menu, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isActivePath } from "@/lib/utils";
 import { SCHOOL } from "@/lib/public/site";
 
 const NAV_ITEMS = [
@@ -25,17 +25,13 @@ function isActiveLink(
     return item.label === "Home" && pathname === "/";
   }
 
-  return isActiveHref(pathname, item.href);
-}
-
-function isActiveHref(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return isActivePath(pathname, item.href);
 }
 
 export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const portalActive = isActiveHref(pathname, "/portal");
+  const portalActive = isActivePath(pathname, "/portal");
 
   function renderLinks(mobile = false) {
     return NAV_ITEMS.map((item) => {

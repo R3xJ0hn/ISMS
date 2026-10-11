@@ -8,7 +8,7 @@ import {
   getAdmissionBranches as getAdmissionBranchesFromServer,
   getAdmissionProgramOptions as getAdmissionProgramOptionsFromServer,
 } from "@/lib/admission/catalog";
-import type { VerifyCurrentStudentInput } from "@/lib/admission/types";
+import type { VerifyCurrentStudentInput } from "@/lib/types/admission";
 
 export async function getAdmissionBranches() {
   return getAdmissionBranchesFromServer();

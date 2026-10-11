@@ -7,7 +7,7 @@ import { Check, Facebook, MapPin, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { getAdmissionBranches } from "../actions";
-import type { AdmissionBranch } from "@/lib/admission/types";
+import type { AdmissionBranch } from "@/lib/types/admission";
 import { EXISTING_STUDENT, NEW_STUDENT } from "@/lib/admission/constants";
 import { SelectField } from "./form-fields";
 

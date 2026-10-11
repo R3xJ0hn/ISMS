@@ -1,51 +1,23 @@
-import type { StudentSubmissionProfile } from "./student-fields";
+import type { StudentSubmissionProfile } from "@/lib/admission/student-fields";
+import type { AcademicLevelOption, Address, Branch, BranchSummary, ProgramOption } from "./catalog";
 
-export type BranchAddress = {
-  houseNumber: string | null;
-  subdivision: string | null;
-  street: string | null;
-  barangay: string;
-  city: string;
-  province: string;
-  postalCode: string | null;
-};
-export type AdmissionBranch = {
-  id: string;
-  code: string;
-  title: string;
-  image: string | null;
-  phone: string | null;
-  facebookText: string | null;
-  mapLink: string | null;
-  address: BranchAddress | null;
-  formattedAddress: string;
-};
+export type BranchAddress = Address;
+export type AdmissionBranch = Branch;
+export type AdmissionBranchSummary = BranchSummary;
+export type AdmissionAcademicLevelOption = AcademicLevelOption;
+export type AdmissionProgramOption = ProgramOption;
+
 export type AdmissionBranchesResult = {
   branches: AdmissionBranch[];
   error?: string;
 };
-export type AdmissionBranchSummary = {
-  id: string;
-  title: string;
-  code: string;
-};
-export type AdmissionAcademicLevelOption = {
-  id: string;
-  label: string;
-  slug: string;
-};
-export type AdmissionProgramOption = {
-  id: string;
-  code: string;
-  label: string;
-  programType: string;
-  academicLevels: AdmissionAcademicLevelOption[];
-};
+
 export type AdmissionProgramOptionsResult = {
   branch?: AdmissionBranchSummary;
   programs: AdmissionProgramOption[];
   error?: string;
 };
+
 export type VerifyCurrentStudentInput = {
   branchId?: string;
   studentNumber?: string;
@@ -54,6 +26,7 @@ export type VerifyCurrentStudentInput = {
   lastName?: string;
   birthDate?: string;
 };
+
 export type VerifyCurrentStudentResult = {
   verified: boolean;
   message?: string;
@@ -69,6 +42,7 @@ export type VerifyCurrentStudentResult = {
     } | null;
   };
 };
+
 export type AdmissionSubmissionResult = {
   submitted: boolean;
   submissionId?: string;

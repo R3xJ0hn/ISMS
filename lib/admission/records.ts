@@ -1,6 +1,7 @@
 import { studentSubmissionFields, studentUpdateFields, type StudentSubmissionProfile, type StudentUpdateField } from "./student-fields";
-import type { ReviewFormValues } from "./types";
+import type { ReviewFormValues } from "@/lib/types/admission";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { optionalValue,formatDateInput } from "@/lib/utils";
 export const addressSelect = {
   houseNumber: true,
   subdivision: true,
@@ -205,16 +206,8 @@ export type StudentUpdateQueryResult = Prisma.StudentGetPayload<{
 }>;
 
 
-function formatDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
 function dateInputValue(date: Date | null | undefined) {
   return date ? formatDateInput(date) : "";
-}
-
-function optionalValue(value: string | null | undefined) {
-  return value ?? "";
 }
 
 type ProfileStudent = Omit<AdmittedStudentQueryResult["student"], "id" | "studentNumber">;

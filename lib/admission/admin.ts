@@ -15,10 +15,11 @@ import {
   SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
-import { enumIncludes, parseId, parseDateInput, readFormFields, readFormText, validateEmail, validatePhone, validateSchoolYear } from "./validation";
+import { parseDateInput, validateEmail, validatePhone, validateSchoolYear } from "@/lib/validation";
 import { studentUpdateFields } from "./student-fields";
 import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmail, normalizeHeader, enumIncludes, parseId,readFormFields, readFormText, formatDateInput} from "@/lib/utils";
 
 export type AddAdmittedStudentState = {
   success: boolean;
@@ -59,13 +60,6 @@ function getAdminProgramSelection(branchId: bigint, programId: bigint, academicL
   ]);
 }
 
-function normalizeHeader(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
-
 function readRowText(row: unknown[], columnIndex: number | undefined) {
   if (columnIndex === undefined) {
     return "";
@@ -74,7 +68,7 @@ function readRowText(row: unknown[], columnIndex: number | undefined) {
   const value = row[columnIndex];
 
   if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
+    return formatDateInput(value);
   }
 
   return String(value ?? "").trim();
@@ -82,7 +76,7 @@ function readRowText(row: unknown[], columnIndex: number | undefined) {
 
 function parseExcelDate(value: unknown) {
   if (value instanceof Date) {
-    return parseDateInput(value.toISOString().slice(0, 10));
+    return parseDateInput(formatDateInput(value));
   }
 
   if (typeof value === "number") {
@@ -187,7 +181,7 @@ export async function addAdmittedStudentAction(
   await requireAdmin();
 
   const studentNumber = readFormText(formData, "studentNumber");
-  const email = readFormText(formData, "email").toLowerCase();
+  const email = normalizeEmail(readFormText(formData, "email"));
   const firstName = readFormText(formData, "firstName");
   const lastName = readFormText(formData, "lastName");
   const birthDate = parseDateInput(readFormText(formData, "birthDate"));
@@ -447,7 +441,7 @@ export async function bulkAdmitStudentsAction(
     .map((row, index) => {
       const rowNumber = headerRowIndex + index + 2;
       const studentNumber = readRowText(row, columns.studentNumber);
-      const email = readRowText(row, columns.email).toLowerCase();
+      const email = normalizeEmail(readRowText(row, columns.email));
       const firstName = readRowText(row, columns.firstName);
       const lastName = readRowText(row, columns.lastName);
       const birthDate = parseExcelDate(row[columns.birthDate]);
@@ -712,7 +706,7 @@ export async function editAdmittedStudentAction(
   const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
   const studentNumber = readFormText(formData, "studentNumber");
   const profile = readFormFields(formData, studentUpdateFields);
-  profile.email = profile.email.toLowerCase();
+  profile.email = normalizeEmail(profile.email);
   const {
     firstName, lastName, gender, civilStatus, birthplace, email, phone,
     addressBarangay, addressCity, addressProvince,

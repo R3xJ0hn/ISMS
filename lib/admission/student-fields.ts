@@ -1,6 +1,6 @@
 import { CivilStatus, Gender, SchoolType } from "@/lib/generated/prisma/enums";
-import { normalizeText } from "@/lib/utils";
-import { enumIncludes, parseDateInput, validateEmail, validatePhone } from "./validation";
+import { normalizeText, enumIncludes } from "@/lib/utils";
+import { parseDateInput, validateEmail, validatePhone } from "@/lib/validation";
 
 // The public application uses snake case; record edit forms use these camel case keys.
 export const studentSubmissionFields = {

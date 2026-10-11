@@ -1,4 +1,4 @@
-import { optionalText } from "./validation";
+import { optionalText } from "@/lib/utils";
 import { EXISTING_STUDENT } from "./constants";
 import { studentProfileFromSubmission } from "./student-fields";
 import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";

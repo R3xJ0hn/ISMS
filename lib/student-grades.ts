@@ -1,3 +1,5 @@
+import { getRecordValue, isRecord, stringifyNullable } from "@/lib/utils";
+
 const DEFAULT_SEMESTER = "1stSem";
 const STUDENT_GRADES_FETCH_TIMEOUT_MS = 10_000;
 const NESTED_GRADE_LABELS = new Set(["prelim", "midterm", "prefinals", "finals", "ave", "remarks", "note"]);
@@ -34,33 +36,6 @@ export type StudentGradesResult =
       message: string;
     };
 
-function isRecord(value: unknown): value is GradeRecord {
-  return typeof value === "object" && value !== null;
-}
-
-function hasValue(value: unknown) {
-  return value !== undefined && value !== null && value !== "";
-}
-
-function normalizeKey(key: string) {
-  return key.toLowerCase().replace(/[\s_-]+/g, "");
-}
-
-function getValue(record: GradeRecord, keys: string[]) {
-  const entries = Object.entries(record);
-  for (const key of keys) {
-    if (hasValue(record[key])) return record[key];
-    const normalizedKey = normalizeKey(key);
-    const match = entries.find(([entryKey, value]) => hasValue(value) && normalizeKey(entryKey) === normalizedKey);
-    if (match) return match[1];
-  }
-  return null;
-}
-
-function stringifyNullable(value: unknown) {
-  return value === null || value === undefined ? null : String(value).trim() || null;
-}
-
 function getNestedGrades(record: GradeRecord) {
   const values = new Map<string, string | null>();
   if (Array.isArray(record.grades)) {
@@ -77,23 +52,23 @@ function getNestedGrades(record: GradeRecord) {
 }
 
 function normalizeGrade(record: GradeRecord): StudentGrade {
-  const subject = getValue(record, [
+  const subject = getRecordValue(record, [
     "subject_title", "subjectTitle", "subject", "subject_name", "subjectName", "description", "course",
   ]);
   const grades = getNestedGrades(record);
 
   return {
     subject: subject === null ? "Untitled subject" : String(subject),
-    code: stringifyNullable(getValue(record, ["subject_code", "subjectCode", "code"])),
-    units: stringifyNullable(getValue(record, ["unit", "units", "credit", "credits"])),
-    instructor_id: stringifyNullable(getValue(record, ["instructor_id", "teacher_id", "faculty_id"])),
-    instructor_name: stringifyNullable(getValue(record, ["instructor_name", "teacher_name", "faculty_name"])),
+    code: stringifyNullable(getRecordValue(record, ["subject_code", "subjectCode", "code"])),
+    units: stringifyNullable(getRecordValue(record, ["unit", "units", "credit", "credits"])),
+    instructor_id: stringifyNullable(getRecordValue(record, ["instructor_id", "teacher_id", "faculty_id"])),
+    instructor_name: stringifyNullable(getRecordValue(record, ["instructor_name", "teacher_name", "faculty_name"])),
     prelim: grades.get("prelim") ?? null,
     midterm: grades.get("midterm") ?? null,
     prefinals: grades.get("prefinals") ?? null,
     finals: grades.get("finals") ?? null,
-    average: grades.get("ave") ?? stringifyNullable(getValue(record, ["grade", "final_grade", "finalGrade", "average"])),
-    remarks: grades.get("remarks") ?? stringifyNullable(getValue(record, ["remarks", "remark", "status"])),
+    average: grades.get("ave") ?? stringifyNullable(getRecordValue(record, ["grade", "final_grade", "finalGrade", "average"])),
+    remarks: grades.get("remarks") ?? stringifyNullable(getRecordValue(record, ["remarks", "remark", "status"])),
     note: grades.get("note") ?? null,
     raw: record,
   };

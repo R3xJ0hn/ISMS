@@ -1,4 +1,4 @@
-import type { VerifyCurrentStudentInput, VerifyCurrentStudentResult, AdmissionSubmissionResult } from "./types";
+import type { VerifyCurrentStudentInput, VerifyCurrentStudentResult, AdmissionSubmissionResult } from "@/lib/types/admission";
 import { studentSubmissionFields } from "./student-fields";
 import { randomUUID } from "node:crypto";
 
@@ -12,18 +12,13 @@ import {
   saveAdmissionSubmission,
   type CanonicalAdmissionProgramSelection,
 } from "@/lib/admission/submission-store";
-import { sendStudentUpdateLinkEmail } from "@/lib/admission/resend";
+import { sendStudentUpdateLinkEmail } from "@/lib/admission/student-update-email";
 import { createStudentUpdateUrl } from "@/lib/admission/student-update";
-import {
-  enumIncludes,
-  parseDateInput,
-  validateEmail,
-  validatePhone,
-  validateSchoolYear,
-} from "@/lib/admission/validation";
+import { parseDateRange } from "@/lib/utils";
+import { parseDateInput, validateEmail, validatePhone, validateSchoolYear } from "@/lib/validation";
 import { allowedAcademicLevelSlugsByProgramType, EXISTING_STUDENT, NEW_STUDENT } from "./constants";
 import { prisma } from "@/lib/prisma";
-import { formatStudentName, normalizeName, normalizeText } from "@/lib/utils";
+import { formatStudentName, normalizeName, normalizeText, enumIncludes } from "@/lib/utils";
 
 const MISSING_FIELDS_MESSAGE =
   "Complete all verification fields before checking the record.";
@@ -149,14 +144,6 @@ function missingRequiredField(
   fields: readonly string[]
 ) {
   return fields.find((field) => !normalizeText(form[field])) ?? null;
-}
-
-function parseDateRange(value: string) {
-  const start = parseDateInput(value);
-  if (!start) return null;
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { start, end };
 }
 
 function firstInvalidField(

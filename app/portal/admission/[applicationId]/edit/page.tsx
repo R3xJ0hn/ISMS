@@ -1,9 +1,10 @@
+import { parseId } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 import { EditAdmittedStudentForm } from "@/app/portal/admission/admitted-student-form";
 import { admittedStudentInclude, serializeAdmittedStudent } from "@/lib/admission/records";
 import { requireAdmin } from "@/lib/auth";
-import { parseId } from "@/lib/admission/validation";
+
 import { getPortalAdmissionOptions } from "@/lib/portal/admission-options";
 import { prisma } from "@/lib/prisma";
 

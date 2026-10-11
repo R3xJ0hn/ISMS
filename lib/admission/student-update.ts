@@ -1,5 +1,5 @@
 import { studentProfileFromRecord, studentUpdateSelect, type StudentUpdateQueryResult } from "@/lib/admission/records";
-import { parseDateInput } from "./validation";
+import { parseDateInput } from "@/lib/validation";
 import { firstInvalidStudentUpdateField, normalizeStudentUpdateInput, type UpdateStudentRecordInput } from "./student-fields";
 import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";

@@ -2,10 +2,9 @@ import assert from "node:assert/strict";
 import { scryptSync } from "node:crypto";
 import { test } from "node:test";
 import { getRounds } from "bcryptjs";
-import { hashPassword, isBcryptHash, normalizeEmail, passwordHashDefaults, verifyPassword } from "../lib/auth/credentials";
+import { hashPassword, isBcryptHash, passwordHashDefaults, verifyPassword } from "../lib/auth/credentials";
 
-test("credentials normalize email and keep bcrypt password compatibility", async () => {
-  assert.equal(normalizeEmail(" Student@Example.COM "), "student@example.com");
+test("bcrypt passwords preserve stored-hash compatibility", async () => {
   const storedHash = await hashPassword("a valid password");
   assert.equal(getRounds(storedHash), passwordHashDefaults.rounds);
   assert.equal(isBcryptHash(storedHash), true);

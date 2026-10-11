@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, formatProgramType } from "@/lib/utils";
 
-import type { ReviewFormValues } from "@/lib/admission/types";
+import type { ReviewFormValues } from "@/lib/types/admission";
 
 
 type ReviewStepProps = {
@@ -26,19 +26,6 @@ function joinValues(values: string[]) {
 function joinInline(values: string[]) {
   const text = values.map((value) => value.trim()).filter(Boolean).join(" ");
   return text || "Not provided";
-}
-
-function formatProgramType(programType: string) {
-  switch (programType) {
-    case "Bachelor":
-      return "Bachelor's Degree";
-    case "SeniorHigh":
-      return "Senior High School";
-    case "Associate":
-      return "Associate Degree";
-    default:
-      return displayValue(programType);
-  }
 }
 
 function ResumeSection({
@@ -149,7 +136,7 @@ export function AdmissionReviewDetails({
       items: [
         ...rows(["Applicant type", "applicant_type"]),
         { label: "Branch", value: branchSummary },
-        { label: "Program type", value: formatProgramType(form.program_type) },
+        { label: "Program type", value: displayValue(formatProgramType(form.program_type)) },
         { label: "Program", value: selectedProgram },
       ],
     },

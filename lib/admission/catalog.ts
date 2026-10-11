@@ -1,16 +1,13 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { normalizeText } from "@/lib/utils";
+import { formatAddress, normalizeText } from "@/lib/utils";
 import { allowedAcademicLevelSlugsByProgramType } from "./constants";
 import { addressSelect } from "./records";
-import type { BranchAddress, AdmissionAcademicLevelOption, AdmissionBranchesResult, AdmissionProgramOptionsResult } from "./types";
+import type { AdmissionBranchesResult, AdmissionProgramOptionsResult } from "@/lib/types/admission";
+import type { AcademicLevelOption, ProgramOption } from "@/lib/types/catalog";
 
-type InternalProgramOption = {
-  id: string;
-  code: string;
-  label: string;
-  programType: string;
-  academicLevels: Map<string, AdmissionAcademicLevelOption>;
+type InternalProgramOption = Omit<ProgramOption, "academicLevels"> & {
+  academicLevels: Map<string, AcademicLevelOption>;
 };
 
 const branchSelect = {
@@ -40,24 +37,6 @@ const academicLevelOrder = new Map(
 const programTypeOrder = new Map(
   ["Bachelor", "SeniorHigh", "Associate"].map((value, index) => [value, index])
 );
-
-function formatAddress(address: BranchAddress | null) {
-  if (!address) {
-    return "";
-  }
-
-  return [
-    address.houseNumber,
-    address.street,
-    address.subdivision,
-    address.barangay,
-    address.city,
-    address.province,
-    address.postalCode,
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
 
 function sortAcademicLevels(
   left: { label: string; slug: string },
