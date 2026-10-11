@@ -1,3 +1,4 @@
+import { SCHOOL } from "@/lib/public/site";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -26,7 +27,7 @@ export default async function LoginPage() {
 
         <div className="relative hidden bg-primary text-white lg:block">
           <Image
-            src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772362161/uploads/uzmj1kgeurubodkbxpu4.jpg"
+            src={SCHOOL.assets.campus}
             alt="Datamex College of Saint Adeline campus"
             fill
             className="object-cover opacity-35"
@@ -46,7 +47,7 @@ export default async function LoginPage() {
             <div className="max-w-xl">
               <div className="mb-8 flex items-center gap-4">
                 <Image
-                  src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772363064/uploads/czeccbdle54njfottdz1.png"
+                  src={SCHOOL.assets.logo}
                   alt="Datamex College of Saint Adeline logo"
                   width={72}
                   height={72}
@@ -91,7 +92,7 @@ export default async function LoginPage() {
               <div className="mb-8 text-center">
                 <div className="mx-auto mb-5 grid size-20 place-items-center rounded-md bg-primary">
                   <Image
-                    src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772363064/uploads/czeccbdle54njfottdz1.png"
+                    src={SCHOOL.assets.logo}
                     alt="Datamex College of Saint Adeline logo"
                     width={56}
                     height={56}

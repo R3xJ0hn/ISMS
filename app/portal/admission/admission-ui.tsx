@@ -7,11 +7,7 @@ import { Dialog } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type AdmissionOptions = {
-  branches: Array<{ id: string; title: string }>;
-  programs: Array<{ id: string; code: string; label: string; programType: string }>;
-  academicLevels: Array<{ id: string; label: string; slug?: string }>;
-};
+export type { AdmissionOptions } from "@/lib/portal/admission-options";
 
 export function AdmissionField({
   label,
@@ -87,7 +83,7 @@ export function AdmissionModal({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[calc(100%_-_2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-background shadow-xl outline-none",
+            "fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-background shadow-xl outline-none",
             wide ? "max-w-5xl" : "max-w-3xl"
           )}
         >

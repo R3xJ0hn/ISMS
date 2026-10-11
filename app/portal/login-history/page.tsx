@@ -2,36 +2,11 @@ import { redirect } from "next/navigation";
 
 import { BadgeCheck, Clock, Globe2, Monitor, ShieldCheck } from "lucide-react";
 
-import { formatRoleLabel, isAdminRole, requireSession } from "@/lib/auth";
+import { isAdminRole, requireSession } from "@/lib/auth";
+import { formatRoleLabel, getDeviceLabel, formatDateTime} from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 100;
-
-const dateTimeFormatter = new Intl.DateTimeFormat("en-PH", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Manila",
-});
-
-function formatDateTime(value: Date) {
-  return dateTimeFormatter.format(value);
-}
-
-function getDeviceLabel(userAgent: string | null) {
-  if (!userAgent) {
-    return "Unknown device";
-  }
-
-  if (/iphone|ipad|android|mobile/i.test(userAgent)) {
-    return "Mobile browser";
-  }
-
-  if (/windows|macintosh|linux/i.test(userAgent)) {
-    return "Desktop browser";
-  }
-
-  return "Browser";
-}
 
 export default async function LoginHistoryPage() {
   const session = await requireSession();

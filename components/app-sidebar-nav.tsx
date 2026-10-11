@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  BookOpen,
   ClipboardList,
   GraduationCap,
   History,
@@ -29,6 +30,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
+import { isActivePath } from "@/lib/utils";
 
 type SidebarLinkItem = {
   title: string;
@@ -90,10 +92,6 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
   ];
 }
 
-function isItemActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 function hasChildren(item: SidebarItem): item is SidebarParentItem {
   return "children" in item;
 }
@@ -106,7 +104,7 @@ function SidebarParentNavItem({
   pathname: string;
 }) {
   const isActiveChild = item.children.some((child) =>
-    isItemActive(pathname, child.href)
+    isActivePath(pathname, child.href)
   );
   const [manuallyOpen, setManuallyOpen] = useState(false);
   const [manuallyClosedPath, setManuallyClosedPath] = useState<string | null>(
@@ -135,7 +133,7 @@ function SidebarParentNavItem({
             <SidebarMenuSubItem key={child.title}>
               <SidebarMenuSubButton
                 asChild
-                isActive={isItemActive(pathname, child.href)}
+                isActive={isActivePath(pathname, child.href)}
               >
                 <Link href={child.href}>
                   <child.icon />
@@ -155,26 +153,45 @@ export function AppSidebarNav({ role }: { role: UserRoleValue }) {
   const navigationItems = getSidebarItems(role);
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {navigationItems.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              {!hasChildren(item) ? (
-                <SidebarMenuButton asChild isActive={isItemActive(pathname, item.href)}>
-                  <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.title}</span>
+    <>
+      <SidebarGroup>
+        <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {navigationItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                {!hasChildren(item) ? (
+                  <SidebarMenuButton asChild isActive={isActivePath(pathname, item.href)}>
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarParentNavItem item={item} pathname={pathname} />
+                )}
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      {role === UserRole.superAdmin && (
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActivePath(pathname, "/portal/programs")}>
+                  <Link href="/portal/programs">
+                    <BookOpen />
+                    <span>Programs</span>
                   </Link>
                 </SidebarMenuButton>
-              ) : (
-                <SidebarParentNavItem item={item} pathname={pathname} />
-              )}
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
+    </>
   );
 }

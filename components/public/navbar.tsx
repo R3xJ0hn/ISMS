@@ -5,12 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Phone, Mail, Menu, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isActivePath } from "@/lib/utils";
+import { SCHOOL } from "@/lib/public/site";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
   { label: "Admissions", href: "/admission" },
-  { label: "Programs", href: "/" },
+  { label: "Programs", href: "/programs" },
   { label: "Branches", href: "/" },
   { label: "Contact", href: "/" },
   { label: "About Us", href: "/" },
@@ -24,17 +25,13 @@ function isActiveLink(
     return item.label === "Home" && pathname === "/";
   }
 
-  return isActiveHref(pathname, item.href);
-}
-
-function isActiveHref(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return isActivePath(pathname, item.href);
 }
 
 export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const portalActive = isActiveHref(pathname, "/portal");
+  const portalActive = isActivePath(pathname, "/portal");
 
   function renderLinks(mobile = false) {
     return NAV_ITEMS.map((item) => {
@@ -66,7 +63,7 @@ export default function Navbar() {
         <p className="whitespace-normal sm:whitespace-nowrap sm:truncate">
           This is not the official website of Datamex College of Saint Adeline.
           For official information, visit the school&apos;s
-          <a href="https://www.stadeline.education/" className="underline">
+          <a href={SCHOOL.contact.officialWebsite} className="underline">
             {" "}
             Official Website
           </a>
@@ -76,11 +73,11 @@ export default function Navbar() {
         <div className="hidden items-center gap-6 sm:flex">
           <div className="flex items-center gap-1">
             <Phone size={12} />
-            <span>(02) 921 8350</span>
+            <span>{SCHOOL.contact.phone}</span>
           </div>
           <div className="flex items-center gap-1">
             <Mail size={12} />
-            <span>datamex_registrar@stadeline.edu.ph</span>
+            <span>{SCHOOL.contact.email}</span>
           </div>
         </div>
       </div>
@@ -91,7 +88,7 @@ export default function Navbar() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <Image
-              src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772363064/uploads/czeccbdle54njfottdz1.png"
+              src={SCHOOL.assets.logo}
               alt="Logo"
               width={48}
               height={48}

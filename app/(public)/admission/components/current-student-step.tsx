@@ -7,12 +7,9 @@ import { cn } from "@/lib/utils";
 import { verifyCurrentStudent } from "../actions";
 import { TextField } from "./form-fields";
 
-export type CurrentStudentFieldName =
-  | "current_student_number"
-  | "current_student_email"
-  | "current_student_first_name"
-  | "current_student_last_name"
-  | "current_student_birth_date";
+import { currentStudentFields, type CurrentStudentFieldName } from "./form-schema";
+
+export type { CurrentStudentFieldName } from "./form-schema";
 
 export type CurrentStudentVerification = {
   recordId: string;
@@ -116,13 +113,7 @@ const CurrentStudentStep = React.forwardRef<
   const verifyRequestIdRef = React.useRef(0);
   const activeVerificationSignatureRef = React.useRef<string | null>(null);
 
-  const requiredComplete = Boolean(
-    form.current_student_number &&
-    form.current_student_email &&
-      form.current_student_first_name &&
-      form.current_student_last_name &&
-      form.current_student_birth_date
-  );
+  const requiredComplete = currentStudentFields.every(({ id }) => Boolean(form[id]));
   const verified = Boolean(form.current_student_record_id);
   const verifying = status === "verifying";
   const verificationSignature = [
@@ -299,60 +290,17 @@ const CurrentStudentStep = React.forwardRef<
       <PreviousSelectionSummary form={form} />
 
       <div className="grid gap-5 md:grid-cols-2">
-        <TextField
-          validationMessage={false}
-          id="current_student_number"
-          label="Student number"
-          value={form.current_student_number}
-          onChange={handleChange}
-          placeholder="Example: 2612345"
-          autoComplete="off"
-          required
-          disabled={verifying}
-        />
-        <TextField
-          validationMessage={false}
-          id="current_student_email"
-          label="Student email"
-          type="email"
-          value={form.current_student_email}
-          onChange={handleChange}
-          placeholder="name@example.com"
-          autoComplete="email"
-          required
-          disabled={verifying}
-        />
-        <TextField
-          validationMessage={false}
-          id="current_student_first_name"
-          label="First name"
-          value={form.current_student_first_name}
-          onChange={handleChange}
-          autoComplete="given-name"
-          required
-          disabled={verifying}
-        />
-        <TextField
-          validationMessage={false}
-          id="current_student_last_name"
-          label="Last name"
-          value={form.current_student_last_name}
-          onChange={handleChange}
-          autoComplete="family-name"
-          required
-          disabled={verifying}
-        />
-        <TextField
-          validationMessage={false}
-          id="current_student_birth_date"
-          label="Birth date"
-          type="date"
-          value={form.current_student_birth_date}
-          onChange={handleChange}
-          autoComplete="bday"
-          required
-          disabled={verifying}
-        />
+        {currentStudentFields.map((field) => (
+          <TextField
+            key={field.id}
+            {...field}
+            validationMessage={false}
+            value={form[field.id]}
+            onChange={handleChange}
+            required
+            disabled={verifying}
+          />
+        ))}
       </div>
 
       <div

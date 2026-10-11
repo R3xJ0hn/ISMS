@@ -3,10 +3,10 @@
 import { redirect } from "next/navigation";
 
 import { setStudentPortalPasswordFromToken } from "@/lib/admission/student-password-reset";
+import { readFormFields, readFormValue } from "@/lib/utils";
 import {
   studentUpdateFields,
   updateStudentRecordFromToken,
-  type UpdateStudentRecordInput,
 } from "@/lib/admission/student-update";
 
 export type UpdateStudentFormState = {
@@ -29,19 +29,13 @@ const passwordInitialState: SetStudentPasswordFormState = {
   message: "",
 };
 
-function readFormValue(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value : "";
-}
-
 export async function updateStudentInformation(
   _previousState: UpdateStudentFormState = initialState,
   formData: FormData
 ): Promise<UpdateStudentFormState> {
   void _previousState;
 
-  const tokenValue = formData.get("token");
-  const token = typeof tokenValue === "string" ? tokenValue : "";
+  const token = readFormValue(formData, "token");
 
   if (!token) {
     return {
@@ -50,9 +44,7 @@ export async function updateStudentInformation(
     };
   }
 
-  const input = Object.fromEntries(
-    studentUpdateFields.map((field) => [field, readFormValue(formData, field)])
-  ) as UpdateStudentRecordInput;
+  const input = readFormFields(formData, studentUpdateFields, { trim: false });
   const result = await updateStudentRecordFromToken(token, input);
 
   if (result.success) {
@@ -71,8 +63,7 @@ export async function setStudentPortalPassword(
 ): Promise<SetStudentPasswordFormState> {
   void _previousState;
 
-  const tokenValue = formData.get("token");
-  const token = typeof tokenValue === "string" ? tokenValue : "";
+  const token = readFormValue(formData, "token");
 
   if (!token) {
     return {

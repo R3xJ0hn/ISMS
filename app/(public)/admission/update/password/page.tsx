@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import { UnavailableLink } from "@/components/auth/unavailable-link";
 
-import Footer from "@/components/public/footer";
 import { getStudentUpdatePasswordRecord } from "@/lib/admission/student-password-reset";
 
 import SetStudentPasswordForm from "./set-student-password-form";
@@ -29,23 +29,10 @@ export default async function AdmissionUpdatePasswordPage({
           {student ? (
             <SetStudentPasswordForm student={student} />
           ) : (
-            <div className="rounded-2xl border border-red-200 bg-white p-8 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-700">
-                Link unavailable
-              </p>
-              <h1 className="mt-2 text-2xl font-bold text-gray-950">
-                This password setup link is invalid or has expired.
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-gray-600">
-                Return to the admission page and verify your current student
-                record again to request a new secure link.
-              </p>
-            </div>
+            <UnavailableLink kind="password" />
           )}
         </div>
       </section>
-
-      <Footer />
     </>
   );
 }

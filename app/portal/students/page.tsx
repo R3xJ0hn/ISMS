@@ -1,56 +1,28 @@
-import { formatStudentName, formatDate } from "@/lib/utils";
-
+import { PortalTable } from "@/components/portal/data-table";
+import { PortalCount, PortalEmptyState, PortalPageHeader } from "@/components/portal/page-header";
+import { studentColumns } from "@/components/portal/student-columns";
 import { requireAdmin } from "@/lib/auth";
 import { ApplicationStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-
-function optionalValue(value: string | null | undefined) {
-  return value || "Pending";
-}
+import { formatDate } from "@/lib/utils";
 
 export default async function StudentsPage() {
   await requireAdmin();
 
   const students = await prisma.admissionApplication.findMany({
-    where: {
-      applicationStatus: ApplicationStatus.approved,
-    },
-    orderBy: [
-      {
-        updatedAt: "desc",
-      },
-      {
-        submittedAt: "desc",
-      },
-    ],
+    where: { applicationStatus: ApplicationStatus.approved },
+    orderBy: [{ updatedAt: "desc" }, { submittedAt: "desc" }],
     select: {
       id: true,
       applicantType: true,
       updatedAt: true,
-      branch: {
-        select: {
-          title: true,
-        },
-      },
-      academicLevels: {
-        select: {
-          label: true,
-        },
-      },
-      program: {
-        select: {
-          label: true,
-        },
-      },
+      branch: { select: { title: true } },
+      academicLevels: { select: { label: true } },
+      program: { select: { label: true } },
       student: {
         select: {
-          email: true,
-          firstName: true,
-          lastName: true,
-          middleName: true,
-          phone: true,
-          studentNumber: true,
-          suffix: true,
+          email: true, firstName: true, lastName: true, middleName: true,
+          phone: true, studentNumber: true, suffix: true,
         },
       },
     },
@@ -58,91 +30,31 @@ export default async function StudentsPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <section className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-muted-foreground">Students</p>
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-normal text-foreground">
-              Approved Students
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Students moved here after their admission status is marked
-              approved.
-            </p>
-          </div>
-          <div className="w-fit rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">
-              {students.length}
-            </span>{" "}
-            approved
-          </div>
-        </div>
-      </section>
+      <PortalPageHeader
+        label="Students"
+        title="Approved Students"
+        description="Students moved here after their admission status is marked approved."
+      >
+        <PortalCount count={students.length} label="approved" />
+      </PortalPageHeader>
 
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         {students.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-225 border-collapse text-left text-sm">
-              <thead className="border-b border-border bg-muted/50 text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Student</th>
-                  <th className="px-4 py-3 font-semibold">Student No.</th>
-                  <th className="px-4 py-3 font-semibold">Program</th>
-                  <th className="px-4 py-3 font-semibold">Branch</th>
-                  <th className="px-4 py-3 font-semibold">Contact</th>
-                  <th className="px-4 py-3 font-semibold">Approved</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {students.map((application) => (
-                  <tr key={application.id.toString()} className="hover:bg-muted/30">
-                    <td className="px-4 py-4 align-top">
-                      <div className="font-medium text-foreground">
-                        {formatStudentName(application.student)}
-                      </div>
-                      <div className="mt-1 text-xs capitalize text-muted-foreground">
-                        {application.applicantType} applicant
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">
-                      {application.student.studentNumber ?? "Pending"}
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="font-medium text-foreground">
-                        {application.program.label}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {application.academicLevels.label}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">
-                      {application.branch.title}
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="text-muted-foreground">
-                        {optionalValue(application.student.phone)}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {application.student.email}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">
-                      {formatDate(application.updatedAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PortalTable<(typeof students)[number]>
+            rows={students}
+            rowKey={(application) => application.id.toString()}
+            className="min-w-225 border-collapse"
+            columns={[
+              studentColumns.student,
+              studentColumns.studentNumber,
+              studentColumns.program,
+              { header: "Branch", className: "text-muted-foreground", cell: (application) => application.branch.title },
+              studentColumns.contact,
+              { header: "Approved", className: "text-muted-foreground", cell: (application) => formatDate(application.updatedAt) },
+            ]}
+          />
         ) : (
-          <div className="px-6 py-14 text-center">
-            <h2 className="text-base font-semibold text-foreground">
-              No approved students yet
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Approved admission applications will appear here.
-            </p>
-          </div>
+          <PortalEmptyState title="No approved students yet" description="Approved admission applications will appear here." />
         )}
       </section>
     </main>

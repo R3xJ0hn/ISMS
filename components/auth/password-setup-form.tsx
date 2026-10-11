@@ -119,29 +119,14 @@ export function PasswordSetupForm({
           </div>
         ) : null}
 
-        <Field label="New password" htmlFor="password">
-          <input
-            id="password"
-            name="password"
-            type="password"
-            minLength={8}
-            required
-            autoComplete="new-password"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Confirm password" htmlFor="confirmPassword">
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            minLength={8}
-            required
-            autoComplete="new-password"
-            className={inputClass}
-          />
-        </Field>
+        {[
+          { name: "password", label: "New password" },
+          { name: "confirmPassword", label: "Confirm password" },
+        ].map(({ name, label }) => (
+          <Field key={name} label={label} htmlFor={name}>
+            <input id={name} name={name} type="password" minLength={8} required autoComplete="new-password" className={inputClass} />
+          </Field>
+        ))}
       </div>
 
       <div className="flex flex-col gap-4 border-t border-gray-200 bg-gray-50 px-5 py-5 sm:px-7">

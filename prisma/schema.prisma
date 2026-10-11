@@ -187,11 +187,35 @@ model Program {
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   programType   ProgramType
 
+  slug        String?  @unique @db.Text
+  publicTitle String?  @map("public_title") @db.Text
+  publicCode  String?  @map("public_code") @db.Text
+  note        String?  @db.Text
+  overview    String?  @db.Text
+  focusAreas  String[] @default([]) @map("focus_areas") @db.Text
+  pathways    String[] @default([]) @db.Text
+  sortOrder   Int      @default(0) @map("sort_order")
+  groupId     String?  @map("group_id") @db.Text
+
   enrollments  Enrollment[]
   applications AdmissionApplication[]
   sections     Section[]
+  group        ProgramGroup? @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
+  @@index([groupId, sortOrder])
   @@map("programs")
+}
+
+model ProgramGroup {
+  id             String    @id @db.Text
+  title          String    @db.Text
+  description    String    @db.Text
+  pathwayLabel   String    @map("pathway_label") @db.Text
+  educationLevel String    @map("education_level") @db.Text
+  sortOrder      Int       @default(0) @map("sort_order")
+  programs       Program[]
+
+  @@map("program_groups")
 }
 
 model AcademicLevels {

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 
 import { GradesView } from "@/app/portal/grades/grades-view";
+import { PortalTable } from "@/components/portal/data-table";
 import { requireSession } from "@/lib/auth";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -83,64 +84,26 @@ export default async function StudentGradesPage({ searchParams }: PageProps) {
               </h2>
             </div>
             {gradesResult.grades.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-240 text-left text-sm">
-                  <thead className="border-b border-border bg-muted/50 text-xs uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Code</th>
-                      <th className="px-4 py-3 font-semibold">Subject</th>
-                      <th className="px-4 py-3 font-semibold">Units</th>
-                      <th className="px-4 py-3 font-semibold">Instructor</th>
-                      <th className="px-4 py-3 font-semibold">Prelim</th>
-                      <th className="px-4 py-3 font-semibold">Midterm</th>
-                      <th className="px-4 py-3 font-semibold">Prefinals</th>
-                      <th className="px-4 py-3 font-semibold">Finals</th>
-                      <th className="px-4 py-3 font-semibold">Ave</th>
-                      <th className="px-4 py-3 font-semibold">Remarks</th>
-                      <th className="px-4 py-3 font-semibold">Note</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {gradesResult.grades.map((grade, index) => (
-                      <tr key={`${grade.code ?? grade.subject}-${index}`}>
-                        <td className="px-4 py-3 font-medium text-foreground">
-                          {grade.code ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-foreground">
-                          {grade.subject}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.units ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.instructor_name ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.prelim ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.midterm ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.prefinals ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.finals ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-foreground">
-                          {grade.average ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.remarks ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {grade.note ?? "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <PortalTable
+                rows={gradesResult.grades}
+                rowKey={(grade, index) => `${grade.code ?? grade.subject}-${index}`}
+                className="min-w-240"
+                cellClassName="px-4 py-3 text-muted-foreground"
+                rowClassName=""
+                columns={[
+                  { header: "Code", className: "font-medium text-foreground", cell: (grade) => grade.code ?? "-" },
+                  { header: "Subject", className: "text-foreground", cell: (grade) => grade.subject },
+                  { header: "Units", cell: (grade) => grade.units ?? "-" },
+                  { header: "Instructor", cell: (grade) => grade.instructor_name ?? "-" },
+                  { header: "Prelim", cell: (grade) => grade.prelim ?? "-" },
+                  { header: "Midterm", cell: (grade) => grade.midterm ?? "-" },
+                  { header: "Prefinals", cell: (grade) => grade.prefinals ?? "-" },
+                  { header: "Finals", cell: (grade) => grade.finals ?? "-" },
+                  { header: "Ave", className: "font-semibold text-foreground", cell: (grade) => grade.average ?? "-" },
+                  { header: "Remarks", cell: (grade) => grade.remarks ?? "-" },
+                  { header: "Note", cell: (grade) => grade.note ?? "-" },
+                ]}
+              />
             ) : (
               <div className="p-8 text-center">
                 <h2 className="text-sm font-semibold text-foreground">

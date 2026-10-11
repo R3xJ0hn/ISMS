@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { GradesTableSkeleton } from "@/components/portal/grades-table-skeleton";
 
 export default function Loading() {
   return (
@@ -12,28 +13,7 @@ export default function Loading() {
         <Skeleton className="h-10 w-48" />
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="border-b border-border px-4 py-3">
-          <Skeleton className="h-5 w-28" />
-        </div>
-        <div className="overflow-x-auto">
-          <div className="min-w-240">
-            {Array.from({ length: 8 }).map((_, rowIndex) => (
-              <div
-                key={rowIndex}
-                className="grid grid-cols-[0.8fr_2.4fr_repeat(9,0.8fr)] gap-4 border-b border-border px-4 py-4 last:border-b-0"
-              >
-                {Array.from({ length: 11 }).map((_, columnIndex) => (
-                  <Skeleton
-                    key={columnIndex}
-                    className={columnIndex === 1 ? "h-4 w-full" : "h-4 w-16"}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <GradesTableSkeleton />
     </main>
   );
 }

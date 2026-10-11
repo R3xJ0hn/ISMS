@@ -1,8 +1,8 @@
+import { SCHOOL } from "@/lib/public/site";
 import type { Metadata } from "next";
 import Image from "next/image";
 
 import AdmissionWizard from "@/app/(public)/admission/components/admission-wizard";
-import Footer from "@/components/public/footer";
 
 export const metadata: Metadata = {
   title: "Admissions | ISMS Application",
@@ -15,7 +15,7 @@ export default function AdmissionPage() {
     <>
       <section className="relative overflow-hidden bg-gray-950 text-white mb-3">
         <Image
-          src="https://res.cloudinary.com/dghjtnxjw/image/upload/v1772362161/uploads/uzmj1kgeurubodkbxpu4.jpg"
+          src={SCHOOL.assets.campus}
           alt="Datamex students preparing for admission"
           fill
           className="object-cover opacity-45"
@@ -37,8 +37,6 @@ export default function AdmissionPage() {
       </section>
 
       <AdmissionWizard />
-
-      <Footer />
     </>
   );
 }

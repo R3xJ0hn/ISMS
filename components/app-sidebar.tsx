@@ -12,10 +12,9 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { formatRoleLabel } from "@/lib/auth";
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { formatStudentName } from "@/lib/utils";
+import { formatRoleLabel, formatStudentName, getEmailDisplayName, getInitials } from "@/lib/utils";
 
 type AppSidebarProps = ComponentProps<typeof Sidebar> & {
   session: {
@@ -24,46 +23,6 @@ type AppSidebarProps = ComponentProps<typeof Sidebar> & {
     role: UserRoleValue;
   };
 };
-
-function toTitleCase(value: string) {
-  return value.replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function getDisplayName(email: string, role: UserRoleValue) {
-  const emailName = email.split("@")[0]?.trim() ?? "";
-  const normalizedEmailName = emailName
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[._-]+/g, " ")
-    .trim();
-  const roleLabel = formatRoleLabel(role);
-
-  if (!normalizedEmailName) {
-    return roleLabel;
-  }
-
-  if (
-    normalizedEmailName.replace(/\s+/g, "").toLowerCase() ===
-    roleLabel.replace(/\s+/g, "").toLowerCase()
-  ) {
-    return roleLabel;
-  }
-
-  return toTitleCase(normalizedEmailName.toLowerCase());
-}
-
-function getInitials(name: string) {
-  const words = name.split(/\s+/).filter(Boolean);
-
-  if (words.length === 0) {
-    return "U";
-  }
-
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
-
-  return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
-}
 
 export async function AppSidebar({ session, ...props }: AppSidebarProps) {
   const userId = /^\d+$/.test(session.id) ? BigInt(session.id) : null;
@@ -95,7 +54,7 @@ export async function AppSidebar({ session, ...props }: AppSidebarProps) {
 
   const displayName = student
     ? formatStudentName(student)
-    : getDisplayName(session.email, session.role);
+    : getEmailDisplayName(session.email, formatRoleLabel(session.role));
   const initials = getInitials(displayName);
 
   return (

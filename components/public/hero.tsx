@@ -2,6 +2,7 @@
 
 import Autoplay from "embla-carousel-autoplay";
 import * as React from "react";
+import { SCHOOL } from "@/lib/public/site";
 import {
   Carousel,
   CarouselContent,
@@ -199,7 +200,7 @@ export default function Hero() {
       {/* Background */}
       <div
         className="fixed -z-10 top-10 inset-0 bg-cover bg-center max-w-screen"
-        style={{ backgroundImage: "url('https://res.cloudinary.com/dghjtnxjw/image/upload/v1772361480/uploads/obfeeocicbq2qm95osmn.png')" }}
+        style={{ backgroundImage: `url('${SCHOOL.assets.hero}')` }}
       />
       <div className="absolute inset-0 bg-black/40 backdrop-blur-xs max-w-screen" />
 

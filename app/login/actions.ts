@@ -10,11 +10,11 @@ import {
   authenticateUser,
   clearSession,
   createSession,
-  normalizeEmail,
 } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmail,readFormValue } from "@/lib/utils";
 
 const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX_EMAIL_ATTEMPTS = 5;
@@ -40,11 +40,6 @@ const initialState: LoginFormState = {
   message: "",
   email: "",
 };
-
-function readFormValue(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value : "";
-}
 
 function getRateLimitKey(scope: "email" | "ip", value: string) {
   return `${scope}:${value}`;

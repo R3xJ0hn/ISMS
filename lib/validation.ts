@@ -2,19 +2,6 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^[+]?[\d\s()\-]{7,20}$/;
 const schoolYearPattern = /^(\d{4})(?:\s*-\s*(\d{4}))?$/;
 
-export function parseId(value: string) {
-  return /^\d+$/.test(value) ? BigInt(value) : null;
-}
-
-export function readFormText(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
-
-export function optionalText(value: string) {
-  return value || null;
-}
-
 export function parseDateInput(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;
@@ -67,4 +54,21 @@ export function validateSchoolYear(value: string) {
   }
 
   return endYear === startYear + 1;
+}
+
+export function getPasswordValidationError(password: string, confirmPassword: string) {
+  if (!password || !confirmPassword) {
+    return "Password and confirmation are required.";
+  }
+  if (password.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) ||
+      !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return "Password must include uppercase and lowercase letters, a number, and a special character.";
+  }
+  if (password !== confirmPassword) {
+    return "Passwords do not match.";
+  }
+  return null;
 }
