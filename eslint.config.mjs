@@ -5,6 +5,20 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    files: ["script/app-script.js"],
+    languageOptions: {
+      sourceType: "script",
+      globals: {
+        ContentService: "readonly",
+        SpreadsheetApp: "readonly",
+        PropertiesService: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", { varsIgnorePattern: "^doPost$" }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

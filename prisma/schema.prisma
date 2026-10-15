@@ -24,6 +24,15 @@ enum ProgramType {
   Associate
 }
 
+enum AcademicLevel {
+  Grade11
+  Grade12
+  FirstYear
+  SecondYear
+  ThirdYear
+  FourthYear
+}
+
 enum Gender {
   Male
   Female
@@ -32,14 +41,6 @@ enum Gender {
 enum CivilStatus {
   Single
   Married
-}
-
-enum EnrollmentStatus {
-  pending
-  enrolled
-  completed
-  cancelled
-  withdrawn
 }
 
 enum ApplicantType {
@@ -63,6 +64,47 @@ enum UserRole {
   student
 }
 
+enum VerificationTokenPurpose {
+  studentUpdate
+  emailVerification
+  passwordReset
+  teacherSetup
+}
+
+enum EmployeeStatus {
+  Regular
+  Probationary
+  Contractual
+  Resigned
+}
+
+enum EmployeeRole {
+  admin
+  registrar
+  teacher
+  nonTeaching
+}
+
+model SiteSetting {
+  id                 Int      @id @default(1)
+  aboutTitle         String   @map("about_title") @db.Text
+  aboutIntro         String   @map("about_intro") @db.Text
+  mission            String   @default("") @db.Text
+  vision             String   @default("") @db.Text
+  contactIntro       String   @default("") @map("contact_intro") @db.Text
+  contactEmail       String   @map("contact_email") @db.VarChar(320)
+  contactPhone       String   @map("contact_phone") @db.Text
+  contactAddress     String   @map("contact_address") @db.Text
+  officeHours        String   @default("") @map("office_hours") @db.Text
+  mapUrl             String   @default("") @map("map_url") @db.Text
+  facebookUrl        String   @default("") @map("facebook_url") @db.Text
+  officialWebsiteUrl String   @default("") @map("official_website_url") @db.Text
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("site_settings")
+}
+
 model User {
   id            BigInt   @id @default(autoincrement())
   email         String   @unique @db.VarChar(320)
@@ -70,13 +112,103 @@ model User {
   key           String?  @db.Text
   role          UserRole
   emailVerified Boolean  @default(false) @map("email_verified")
+  sessionVersion Int     @default(0) @map("session_version")
   userImage     String?  @map("user_image") @db.Text
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   loginHistory LoginHistory[]
+  verificationTokens VerificationToken[]
+  teacher      Teacher?
 
   @@map("users")
+}
+
+model Employee {
+  id              BigInt         @id @default(autoincrement())
+  employeeId      String         @unique @map("employee_id") @db.Text
+  firstName       String?        @map("first_name") @db.Text
+  lastName        String?        @map("last_name") @db.Text
+  middleName      String?        @map("middle_name") @db.Text
+  suffix          String?        @db.Text
+  birthDate       DateTime       @map("birth_date") @db.Date
+  placeOfBirth    String         @map("place_of_birth") @db.Text
+  gender          Gender
+  civilStatus     CivilStatus    @map("civil_status")
+  nationality     String         @db.Text
+  address         String         @db.Text
+  contactNumber   String         @map("contact_number") @db.Text
+  emailAddress    String         @unique @map("email_address") @db.VarChar(320)
+  tin             String?        @db.Text
+  sssNo           String?        @map("sss_no") @db.Text
+  philHealthNo    String?        @map("philhealth_no") @db.Text
+  pagIbigNo       String?        @map("pag_ibig_no") @db.Text
+  dateStarted     DateTime       @map("date_started") @db.Date
+  role            EmployeeRole
+  status          EmployeeStatus
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher Teacher?
+  verificationTokens VerificationToken[]
+
+  @@index([role, status])
+  @@map("employees")
+}
+
+model Teacher {
+  employeeId BigInt @id @map("employee_id")
+  userId     BigInt @unique @map("user_id")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  classes  Class[]
+
+  @@map("teachers")
+}
+
+model Class {
+  id             BigInt   @id @default(autoincrement())
+  branchId       BigInt?  @map("branch_id")
+  programId      BigInt?  @map("program_id")
+  subjectId      BigInt?  @map("subject_id")
+  schoolYear     String   @map("school_year") @db.Text
+  sectionName    String   @map("section_name") @db.Text
+  yearLevel      AcademicLevel @map("year_level")
+  teacherId      BigInt   @map("teacher_id")
+  subjectName    String   @map("subject_name") @db.Text
+  spreadsheetUrl String?  @map("spreadsheet_url") @db.Text
+  prelimVisible  Boolean  @default(true) @map("prelim_visible")
+  midtermVisible Boolean  @default(true) @map("midterm_visible")
+  prefinalsVisible Boolean @default(true) @map("prefinals_visible")
+  finalsVisible  Boolean  @default(true) @map("finals_visible")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  teacher Teacher @relation(fields: [teacherId], references: [employeeId], onDelete: Restrict)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  program Program? @relation(fields: [programId], references: [id], onDelete: Restrict)
+  subject Subject? @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  programSubject ProgramSubject? @relation(fields: [programId, subjectId], references: [programId, subjectId], onDelete: Restrict)
+  students ClassStudent[]
+
+  @@unique([teacherId, branchId, schoolYear, sectionName, yearLevel, programId, subjectId], map: "classes_assignment_key")
+  @@index([teacherId, schoolYear])
+  @@index([branchId, schoolYear])
+  @@index([programId, subjectId])
+  @@map("classes")
+}
+
+model ClassStudent {
+  classId   BigInt @map("class_id")
+  studentId BigInt @map("student_id")
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@id([classId, studentId])
+  @@index([studentId])
+  @@map("class_students")
 }
 
 model LoginHistory {
@@ -109,19 +241,23 @@ model LoginRateLimitBucket {
   @@map("login_rate_limit_buckets")
 }
 
-model StudentUpdateToken {
+model VerificationToken {
   id         BigInt    @id @default(autoincrement())
   jti        String    @unique @db.Uuid
-  studentId  BigInt    @map("student_id")
+  purpose    VerificationTokenPurpose @default(studentUpdate)
+  userId     BigInt?   @map("user_id")
+  employeeId BigInt?   @map("employee_id")
   expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
   consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  @@index([studentId])
   @@index([expiresAt])
-  @@map("student_update_tokens")
+  @@index([userId, purpose, createdAt])
+  @@index([employeeId, purpose, createdAt])
+  @@map("verification_tokens")
 }
 
 model Address {
@@ -172,9 +308,9 @@ model Branch {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
-  sections     Section[]
-  enrollments  Enrollment[]
+  branchPrograms BranchProgram[]
   applications AdmissionApplication[]
+  classes      Class[]
 
   @@map("branches")
 }
@@ -197,9 +333,10 @@ model Program {
   sortOrder   Int      @default(0) @map("sort_order")
   groupId     String?  @map("group_id") @db.Text
 
-  enrollments  Enrollment[]
+  branchPrograms BranchProgram[]
+  programSubjects ProgramSubject[]
+  classes Class[]
   applications AdmissionApplication[]
-  sections     Section[]
   group        ProgramGroup? @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
   @@index([groupId, sortOrder])
@@ -216,33 +353,6 @@ model ProgramGroup {
   programs       Program[]
 
   @@map("program_groups")
-}
-
-model AcademicLevels {
-  id        BigInt   @id @default(autoincrement())
-  label     String   @db.Text
-  slug      String   @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  enrollments  Enrollment[]
-  applications AdmissionApplication[]
-  sections     Section[]
-
-  @@unique([slug])
-  @@map("academic_levels")
-}
-
-model SchoolYear {
-  id        BigInt    @id @default(autoincrement())
-  name      String    @unique @db.Text
-  startDate DateTime? @map("start_date") @db.Date
-  endDate   DateTime? @map("end_date") @db.Date
-  isActive  Boolean   @default(false) @map("is_active")
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  enrollments Enrollment[]
-
-  @@map("school_years")
 }
 
 model Student {
@@ -268,8 +378,7 @@ model Student {
   address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
   guardians    StudentGuardian[]
   applications AdmissionApplication[]
-  enrollments  Enrollment[]
-  updateTokens StudentUpdateToken[]
+  classes      ClassStudent[]
 
   @@map("students")
 }
@@ -310,45 +419,45 @@ model StudentGuardian {
   @@map("student_guardians")
 }
 
-model Section {
-  id               BigInt   @id @default(autoincrement())
-  branchId         BigInt   @map("branch_id")
-  programId        BigInt   @map("program_id")
-  academicLevelsId BigInt   @map("academic_levels_id")
-  sectionCode      String   @map("section_code") @db.Text
-  sectionName      String   @map("section_name") @db.Text
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+model BranchProgram {
+  branchId  BigInt   @map("branch_id")
+  programId BigInt   @map("program_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  program        Program        @relation(fields: [programId], references: [id], onDelete: Cascade)
-  academicLevels AcademicLevels @relation(fields: [academicLevelsId], references: [id], onDelete: Cascade)
-  enrollments    Enrollment[]
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  program Program @relation(fields: [programId], references: [id], onDelete: Restrict)
 
-  @@unique([branchId, programId, academicLevelsId, sectionCode])
-  @@map("sections")
+  @@id([branchId, programId])
+  @@index([programId])
+  @@map("branch_program")
 }
 
-model Enrollment {
-  id               BigInt           @id @default(autoincrement())
-  studentId        BigInt           @map("student_id")
-  branchId         BigInt           @map("branch_id")
-  programId        BigInt           @map("program_id")
-  academicLevelsId BigInt           @map("academic_levels_id")
-  sectionId        BigInt?          @map("section_id")
-  schoolYearId     BigInt           @map("school_year_id")
-  enrollmentStatus EnrollmentStatus @default(pending) @map("enrollment_status")
-  enrolledAt       DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+model Subject {
+  id        BigInt   @id @default(autoincrement())
+  name      String   @unique @db.Text
+  code      String?  @unique @db.Text
+  units     Decimal? @db.Decimal(4, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  program        Program        @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicLevels AcademicLevels @relation(fields: [academicLevelsId], references: [id], onDelete: Restrict)
-  section        Section?       @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  schoolYear     SchoolYear     @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
+  programSubjects ProgramSubject[]
+  classes Class[]
 
-  @@unique([studentId, schoolYearId])
-  @@map("enrollments")
+  @@map("subjects")
+}
+
+model ProgramSubject {
+  programId BigInt   @map("program_id")
+  subjectId BigInt   @map("subject_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Restrict)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  classes Class[]
+
+  @@id([programId, subjectId])
+  @@index([subjectId])
+  @@map("program_subjects")
 }
 
 model AdmissionApplication {
@@ -365,7 +474,7 @@ model AdmissionApplication {
   branchId         BigInt      @map("branch_id")
   programType      ProgramType
   programId        BigInt      @map("program_id")
-  academicLevelsId BigInt      @map("academic_levels_id")
+  academicLevel    AcademicLevel @map("academic_level")
 
   remarks     String?   @db.Text
   submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
@@ -376,7 +485,6 @@ model AdmissionApplication {
   lastSchool     LastSchool?    @relation(fields: [lastSchoolId], references: [id], onDelete: SetNull)
   branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
   program        Program        @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicLevels AcademicLevels @relation(fields: [academicLevelsId], references: [id], onDelete: Restrict)
 
   @@map("admission_applications")
 }

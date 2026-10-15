@@ -2,10 +2,11 @@ import { hashPassword } from "@/lib/auth";
 import { formatStudentName, normalizeEmail } from "@/lib/utils";
 import { getPasswordValidationError } from "@/lib/validation";
 
+import { Prisma } from "@/lib/generated/prisma/client";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
-import { verifyStudentUpdateToken } from "./student-update";
+import { studentTokenWhere, verifyStudentUpdateToken } from "./student-update";
 
 export type StudentUpdatePasswordRecord = {
   token: string;
@@ -19,6 +20,10 @@ export type SetStudentPasswordInput = {
   confirmPassword: string;
 };
 
+function invalidLinkResult() {
+  return { success: false, message: "This password setup link is invalid or has expired." };
+}
+
 export async function getStudentUpdatePasswordRecord(token: string) {
   const payload = verifyStudentUpdateToken(token);
 
@@ -26,25 +31,12 @@ export async function getStudentUpdatePasswordRecord(token: string) {
     return null;
   }
 
-  const tokenRecord = await prisma.studentUpdateToken.findUnique({
-    where: {
-      jti: payload.jti,
-    },
-    select: {
-      studentId: true,
-      consumedAt: true,
-      expiresAt: true,
-    },
+  const tokenRecord = await prisma.verificationToken.findFirst({
+    where: studentTokenWhere(payload),
+    select: { userId: true },
   });
 
-  if (
-    !tokenRecord ||
-    tokenRecord.studentId !== BigInt(payload.studentId) ||
-    tokenRecord.consumedAt ||
-    tokenRecord.expiresAt <= new Date()
-  ) {
-    return null;
-  }
+  if (!tokenRecord || tokenRecord.userId === null) return null;
 
   const student = await prisma.student.findUnique({
     where: {
@@ -64,6 +56,10 @@ export async function getStudentUpdatePasswordRecord(token: string) {
     return null;
   }
 
+  const account = await prisma.user.findUnique({ where: { id: tokenRecord.userId }, select: { email: true, role: true, sessionVersion: true } });
+  if (!account || account.role !== UserRole.student || normalizeEmail(account.email) !== normalizeEmail(student.email) ||
+    account.sessionVersion !== (payload.sessionVersion ?? 0) || account.sessionVersion >= 2147483647) return null;
+
   return {
     token,
     studentId: student.id.toString(),
@@ -79,10 +75,7 @@ export async function setStudentPortalPasswordFromToken(
   const payload = verifyStudentUpdateToken(token);
 
   if (!payload) {
-    return {
-      success: false,
-      message: "This password setup link is invalid or has expired.",
-    };
+    return invalidLinkResult();
   }
 
   const password = input.password;
@@ -93,114 +86,53 @@ export async function setStudentPortalPasswordFromToken(
       message: passwordError,
     };
   }
+  if (new TextEncoder().encode(password).length > 72) {
+    return { success: false, message: "Password must be no more than 72 UTF-8 bytes." };
+  }
 
   try {
-    const student = await prisma.student.findUnique({
-      where: {
-        id: BigInt(payload.studentId),
-      },
-      select: {
-        email: true,
-      },
-    });
+    return await prisma.$transaction(async (tx) => {
+      const tokenRecord = await tx.verificationToken.findFirst({
+        where: studentTokenWhere(payload), select: { userId: true },
+      });
+      if (!tokenRecord || tokenRecord.userId === null) return invalidLinkResult();
 
-    if (!student) {
-      return {
-        success: false,
-        message: "Student record not found.",
-      };
-    }
+      const student = await tx.student.findUnique({
+        where: { id: BigInt(payload.studentId) }, select: { email: true },
+      });
+      if (!student) return { success: false, message: "Student record not found." };
 
-    const tokenRecord = await prisma.studentUpdateToken.findUnique({
-      where: {
-        jti: payload.jti,
-      },
-      select: {
-        studentId: true,
-        consumedAt: true,
-        expiresAt: true,
-      },
-    });
+      const email = normalizeEmail(student.email);
+      const existingUser = await tx.user.findUnique({
+        where: { id: tokenRecord.userId },
+        select: { id: true, email: true, role: true, emailVerified: true, passwordHash: true, sessionVersion: true },
+      });
+      if (!existingUser || existingUser.role !== UserRole.student || normalizeEmail(existingUser.email) !== email ||
+        existingUser.sessionVersion !== (payload.sessionVersion ?? 0) || existingUser.sessionVersion >= 2147483647) {
+        return { success: false, message: "The student account changed. Request a new password setup link." };
+      }
+      const passwordHash = await hashPassword(password);
 
-    if (
-      !tokenRecord ||
-      tokenRecord.studentId !== BigInt(payload.studentId) ||
-      tokenRecord.consumedAt ||
-      tokenRecord.expiresAt <= new Date()
-    ) {
-      return {
-        success: false,
-        message: "This password setup link is invalid or has expired.",
-      };
-    }
-
-    const email = normalizeEmail(student.email);
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-        role: true,
-      },
-    });
-
-    if (existingUser && existingUser.role !== UserRole.student) {
-      return {
-        success: false,
-        message: "This email address is already used by another portal account.",
-      };
-    }
-
-    const passwordHash = await hashPassword(password);
-
-    await prisma.$transaction(async (tx) => {
-      const consumedToken = await tx.studentUpdateToken.updateMany({
-        where: {
-          jti: payload.jti,
-          studentId: BigInt(payload.studentId),
-          consumedAt: null,
-          expiresAt: {
-            gt: new Date(),
-          },
-        },
-        data: {
-          consumedAt: new Date(),
-        },
+      const consumedToken = await tx.verificationToken.updateMany({
+        where: { ...studentTokenWhere(payload), userId: tokenRecord.userId },
+        data: { consumedAt: new Date() },
       });
 
       if (consumedToken.count !== 1) {
         throw new Error("Student update token was already consumed.");
       }
 
-      if (existingUser) {
-        await tx.user.update({
-          where: {
-            id: existingUser.id,
-          },
-          data: {
-            passwordHash,
-            emailVerified: true,
-          },
-        });
-      } else {
-        await tx.user.create({
-          data: {
-            email,
-            passwordHash,
-            role: UserRole.student,
-            emailVerified: true,
-          },
-        });
-      }
-    });
-
-    return {
-      success: true,
-      message: "Your portal password has been set.",
-    };
-  } catch (error) {
-    console.error("Failed to set student portal password:", error);
+      const provesCurrentEmail = payload.email !== undefined && payload.email === email;
+      const updatedUser = await tx.user.updateMany({
+        where: { id: existingUser.id, email: existingUser.email, role: UserRole.student,
+          passwordHash: existingUser.passwordHash, sessionVersion: existingUser.sessionVersion },
+        data: { passwordHash, emailVerified: provesCurrentEmail || existingUser.emailVerified, sessionVersion: { increment: 1 } },
+      });
+      if (updatedUser.count !== 1) throw new Error("Student account changed while setting its password.");
+      return { success: true, message: "Your portal password has been set." };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch {
+    console.error("Failed to set student portal password.");
 
     return {
       success: false,

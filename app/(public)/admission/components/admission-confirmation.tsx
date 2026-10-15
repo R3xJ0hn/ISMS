@@ -105,17 +105,17 @@ export default function AdmissionConfirmationView({
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-4xl items-center">
-      <div className="w-full rounded-lg border border-emerald-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+    <div className="mx-auto flex h-full min-w-0 max-w-4xl items-center">
+      <div className="min-w-0 w-full rounded-lg border border-emerald-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-start">
           <div className="grid size-11 shrink-0 place-items-center rounded-md bg-emerald-600 text-white">
             <FileCheck2 size={20} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 sm:text-sm sm:tracking-[0.18em]">
               Submission received
             </p>
-            <h3 className="mt-1 text-2xl font-bold text-gray-950">
+            <h3 className="mt-1 text-xl font-bold text-gray-950 sm:text-2xl">
               Proceed to registrar manual review.
             </h3>
             <p className="mt-3 text-sm leading-6 text-gray-700">
@@ -124,18 +124,18 @@ export default function AdmissionConfirmationView({
               office for checking and next-step processing.
             </p>
 
-            <dl className="mt-5 grid gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
-              <div>
+            <dl className="mt-4 grid gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm sm:mt-5 sm:grid-cols-2 sm:p-4">
+              <div className="min-w-0">
                 <dt className="font-semibold text-gray-600">
                   Submission reference
                 </dt>
-                <dd className="mt-1 font-mono text-3xl font-bold tracking-wider text-gray-950">
+                <dd className="mt-1 font-mono text-2xl font-bold tracking-wider text-gray-950 [overflow-wrap:anywhere] sm:text-3xl">
                   {confirmation.submissionId}
                 </dd>
               </div>
-              <div>
+              <div className="min-w-0">
                 <dt className="font-semibold text-gray-600">Submitted at</dt>
-                <dd className="mt-1 text-gray-950">
+                <dd className="mt-1 leading-6 text-gray-950">
                   {new Intl.DateTimeFormat("en-PH", {
                     dateStyle: "medium",
                     timeStyle: "short",
@@ -144,7 +144,7 @@ export default function AdmissionConfirmationView({
               </div>
             </dl>
 
-            <div className="mt-5 rounded-lg border border-secondary/25 bg-secondary/5 p-4">
+            <div className="mt-4 rounded-lg border border-secondary/25 bg-secondary/5 p-3 sm:mt-5 sm:p-4">
               <p className="text-sm font-semibold text-gray-950">
                 Registrar office requirements
               </p>
@@ -154,19 +154,19 @@ export default function AdmissionConfirmationView({
             </div>
           </div>
 
-          <div className="w-full shrink-0 rounded-lg border border-gray-200 bg-white p-4 text-center lg:w-64">
+          <div className="mx-auto w-full min-w-0 max-w-xs shrink-0 rounded-lg border border-gray-200 bg-white p-3 text-center sm:p-4 lg:w-64">
             <div className="mx-auto grid size-10 place-items-center rounded-md bg-primary/10 text-primary">
               <QrCode size={18} aria-hidden="true" />
             </div>
             <canvas
               ref={qrCanvasRef}
-              className="mx-auto mt-3 size-44"
+              className="mx-auto mt-3 h-auto w-44 max-w-full"
               aria-label={`QR code for submission reference ${confirmation.submissionId}`}
             />
             <button
               type="button"
               onClick={downloadSlip}
-              className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90"
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white transition hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:min-h-11 sm:px-4"
             >
               <Download size={16} aria-hidden="true" />
               Download PNG

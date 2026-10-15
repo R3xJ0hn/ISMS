@@ -43,22 +43,6 @@ export function AdmissionSelect({ className, ...props }: ComponentProps<"select"
   );
 }
 
-export function ActionMessage({ success, message }: { success: boolean; message: string }) {
-  return message ? (
-    <p
-      role="status"
-      className={cn(
-        "rounded-md border px-3 py-2 text-sm",
-        success
-          ? "border-green-200 bg-green-50 text-green-700"
-          : "border-destructive/30 bg-destructive/10 text-destructive"
-      )}
-    >
-      {message}
-    </p>
-  ) : null;
-}
-
 export function AdmissionModal({
   open,
   onOpenChange,

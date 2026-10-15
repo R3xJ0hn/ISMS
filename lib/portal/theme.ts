@@ -36,3 +36,20 @@ export const portalTheme = {
   "--sidebar-border": "oklch(0.922 0 0)",
   "--sidebar-ring": "oklch(0.708 0 0)",
 } as CSSProperties;
+
+export const classroomTheme = {
+  ...portalTheme,
+  "--background": "#f8fafc",
+  "--foreground": "#202124",
+  "--card": "#ffffff",
+  "--card-foreground": "#202124",
+  "--primary": "#1967d2",
+  "--primary-foreground": "#ffffff",
+  "--accent": "#e8f0fe",
+  "--accent-foreground": "#174ea6",
+  "--muted": "#f1f3f4",
+  "--muted-foreground": "#5f6368",
+  "--border": "#dadce0",
+  "--input": "#dadce0",
+  "--ring": "#1967d2",
+} as CSSProperties;

@@ -62,7 +62,7 @@ function ChoiceButton({
       aria-pressed={selected}
       onClick={() => onSelect(type.value)}
       className={cn(
-        "min-h-32 rounded-lg border bg-white p-4 text-left transition hover:border-primary hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/25",
+        "min-w-0 rounded-lg border bg-white p-3.5 text-left transition hover:border-primary hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/25 sm:min-h-32 sm:p-4",
         selected
           ? "border-primary bg-primary/10 shadow-sm"
           : "border-gray-200"
@@ -83,7 +83,7 @@ function ChoiceButton({
           <Check size={14} aria-hidden="true" />
         </span>
       </span>
-      <span className="mt-3 block text-sm leading-6 text-gray-600">
+      <span className="mt-2 block text-sm leading-5 text-gray-600 sm:mt-3 sm:leading-6">
         {type.description}
       </span>
     </button>
@@ -101,12 +101,12 @@ function DetailRow({
 }) {
   return (
     <div className="flex gap-2.5">
-      <span className="mt-0.5 text-primary">{icon}</span>
+      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
       <div className="min-w-0">
         <dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
           {label}
         </dt>
-        <dd className="mt-0.5 text-sm leading-5 text-gray-700">{children}</dd>
+        <dd className="mt-0.5 wrap-break-word text-sm leading-5 text-gray-700">{children}</dd>
       </div>
     </div>
   );
@@ -146,8 +146,8 @@ function BranchDetails({
   const branchImage = branch.image?.trim();
 
   return (
-    <div className="grid gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-start">
-      <div className="relative aspect-video overflow-hidden rounded-md bg-gray-100 lg:aspect-4/3">
+    <div className="grid min-w-0 gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-start">
+      <div className="relative h-24 overflow-hidden rounded-md bg-gray-100 sm:aspect-video sm:h-auto lg:aspect-4/3">
         {branchImage ? (
           <Image
             src={branchImage}
@@ -164,10 +164,10 @@ function BranchDetails({
       </div>
 
       <div className="min-w-0">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
+        <p className="wrap-break-word text-[11px] font-bold uppercase tracking-widest text-primary">
           {branch.code}
         </p>
-        <h4 className="mt-0.5 text-sm font-semibold text-gray-950">
+        <h4 className="mt-0.5 wrap-break-word text-sm font-semibold text-gray-950">
           {branch.title}
         </h4>
 
@@ -255,7 +255,7 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
     branchesStatus === "loading" ? "Loading branches..." : "Select branch";
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <div>
         <h3 className="text-lg font-semibold text-gray-950">
           Choose your applicant type
@@ -266,7 +266,7 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
         {applicantTypes.map((type) => (
           <ChoiceButton
             key={type.value}
@@ -277,7 +277,7 @@ export default function ApplicantStep({ form, onChange }: ApplicantStepProps) {
         ))}
       </div>
 
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-4 sm:gap-5">
         <SelectField
           id="branch_id"
           label="Preferred Branch"

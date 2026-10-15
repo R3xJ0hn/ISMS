@@ -3,7 +3,7 @@ import { admittedStudentInclude, serializeAdmittedStudent } from "./records";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 
-import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
+import { getAcademicLevelOption, isAcademicLevelAllowedForProgram } from "@/lib/academic-levels";
 import { getCurrentSession, isAdminRole, requireAdmin } from "@/lib/auth";
 import {
   ApplicantType,
@@ -11,15 +11,14 @@ import {
   type ApplicantType as ApplicantTypeValue,
   CivilStatus,
   Gender,
-  type ProgramType as ProgramTypeValue,
   SchoolType,
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { parseDateInput, validateEmail, validatePhone, validateSchoolYear } from "@/lib/validation";
-import { studentUpdateFields } from "./student-fields";
-import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
+import { addressDataFromProfile, guardianDataFromProfile, normalizeStudentUpdateInput, studentDataFromProfile, studentUpdateFields } from "./student-fields";
+import { resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
 import { prisma } from "@/lib/prisma";
-import { normalizeEmail, normalizeHeader, enumIncludes, parseId,readFormFields, readFormText, formatDateInput} from "@/lib/utils";
+import { capitalizeInputText, normalizeEmail, normalizeHeader, sanitizeInputText, enumIncludes, parseId,readFormFields, readFormText, formatDateInput} from "@/lib/utils";
 
 export type AddAdmittedStudentState = {
   success: boolean;
@@ -43,20 +42,10 @@ const initialState = {
   message: "",
 } satisfies AddAdmittedStudentState;
 
-function isAcademicLevelAllowedForProgram(
-  programType: ProgramTypeValue,
-  academicLevel: { slug: string }
-) {
-  return allowedAcademicLevelSlugsByProgramType[programType].includes(
-    academicLevel.slug
-  );
-}
-
-function getAdminProgramSelection(branchId: bigint, programId: bigint, academicLevelsId: bigint) {
+function getAdminProgramSelection(branchId: bigint, programId: bigint) {
   return Promise.all([
     prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }),
     prisma.program.findUnique({ where: { id: programId }, select: { id: true, programType: true } }),
-    prisma.academicLevels.findUnique({ where: { id: academicLevelsId }, select: { id: true, slug: true } }),
   ]);
 }
 
@@ -71,7 +60,7 @@ function readRowText(row: unknown[], columnIndex: number | undefined) {
     return formatDateInput(value);
   }
 
-  return String(value ?? "").trim();
+  return sanitizeInputText(String(value ?? ""));
 }
 
 function parseExcelDate(value: unknown) {
@@ -93,7 +82,7 @@ function parseExcelDate(value: unknown) {
     );
   }
 
-  const text = String(value ?? "").trim();
+  const text = sanitizeInputText(String(value ?? ""));
 
   if (!text) {
     return null;
@@ -180,18 +169,18 @@ export async function addAdmittedStudentAction(
 
   await requireAdmin();
 
-  const studentNumber = readFormText(formData, "studentNumber");
+  const studentNumber = sanitizeInputText(readFormText(formData, "studentNumber"));
   const email = normalizeEmail(readFormText(formData, "email"));
-  const firstName = readFormText(formData, "firstName");
-  const lastName = readFormText(formData, "lastName");
+  const firstName = capitalizeInputText(readFormText(formData, "firstName"));
+  const lastName = capitalizeInputText(readFormText(formData, "lastName"));
   const birthDate = parseDateInput(readFormText(formData, "birthDate"));
   const gender = readFormText(formData, "gender");
-  const birthplace = readFormText(formData, "birthplace");
-  const phone = readFormText(formData, "phone");
+  const birthplace = capitalizeInputText(readFormText(formData, "birthplace"));
+  const phone = sanitizeInputText(readFormText(formData, "phone"));
   const applicantType = readFormText(formData, "applicantType");
   const branchId = parseId(readFormText(formData, "branchId"));
   const programId = parseId(readFormText(formData, "programId"));
-  const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
+  const academicLevel = getAcademicLevelOption(readFormText(formData, "academicLevel"));
 
   if (
     !studentNumber ||
@@ -205,7 +194,7 @@ export async function addAdmittedStudentAction(
     !applicantType ||
     !branchId ||
     !programId ||
-    !academicLevelsId
+    !academicLevel
   ) {
     return {
       success: false,
@@ -225,17 +214,17 @@ export async function addAdmittedStudentAction(
     };
   }
 
-  const [branch, program, academicLevel] = await getAdminProgramSelection(branchId, programId, academicLevelsId);
+  const [branch, program] = await getAdminProgramSelection(branchId, programId);
 
-  if (!branch || !program || !academicLevel) {
+  if (!branch || !program) {
     return {
       success: false,
       message:
-        "Set up at least one branch, program, and academic level before adding admitted students.",
+        "Set up at least one branch and program before adding admitted students.",
     };
   }
 
-  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel)) {
+  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel.value)) {
     return {
       success: false,
       message: "Select an academic level that matches the program type.",
@@ -270,7 +259,7 @@ export async function addAdmittedStudentAction(
           branchId: branch.id,
           programType: program.programType,
           programId: program.id,
-          academicLevelsId: academicLevel.id,
+          academicLevel: academicLevel.value,
           remarks: "Manually admitted by admin.",
           submittedAt: null,
         },
@@ -313,14 +302,14 @@ export async function bulkAdmitStudentsAction(
   const applicantType = readFormText(formData, "applicantType");
   const branchId = parseId(readFormText(formData, "branchId"));
   const programId = parseId(readFormText(formData, "programId"));
-  const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
+  const academicLevel = getAcademicLevelOption(readFormText(formData, "academicLevel"));
   const file = formData.get("studentsFile");
 
   if (
     !applicantType ||
     !branchId ||
     !programId ||
-    !academicLevelsId ||
+    !academicLevel ||
     !(file instanceof File) ||
     file.size === 0
   ) {
@@ -337,16 +326,16 @@ export async function bulkAdmitStudentsAction(
     };
   }
 
-  const [branch, program, academicLevel] = await getAdminProgramSelection(branchId, programId, academicLevelsId);
+  const [branch, program] = await getAdminProgramSelection(branchId, programId);
 
-  if (!branch || !program || !academicLevel) {
+  if (!branch || !program) {
     return {
       success: false,
       message: "Select a valid branch, program, and academic level.",
     };
   }
 
-  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel)) {
+  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel.value)) {
     return {
       success: false,
       message: "Select an academic level that matches the program type.",
@@ -442,8 +431,8 @@ export async function bulkAdmitStudentsAction(
       const rowNumber = headerRowIndex + index + 2;
       const studentNumber = readRowText(row, columns.studentNumber);
       const email = normalizeEmail(readRowText(row, columns.email));
-      const firstName = readRowText(row, columns.firstName);
-      const lastName = readRowText(row, columns.lastName);
+      const firstName = capitalizeInputText(readRowText(row, columns.firstName));
+      const lastName = capitalizeInputText(readRowText(row, columns.lastName));
       const birthDate = parseExcelDate(row[columns.birthDate]);
       const genderText = readRowText(row, columns.gender);
       const gender = genderText ? parseGender(genderText) : null;
@@ -582,8 +571,8 @@ export async function bulkAdmitStudentsAction(
             branchId: branch.id,
             programType: program.programType,
             programId: program.id,
-            academicLevelsId: academicLevel.id,
-            remarks: `Bulk admitted from ${file.name}.`,
+            academicLevel: academicLevel.value,
+            remarks: capitalizeInputText(`Bulk admitted from ${file.name}.`),
             submittedAt: null,
           };
         }),
@@ -703,10 +692,9 @@ export async function editAdmittedStudentAction(
   const applicantType = readFormText(formData, "applicantType");
   const branchId = parseId(readFormText(formData, "branchId"));
   const programId = parseId(readFormText(formData, "programId"));
-  const academicLevelsId = parseId(readFormText(formData, "academicLevelsId"));
-  const studentNumber = readFormText(formData, "studentNumber");
-  const profile = readFormFields(formData, studentUpdateFields);
-  profile.email = normalizeEmail(profile.email);
+  const academicLevel = getAcademicLevelOption(readFormText(formData, "academicLevel"));
+  const studentNumber = sanitizeInputText(readFormText(formData, "studentNumber"));
+  const profile = normalizeStudentUpdateInput(readFormFields(formData, studentUpdateFields));
   const {
     firstName, lastName, gender, civilStatus, birthplace, email, phone,
     addressBarangay, addressCity, addressProvince,
@@ -724,7 +712,7 @@ export async function editAdmittedStudentAction(
     !applicationId ||
     !branchId ||
     !programId ||
-    !academicLevelsId ||
+    !academicLevel ||
     !applicantType ||
     !studentNumber ||
     !email ||
@@ -773,16 +761,16 @@ export async function editAdmittedStudentAction(
     };
   }
 
-  const [branch, program, academicLevel] = await getAdminProgramSelection(branchId, programId, academicLevelsId);
+  const [branch, program] = await getAdminProgramSelection(branchId, programId);
 
-  if (!branch || !program || !academicLevel) {
+  if (!branch || !program) {
     return {
       success: false,
       message: "Select a valid branch, program, and academic level.",
     };
   }
 
-  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel)) {
+  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel.value)) {
     return {
       success: false,
       message: "Select an academic level that matches the program type.",
@@ -790,7 +778,7 @@ export async function editAdmittedStudentAction(
   }
 
   try {
-    await prisma.$transaction(async (transaction) => {
+    await runLastSchoolTransaction(async (transaction) => {
       const student = await transaction.student.findUnique({
         where: {
           id: studentId,
@@ -814,12 +802,7 @@ export async function editAdmittedStudentAction(
           studentId,
         },
         select: {
-          lastSchoolId: true,
-          lastSchool: {
-            select: {
-              addressId: true,
-            },
-          },
+          id: true,
         },
       });
 
@@ -831,13 +814,12 @@ export async function editAdmittedStudentAction(
       let addressId: bigint;
 
       if (student.addressId) {
-        const addressStudentCount = await transaction.student.count({
-          where: {
-            addressId: student.addressId,
-          },
-        });
+        const [addressStudentCount, addressSchoolCount] = await Promise.all([
+          transaction.student.count({ where: { addressId: student.addressId } }),
+          transaction.lastSchool.count({ where: { addressId: student.addressId } }),
+        ]);
 
-        if (addressStudentCount > 1) {
+        if (addressStudentCount > 1 || addressSchoolCount > 0) {
           const address = await transaction.address.create({
             data: addressData,
           });
@@ -904,31 +886,7 @@ export async function editAdmittedStudentAction(
         });
       }
 
-      const lastSchoolAddressData = addressDataFromProfile(profile, "lastSchool");
-      const lastSchoolAddress = application.lastSchool?.addressId
-        ? await transaction.address.update({
-            where: {
-              id: application.lastSchool.addressId,
-            },
-            data: lastSchoolAddressData,
-          })
-        : await transaction.address.create({
-            data: lastSchoolAddressData,
-          });
-      const lastSchoolData = {
-        ...lastSchoolDataFromProfile(profile),
-        addressId: lastSchoolAddress.id,
-      };
-      const lastSchool = application.lastSchoolId
-        ? await transaction.lastSchool.update({
-            where: {
-              id: application.lastSchoolId,
-            },
-            data: lastSchoolData,
-          })
-        : await transaction.lastSchool.create({
-            data: lastSchoolData,
-          });
+      const lastSchool = await resolveLastSchool(transaction, profile);
 
       await transaction.admissionApplication.update({
         where: {
@@ -939,7 +897,7 @@ export async function editAdmittedStudentAction(
           branchId: branch.id,
           programType: program.programType,
           programId: program.id,
-          academicLevelsId: academicLevel.id,
+          academicLevel: academicLevel.value,
           lastSchoolId: lastSchool.id,
           LSSchoolYearEnd: lastSchoolYear,
           LSAttainedLevelText: lastSchoolYearLevel,
@@ -990,6 +948,7 @@ export async function getAdmittedStudentDetails(applicationId: string) {
 
   if (
     !session ||
+    !session.emailVerified ||
     !isAdminRole(session.role)
   ) {
     return null;

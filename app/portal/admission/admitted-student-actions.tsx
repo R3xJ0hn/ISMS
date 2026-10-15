@@ -9,6 +9,7 @@ import { AdmissionModal } from "@/app/portal/admission/admission-ui";
 import { getAdmittedStudentDetails } from "@/app/portal/admission/actions";
 import type { AdmittedStudentPayload } from "@/lib/admission/records";
 import { Button } from "@/components/ui/button";
+import { usePortalToast } from "@/components/portal/toasts";
 
 export type PortalAdmittedStudentRecord = AdmittedStudentPayload;
 export type PortalAdmittedStudentSummary = Pick<AdmittedStudentPayload, "applicationId" | "firstName" | "lastName">;
@@ -16,18 +17,17 @@ export type PortalAdmittedStudentSummary = Pick<AdmittedStudentPayload, "applica
 export function AdmittedStudentActions({ student }: { student: PortalAdmittedStudentSummary }) {
   const [viewOpen, setViewOpen] = useState(false);
   const [details, setDetails] = useState<PortalAdmittedStudentRecord | null>(null);
-  const [detailsError, setDetailsError] = useState("");
+  const notify = usePortalToast();
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   async function loadDetails() {
     if (details || loadingDetails) return;
     setLoadingDetails(true);
-    setDetailsError("");
     try {
       setDetails(await getAdmittedStudentDetails(student.applicationId));
     } catch (error) {
       console.error("Failed to load admitted student details:", error);
-      setDetailsError("Student details could not be loaded.");
+      notify("Student details could not be loaded.", "error");
     } finally {
       setLoadingDetails(false);
     }
@@ -51,7 +51,7 @@ export function AdmittedStudentActions({ student }: { student: PortalAdmittedStu
             <AdmissionReviewDetails form={details.reviewForm} showConsent={false} className="max-h-none" />
           ) : (
             <p className="text-sm text-muted-foreground">
-              {loadingDetails ? "Loading student details..." : detailsError || "Student details are unavailable."}
+              {loadingDetails ? "Loading student details..." : "Student details are unavailable."}
             </p>
           )}
         </div>

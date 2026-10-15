@@ -1,3 +1,5 @@
+import type { AcademicLevelOption } from "@/lib/academic-levels";
+
 export type Address = {
   houseNumber: string | null;
   subdivision: string | null;
@@ -23,11 +25,7 @@ export type Branch = BranchSummary & {
   formattedAddress: string;
 };
 
-export type AcademicLevelOption = {
-  id: string;
-  label: string;
-  slug: string;
-};
+export type { AcademicLevelOption };
 
 export type ProgramOption = {
   id: string;

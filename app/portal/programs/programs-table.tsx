@@ -14,11 +14,13 @@ export type ProgramTableRow = {
   slug: string | null;
   listed: boolean;
   sortOrder: number;
+  subjectCount: number;
 };
 
 const columns: InteractiveTableColumn<ProgramTableRow>[] = [
-  { header: "Program", sortValue: (program) => program.label, cell: (program) => <p className="font-semibold">{program.label}</p> },
-  { header: "Code", sortValue: (program) => program.code, cell: (program) => program.code },
+  { header: "Program", sortValue: (program) => program.label, cell: (program) => <Link href={`/portal/programs/${program.id}/subjects`} className="font-semibold text-primary hover:underline" aria-label={`Assign subjects to ${program.label}`}>{program.label}</Link> },
+  { header: "Code", sortValue: (program) => program.code, cell: (program) => <Link href={`/portal/programs/${program.id}/subjects`} className="text-primary hover:underline">{program.code}</Link> },
+  { header: "Subjects", sortValue: (program) => program.subjectCount, cell: (program) => <Link href={`/portal/programs/${program.id}/subjects`} className="text-primary hover:underline">{program.subjectCount}</Link> },
   { header: "Type", sortValue: (program) => formatProgramType(program.programType), cell: (program) => formatProgramType(program.programType) },
   { header: "Category", sortValue: (program) => program.category, cell: (program) => program.category },
   { header: "Public page", sortValue: (program) => program.listed, cell: (program) => program.listed

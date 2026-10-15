@@ -1,7 +1,9 @@
 import { studentSubmissionFields, studentUpdateFields, type StudentSubmissionProfile, type StudentUpdateField } from "./student-fields";
 import type { ReviewFormValues } from "@/lib/types/admission";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { optionalValue,formatDateInput } from "@/lib/utils";
+import { optionalValue, formatDateInput } from "@/lib/utils";
+import { formatAcademicLevel } from "@/lib/academic-levels";
+
 export const addressSelect = {
   houseNumber: true,
   subdivision: true,
@@ -11,80 +13,16 @@ export const addressSelect = {
   province: true,
   postalCode: true,
 } as const satisfies Prisma.AddressSelect;
-export const admittedStudentInclude = {
-  academicLevels: {
-    select: {
-      label: true,
-    },
-  },
-  branch: {
-    select: {
-      slug: true,
-      title: true,
-    },
-  },
-  program: {
-    select: {
-      code: true,
-      label: true,
-      programType: true,
-    },
-  },
-  lastSchool: {
-    select: {
-      schoolName: true,
-      schoolId: true,
-      shortName: true,
-      schoolType: true,
-      address: {
-        select: addressSelect,
-      },
-    },
-  },
-  student: {
-    select: {
-      email: true,
-      birthDate: true,
-      id: true,
-      firstName: true,
-      lastName: true,
-      middleName: true,
-      phone: true,
-      gender: true,
-      civilStatus: true,
-      citizenship: true,
-      birthplace: true,
-      religion: true,
-      facebookAccount: true,
-      studentNumber: true,
-      suffix: true,
-      address: {
-        select: addressSelect,
-      },
-      guardians: {
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-        take: 1,
-        select: {
-          relationship: true,
-          guardian: {
-            select: {
-              firstName: true,
-              lastName: true,
-              middleName: true,
-              suffix: true,
-              contactNumber: true,
-              occupation: true,
-            },
-          },
-        },
-      },
-    },
-  },
-} as const satisfies Prisma.AdmissionApplicationInclude;
-export type AdmittedStudentQueryResult = Prisma.AdmissionApplicationGetPayload<{
-  include: typeof admittedStudentInclude;
-}>;
-export const studentUpdateSelect = {
+
+const lastSchoolSelect = {
+  schoolName: true,
+  schoolId: true,
+  shortName: true,
+  schoolType: true,
+  address: { select: addressSelect },
+} as const satisfies Prisma.LastSchoolSelect;
+
+const studentProfileSelect = {
   id: true,
   firstName: true,
   lastName: true,
@@ -107,7 +45,6 @@ export const studentUpdateSelect = {
     take: 1,
     select: {
       relationship: true,
-      isPrimary: true,
       guardian: {
         select: {
           firstName: true,
@@ -120,14 +57,33 @@ export const studentUpdateSelect = {
       },
     },
   },
+} as const satisfies Prisma.StudentSelect;
+
+export const admittedStudentInclude = {
+  branch: { select: { slug: true, title: true } },
+  program: { select: { code: true, label: true, programType: true } },
+  lastSchool: { select: lastSchoolSelect },
+  student: { select: { ...studentProfileSelect, studentNumber: true } },
+} as const satisfies Prisma.AdmissionApplicationInclude;
+
+export type AdmittedStudentQueryResult = Prisma.AdmissionApplicationGetPayload<{
+  include: typeof admittedStudentInclude;
+}>;
+
+export const studentUpdateSelect = {
+  ...studentProfileSelect,
+  guardians: {
+    ...studentProfileSelect.guardians,
+    select: { ...studentProfileSelect.guardians.select, isPrimary: true },
+  },
   applications: {
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ submittedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
     take: 1,
     select: {
       id: true,
       branchId: true,
       programId: true,
-      academicLevelsId: true,
+      academicLevel: true,
       programType: true,
       lastSchoolId: true,
       LSSchoolYearEnd: true,
@@ -145,59 +101,7 @@ export const studentUpdateSelect = {
           label: true,
         },
       },
-      academicLevels: {
-        select: {
-          label: true,
-        },
-      },
-      lastSchool: {
-        select: {
-          schoolName: true,
-          schoolId: true,
-          shortName: true,
-          schoolType: true,
-          address: {
-            select: addressSelect,
-          },
-        },
-      },
-    },
-  },
-  enrollments: {
-    orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
-    take: 1,
-    select: {
-      branchId: true,
-      programId: true,
-      academicLevelsId: true,
-      enrollmentStatus: true,
-      schoolYear: {
-        select: {
-          name: true,
-        },
-      },
-      branch: {
-        select: {
-          title: true,
-        },
-      },
-      program: {
-        select: {
-          label: true,
-          programType: true,
-        },
-      },
-      academicLevels: {
-        select: {
-          label: true,
-        },
-      },
-      section: {
-        select: {
-          sectionName: true,
-          sectionCode: true,
-        },
-      },
+      lastSchool: { select: lastSchoolSelect },
     },
   },
 } as const satisfies Prisma.StudentSelect;
@@ -286,10 +190,9 @@ export function serializeAdmittedStudent(application: AdmittedStudentQueryResult
     program_type: application.program.programType,
     program_code: application.program.code,
     program_label: application.program.label,
-    academic_level_label: application.academicLevels.label,
+    academic_level_label: formatAcademicLevel(application.academicLevel),
     current_student_record_id: "",
     current_student_verified_name: "",
-    current_student_verified_school_year: "",
     current_student_verified_program: "",
     current_student_verified_branch: "",
   } satisfies ReviewFormValues;
@@ -300,7 +203,7 @@ export function serializeAdmittedStudent(application: AdmittedStudentQueryResult
     applicantType: application.applicantType,
     branchId: application.branchId.toString(),
     programId: application.programId.toString(),
-    academicLevelsId: application.academicLevelsId.toString(),
+    academicLevel: application.academicLevel,
     studentNumber: application.student.studentNumber ?? "",
     ...profile,
     reviewForm,

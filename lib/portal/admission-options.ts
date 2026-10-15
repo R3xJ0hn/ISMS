@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { AcademicLevelOption, BranchSummary, ProgramOption } from "@/lib/types/catalog";
+import { academicLevelOptions } from "@/lib/academic-levels";
 
 export type AdmissionOptions = {
   branches: Array<Pick<BranchSummary, "id" | "title">>;
@@ -13,16 +14,12 @@ export type AdmissionEditOptions = AdmissionOptions & {
 
 export async function getPortalAdmissionOptions(includeSlugs: true): Promise<AdmissionEditOptions>;
 export async function getPortalAdmissionOptions(includeSlugs?: false): Promise<AdmissionOptions>;
-export async function getPortalAdmissionOptions(includeSlugs = false) {
-  const [branches, programs, academicLevels] = await Promise.all([
+export async function getPortalAdmissionOptions(includeSlugs = false): Promise<AdmissionOptions | AdmissionEditOptions> {
+  const [branches, programs] = await Promise.all([
     prisma.branch.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true } }),
     prisma.program.findMany({
       orderBy: { code: "asc" },
       select: { id: true, code: true, label: true, programType: true },
-    }),
-    prisma.academicLevels.findMany({
-      orderBy: { id: "asc" },
-      select: { id: true, label: true, slug: includeSlugs },
     }),
   ]);
 
@@ -30,6 +27,6 @@ export async function getPortalAdmissionOptions(includeSlugs = false) {
   return {
     branches: branches.map(serializeId),
     programs: programs.map(serializeId),
-    academicLevels: academicLevels.map(serializeId),
+    academicLevels: academicLevelOptions.map(({ value, label, slug }) => ({ value, label, ...(includeSlugs ? { slug } : {}) })),
   };
 }

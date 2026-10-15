@@ -6,7 +6,7 @@ import type { HTMLInputTypeAttribute, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export const inputClass =
-  "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+  "h-12 min-w-0 w-full max-w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 transition placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 lg:h-11 lg:text-sm";
 
 type FieldProps = {
   id: string;
@@ -38,14 +38,14 @@ export function Field({ id, label, required, hint, children }: FieldProps) {
       : children;
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm font-semibold text-gray-800">
+    <div className="min-w-0 space-y-2">
+      <label htmlFor={id} className="block wrap-break-word text-sm font-semibold text-gray-800">
         {label}
         {required ? <span className="text-secondary"> *</span> : null}
       </label>
       {describedChild}
       {hint ? (
-        <p id={hintId} className="text-xs leading-5 text-gray-500">
+        <p id={hintId} className="wrap-break-word text-xs leading-5 text-gray-500">
           {hint}
         </p>
       ) : null}
@@ -185,7 +185,7 @@ export type FormFieldDefinition<T extends string = string> = {
   autoComplete?: string;
   required?: boolean;
   hint?: string;
-  options?: readonly string[];
+  options?: readonly string[] | ((selectedValue: string) => readonly string[]);
 };
 
 export function FormFields<T extends string>({
@@ -198,17 +198,19 @@ export function FormFields<T extends string>({
   onChange?: (field: T, value: string) => void;
 }) {
   return (
-    <div className="grid gap-5 md:grid-cols-2">
+    <div className="grid min-w-0 gap-4 sm:gap-5 md:grid-cols-2">
       {fields.map(({ options, ...field }) => {
+        const selectedValue = values[field.id] ?? "";
+        const resolvedOptions = typeof options === "function" ? options(selectedValue) : options;
         const props = {
           ...field,
           ...(onChange
-            ? { value: values[field.id] ?? "", onChange }
-            : { defaultValue: values[field.id] ?? "" }),
+            ? { value: selectedValue, onChange }
+            : { defaultValue: selectedValue }),
         };
-        return options ? (
+        return resolvedOptions ? (
           <SelectField key={field.id} {...props} placeholder={field.placeholder ?? "Not specified"}>
-            {options.map((option) => <option key={option} value={option}>{option}</option>)}
+            {resolvedOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </SelectField>
         ) : <TextField key={field.id} {...props} />;
       })}

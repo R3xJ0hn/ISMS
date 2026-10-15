@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
 import { LockKeyhole, UserRound } from "lucide-react";
 
@@ -57,9 +58,7 @@ export default function LoginForm() {
           />
           Remember me
         </label>
-        <a className="font-semibold text-secondary" href="mailto:datamex_registrar@stadeline.edu.ph">
-          Need help?
-        </a>
+        <Link className="font-semibold text-secondary" href="/forgot-password">Forgot password?</Link>
       </div>
 
       {state.message ? (
@@ -79,6 +78,7 @@ export default function LoginForm() {
       >
         {pending ? "Signing in..." : "Sign in"}
       </button>
+      <p className="text-center text-sm"><a className="font-semibold text-secondary" href="mailto:datamex_registrar@stadeline.edu.ph">Need help?</a></p>
     </form>
   );
 }

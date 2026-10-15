@@ -34,7 +34,7 @@ export default async function AdmissionPage({ searchParams }: AdmissionPageProps
         applicantType: true,
         applicationStatus: true,
         submittedAt: true,
-        academicLevels: { select: { label: true } },
+        academicLevel: true,
         program: { select: { label: true } },
         student: {
           select: {

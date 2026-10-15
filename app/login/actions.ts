@@ -14,7 +14,7 @@ import {
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { normalizeEmail,readFormValue } from "@/lib/utils";
+import { normalizeEmail, readFormValue, sanitizeInputText } from "@/lib/utils";
 
 const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX_EMAIL_ATTEMPTS = 5;
@@ -103,7 +103,7 @@ function extractClientIp(headerStore: Awaited<ReturnType<typeof headers>>) {
 }
 
 function normalizeUserAgent(value: string | null) {
-  const userAgent = value?.trim();
+  const userAgent = sanitizeInputText(value);
 
   if (!userAgent) {
     return null;
@@ -235,7 +235,7 @@ export async function loginAction(
   await recordSuccessfulLogin(result.user);
   await createSession(result.user, { remember });
 
-  redirect("/portal");
+  redirect(result.user.emailVerified ? "/portal" : "/verify-email");
 }
 
 export async function logoutAction() {

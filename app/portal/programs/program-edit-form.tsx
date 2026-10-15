@@ -5,6 +5,7 @@ import { useActionState, useState, type ChangeEvent } from "react";
 import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { usePortalFormFeedback } from "@/components/portal/toasts";
 import { ProgramType } from "@/lib/generated/prisma/enums";
 import type { ProgramFormState, ProgramFormValues } from "@/lib/programs/validation";
 import { cn, formatProgramType } from "@/lib/utils";
@@ -30,6 +31,7 @@ export function ProgramEditForm({ programId, values: initialValues, groups }: {
 }) {
   const [values, setValues] = useState(initialValues);
   const [state, formAction, pending] = useActionState(updateProgramAction, initialState);
+  const formRef = usePortalFormFeedback(state, { returnTo: "/portal/programs" });
 
   function renderField(field: Field) {
     const id = `program-${field.name}`;
@@ -62,7 +64,7 @@ export function ProgramEditForm({ programId, values: initialValues, groups }: {
 
   function renderSection(title: string, description: string, fields: Field[]) {
     return (
-      <fieldset disabled={pending} className="min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
+      <fieldset disabled={pending || state.success} className="min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
         <legend className="px-2 text-base font-semibold">{title}</legend>
         <p className="mb-5 text-sm text-muted-foreground">{description}</p>
         <div className="grid gap-5 md:grid-cols-2">{fields.map(renderField)}</div>
@@ -71,7 +73,7 @@ export function ProgramEditForm({ programId, values: initialValues, groups }: {
   }
 
   return (
-    <form action={formAction} aria-busy={pending} className="w-full space-y-6">
+    <form ref={formRef} action={formAction} aria-busy={pending} className="w-full space-y-6">
       <input type="hidden" name="programId" value={programId} />
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <div className="min-w-0 space-y-6">
@@ -95,10 +97,9 @@ export function ProgramEditForm({ programId, values: initialValues, groups }: {
           { name: "overview", label: "Overview", multiline: true, wide: true },
         ])}
       </div>
-      {state.message && <p role="status" className={cn("rounded-md border px-4 py-3 text-sm", state.success ? "border-green-200 bg-green-50 text-green-700" : "border-destructive/30 bg-destructive/10 text-destructive")}>{state.message}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <Button asChild variant="outline"><Link href="/portal/programs">Back to programs</Link></Button>
-        <Button type="submit" disabled={pending}><Save className="size-4" />{pending ? "Saving..." : "Save changes"}</Button>
+        <Button type="submit" disabled={pending || state.success}><Save className="size-4" />{pending ? "Saving..." : "Save changes"}</Button>
       </div>
     </form>
   );

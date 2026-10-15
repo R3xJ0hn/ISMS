@@ -25,9 +25,10 @@ type AppSidebarProps = ComponentProps<typeof Sidebar> & {
 };
 
 export async function AppSidebar({ session, ...props }: AppSidebarProps) {
+  const isHiddenAdministrator = session.role === UserRole.superAdmin;
   const userId = /^\d+$/.test(session.id) ? BigInt(session.id) : null;
   const [user, student] = await Promise.all([
-    userId
+    userId && !isHiddenAdministrator
       ? prisma.user.findUnique({
           where: {
             id: userId,
@@ -52,9 +53,12 @@ export async function AppSidebar({ session, ...props }: AppSidebarProps) {
       : null,
   ]);
 
-  const displayName = student
-    ? formatStudentName(student)
-    : getEmailDisplayName(session.email, formatRoleLabel(session.role));
+  const roleLabel = isHiddenAdministrator ? "Administrator" : formatRoleLabel(session.role);
+  const displayName = isHiddenAdministrator
+    ? roleLabel
+    : student
+      ? formatStudentName(student)
+      : getEmailDisplayName(session.email, roleLabel);
   const initials = getInitials(displayName);
 
   return (
@@ -75,7 +79,7 @@ export async function AppSidebar({ session, ...props }: AppSidebarProps) {
               {displayName}
             </p>
             <p className="truncate text-xs text-sidebar-foreground/70">
-              {formatRoleLabel(session.role)}
+              {roleLabel}
             </p>
           </div>
         </div>
@@ -86,9 +90,11 @@ export async function AppSidebar({ session, ...props }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <div className="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 p-3">
-          <p className="truncate text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
-            {session.email}
-          </p>
+          {!isHiddenAdministrator && (
+            <p className="truncate text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
+              {session.email}
+            </p>
+          )}
           <form action={logoutAction} className="mt-3">
             <button
               type="submit"

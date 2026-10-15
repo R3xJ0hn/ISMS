@@ -1,13 +1,13 @@
 import { optionalText } from "@/lib/utils";
+import { isAcademicLevelAllowedForProgram } from "@/lib/academic-levels";
 import { EXISTING_STUDENT } from "./constants";
-import { studentProfileFromSubmission } from "./student-fields";
-import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
+import { addressDataFromProfile, guardianDataFromProfile, studentDataFromProfile, studentProfileFromSubmission } from "./student-fields";
+import { resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
 import {
   ApplicantType,
   ApplicationStatus,
-  ProgramType,
+  type AcademicLevel,
 } from "@/lib/generated/prisma/enums";
-import { prisma } from "@/lib/prisma";
 
 export type CanonicalAdmissionProgramSelection = {
   branchId: bigint;
@@ -17,7 +17,7 @@ export type CanonicalAdmissionProgramSelection = {
   programCode: string;
   programLabel: string;
   programType: string;
-  academicLevelsId: bigint;
+  academicLevel: AcademicLevel;
   academicLevelLabel: string;
 };
 
@@ -50,13 +50,33 @@ export async function saveAdmissionSubmission({
 }: SaveAdmissionSubmissionInput) {
   const profile = studentProfileFromSubmission(form);
 
-  await prisma.$transaction(async (tx) => {
+  await runLastSchoolTransaction(async (tx) => {
+    const offering = await tx.branchProgram.findUnique({
+      where: {
+        branchId_programId: {
+          branchId: programSelection.branchId,
+          programId: programSelection.programId,
+        },
+      },
+      select: {
+        program: { select: { programType: true } },
+      },
+    });
+
+    if (
+      !offering ||
+      offering.program.programType !== programSelection.programType ||
+      !isAcademicLevelAllowedForProgram(offering.program.programType, programSelection.academicLevel)
+    ) {
+      throw new Error("The selected branch program has changed. Select an available program and try again.");
+    }
+
     const studentAddress = await tx.address.create({
       data: addressDataFromProfile(profile, "address"),
     });
 
     const studentData = {
-      ...studentDataFromProfile(profile, parseDateInput(form.student_birth_date)),
+      ...studentDataFromProfile(profile, parseDateInput(profile.birthDate)),
       addressId: studentAddress.id,
     };
 
@@ -88,21 +108,12 @@ export async function saveAdmissionSubmission({
       data: {
         studentId: student.id,
         guardianId: guardian.id,
-        relationship: form.guardian_relationship,
+        relationship: profile.guardianRelationship,
         isPrimary: true,
       },
     });
 
-    const lastSchoolAddress = await tx.address.create({
-      data: addressDataFromProfile(profile, "lastSchool"),
-    });
-
-    const lastSchool = await tx.lastSchool.create({
-      data: {
-        ...lastSchoolDataFromProfile(profile),
-        addressId: lastSchoolAddress.id,
-      },
-    });
+    const lastSchool = await resolveLastSchool(tx, profile, form.last_school_record_id);
 
     await tx.admissionApplication.create({
       data: {
@@ -110,15 +121,15 @@ export async function saveAdmissionSubmission({
         applicantType: applicantTypeFromForm(form.applicant_type),
         applicationStatus: ApplicationStatus.submitted,
         lastSchoolId: lastSchool.id,
-        LSSchoolYearEnd: optionalText(form.last_school_year),
-        LSAttainedLevelText: optionalText(form.last_school_year_level),
-        LSGraduationDate: form.last_school_graduation_date
-          ? parseDateInput(form.last_school_graduation_date)
+        LSSchoolYearEnd: optionalText(profile.lastSchoolYear),
+        LSAttainedLevelText: optionalText(profile.lastSchoolYearLevel),
+        LSGraduationDate: profile.lastSchoolGraduationDate
+          ? parseDateInput(profile.lastSchoolGraduationDate)
           : null,
         branchId: programSelection.branchId,
-        programType: programSelection.programType as (typeof ProgramType)[keyof typeof ProgramType],
+        programType: offering.program.programType,
         programId: programSelection.programId,
-        academicLevelsId: programSelection.academicLevelsId,
+        academicLevel: programSelection.academicLevel,
         remarks: `Admission submission ${submissionId}`,
         submittedAt,
       },

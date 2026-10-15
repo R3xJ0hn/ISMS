@@ -12,7 +12,44 @@ export function normalizeText(value: unknown) {
 }
 
 export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
+  return sanitizeInputText(email).toLowerCase();
+}
+
+function stripInputMarkup(value: string) {
+  const parts: string[] = [];
+  let previousEnd = 0;
+  let excludedTag: string | null = null;
+  for (const match of value.matchAll(/<[^<>]*>/g)) {
+    if (!excludedTag) parts.push(value.slice(previousEnd, match.index), " ");
+    const tag = /^<\s*(\/?)\s*(script|style|iframe|object)\b/i.exec(match[0]);
+    if (tag) {
+      const name = tag[2].toLowerCase();
+      if (!tag[1] && !excludedTag) excludedTag = name;
+      else if (tag[1] && excludedTag === name) excludedTag = null;
+    }
+    previousEnd = match.index + match[0].length;
+  }
+  if (!excludedTag) parts.push(value.slice(previousEnd));
+  return parts.join("").replace(/[<>]/g, "");
+}
+
+/** Plain text for user-entered database fields; credentials and signed values stay raw. */
+export function sanitizeInputText(value: unknown, { preserveLineBreaks = false }: { preserveLineBreaks?: boolean } = {}) {
+  if (typeof value !== "string") return "";
+  const normalized = value.normalize("NFC").replace(/\r\n?/g, "\n")
+    .replace(preserveLineBreaks ? /[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g : /[\u0000-\u001F\u007F-\u009F]/g, " ")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, " ");
+  const text = stripInputMarkup(normalized);
+  return preserveLineBreaks
+    ? text.split("\n").map((line) => line.replace(/\s+/gu, " ").trim()).join("\n").trim()
+    : text.replace(/\s+/gu, " ").trim();
+}
+
+/** Capitalize word initials without losing acronyms or intentional internal capitalization. */
+export function capitalizeInputText(value: unknown) {
+  return sanitizeInputText(value).replace(/(^|[^\p{L}\p{M}])([\p{L}])/gu,
+    (_match, prefix: string, letter: string) => prefix + letter.toUpperCase());
 }
 
 export function normalizeName(value: unknown) {
@@ -61,6 +98,22 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function parseId(value: string) {
   return /^\d+$/.test(value) ? BigInt(value) : null;
+}
+
+/** Positive PostgreSQL bigint IDs. Signed-token callers can require canonical digits. */
+export function parseRecordId(value: string, { canonical = false, maxDigits }: {
+  canonical?: boolean;
+  maxDigits?: number;
+} = {}) {
+  if ((maxDigits !== undefined && value.length > maxDigits) ||
+      (canonical && !/^[1-9]\d*$/.test(value))) return null;
+  const id = parseId(value);
+  return id !== null && id > 0n && id <= 9223372036854775807n ? id : null;
+}
+
+/** Prisma's PostgreSQL insensitive equality uses ILIKE, whose wildcards must be escaped. */
+export function literalInsensitiveEquality(value: string) {
+  return { equals: value.replace(/[\\%_]/g, (character) => `\\${character}`), mode: "insensitive" as const };
 }
 
 export function parsePositiveSafeInteger(value: string) {
@@ -119,6 +172,12 @@ export function optionalText(value: string) {
   return value || null;
 }
 
+/** Optional input text: blank or N/A (any capitalization) means no value. */
+export function nullableInputText(value: unknown): string | null {
+  const text = sanitizeInputText(value);
+  return !text || /^n\/a$/i.test(text) ? null : text;
+}
+
 const htmlEntities: Record<string, string> = {
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 };
@@ -148,6 +207,36 @@ export function formatAddress(address: Address | null) {
 const dateTimeFormatter = new Intl.DateTimeFormat("en-PH", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
 });
+
+const schoolYearFormatter = new Intl.DateTimeFormat("en", {
+  year: "numeric", timeZone: "Asia/Manila",
+});
+
+/** Latest school years first, with an existing nonblank value appended unchanged when absent. */
+export function generateSchoolYears({
+  startYear = 1900,
+  endYear,
+  referenceDate = new Date(),
+  selectedValue,
+}: {
+  startYear?: number;
+  endYear?: number;
+  referenceDate?: Date;
+  selectedValue?: string | null;
+} = {}): string[] {
+  const finalYear = endYear ?? Math.min(Number(schoolYearFormatter.format(referenceDate)) + 1, 2100);
+  if (!Number.isSafeInteger(startYear) || !Number.isSafeInteger(finalYear) ||
+      startYear < 1900 || finalYear > 2100 || startYear > finalYear) {
+    throw new RangeError("School year bounds must be whole years from 1900 to 2100, with startYear no later than endYear.");
+  }
+
+  const schoolYears = Array.from({ length: finalYear - startYear + 1 }, (_, index) => {
+    const year = finalYear - index;
+    return `${year}-${year + 1}`;
+  });
+  if (selectedValue?.trim() && !schoolYears.includes(selectedValue)) schoolYears.push(selectedValue);
+  return schoolYears;
+}
 
 export function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);

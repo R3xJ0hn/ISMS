@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Figtree } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next"
-import { SpeedInsights } from '@vercel/speed-insights/next';
+import { SiteAnalytics } from "@/components/site-analytics";
 import { PostHogProvider } from "./providers";
 import "./globals.css";
 
@@ -35,8 +34,7 @@ export default function RootLayout({
         <PostHogProvider>
           {children}
         </PostHogProvider>
-        <Analytics />
-        <SpeedInsights />
+        <SiteAnalytics />
       </body>
     </html>
   );

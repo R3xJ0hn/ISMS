@@ -4,6 +4,7 @@ import posthog from 'posthog-js'
 import { PostHogProvider as PHProvider, usePostHog } from 'posthog-js/react'
 import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { isAnalyticsExcludedPath } from '@/lib/auth/verification-privacy'
 
 const SAFE_PAGEVIEW_QUERY_PARAMS = new Set([
   'utm_source',
@@ -20,7 +21,7 @@ function PostHogPageView() {
   const posthogClient = usePostHog()
 
   useEffect(() => {
-    if (pathname && posthogClient) {
+    if (pathname && !isAnalyticsExcludedPath(pathname) && posthogClient) {
       const sanitizedSearchParams = new URLSearchParams()
 
       searchParams.forEach((value, key) => {
@@ -60,6 +61,18 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       capture_pageleave: true,
       capture_heatmaps: true,
       capture_performance: true,
+      before_send: (event) => {
+        if (!event || isAnalyticsExcludedPath(window.location.pathname)) return null
+        const eventUrl = event.properties?.$current_url
+        if (typeof eventUrl === 'string') {
+          try {
+            if (isAnalyticsExcludedPath(new URL(eventUrl).pathname)) return null
+          } catch {
+            return null
+          }
+        }
+        return event
+      },
     })
   }, [])
 

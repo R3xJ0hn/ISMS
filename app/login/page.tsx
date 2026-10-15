@@ -18,7 +18,7 @@ export default async function LoginPage() {
   const session = await getCurrentSession();
 
   if (session) {
-    redirect("/portal/grades");
+    redirect(session.emailVerified ? "/portal" : "/verify-email");
   }
 
   return (

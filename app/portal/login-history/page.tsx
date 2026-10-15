@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BadgeCheck, Clock, Globe2, Monitor, ShieldCheck } from "lucide-react";
 
 import { isAdminRole, requireSession } from "@/lib/auth";
+import { UserRole } from "@/lib/generated/prisma/enums";
 import { formatRoleLabel, getDeviceLabel, formatDateTime} from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
@@ -29,11 +30,11 @@ export default async function LoginHistoryPage() {
   const userId = hasNumericSessionId ? BigInt(session.id) : null;
 
   const loginHistory = await prisma.loginHistory.findMany({
-    where: isAdmin
-      ? undefined
-      : {
-          userId: userId as bigint,
-        },
+    where: {
+      role: { not: UserRole.superAdmin },
+      user: { role: { not: UserRole.superAdmin } },
+      ...(!isAdmin ? { userId: userId as bigint } : {}),
+    },
     orderBy: {
       createdAt: "desc",
     },

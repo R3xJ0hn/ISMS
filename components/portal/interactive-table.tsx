@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type Key } from "react";
+import { useId, useMemo, useRef, useState, type Key, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ type TableSort = { column: string; direction: TableSortDirection };
 
 export function InteractivePortalTable<T>({
   rows, columns, rowKey, searchValue, searchLabel = "Search table", searchPlaceholder = "Search...",
-  initialSort, className, rowLabel = "records", emptyTitle = "No records found",
+  initialSort, className, cellClassName, rowLabel = "records", emptyTitle = "No records found", toolbarControls,
 }: {
   rows: T[];
   columns: InteractiveTableColumn<T>[];
@@ -26,8 +26,10 @@ export function InteractivePortalTable<T>({
   searchPlaceholder?: string;
   initialSort?: TableSort;
   className?: string;
+  cellClassName?: string;
   rowLabel?: string;
   emptyTitle?: string;
+  toolbarControls?: ReactNode;
 }) {
   const inputId = useId();
   const pageSizeId = useId();
@@ -76,7 +78,7 @@ export function InteractivePortalTable<T>({
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-        <div className="relative w-full sm:max-w-sm">
+        <div className={toolbarControls ? "relative w-full min-w-0 sm:w-auto sm:min-w-56 sm:max-w-md sm:flex-1" : "relative w-full sm:max-w-sm"}>
           <label htmlFor={inputId} className="sr-only">{searchLabel}</label>
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -85,10 +87,10 @@ export function InteractivePortalTable<T>({
           />
           {query && <Button type="button" variant="ghost" size="icon-sm" className="absolute right-1 top-1/2 -translate-y-1/2" aria-label="Clear search" onClick={() => { setQuery(""); changePage(0); }}><X className="size-4" /></Button>}
         </div>
-        <p className="text-xs text-muted-foreground">Click a column heading to sort.</p>
+        {toolbarControls ?? <p className="text-xs text-muted-foreground">Click a column heading to sort.</p>}
       </div>
       <PortalTable
-        rows={pagination.rows} columns={sortableColumns} rowKey={rowKey} className={className}
+        rows={pagination.rows} columns={sortableColumns} rowKey={rowKey} className={className} cellClassName={cellClassName}
         scrollAreaRef={scrollAreaRef} scrollAreaLabel={`${rowLabel} table`} scrollAreaClassName="max-h-[min(60vh,36rem)] overflow-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-ring" stickyHeader
         emptyState={<PortalEmptyState title={rows.length ? "No matches found" : emptyTitle} description={rows.length ? "Try another search or clear the search field." : "Records will appear here when they are available."} />}
       />
