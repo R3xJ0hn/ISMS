@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BookOpenCheck,
   Check,
+  ChevronDown,
   Send,
 } from "lucide-react";
 
@@ -34,21 +35,30 @@ function StepHeader({
   step,
   currentIndex,
   totalSteps,
+  headingRef,
+  headerRef,
 }: {
   step: Step;
   currentIndex: number;
   totalSteps: number;
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  headerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const Icon = step.icon;
 
   return (
-    <div className="border-b border-gray-200 px-5 py-5 sm:px-7">
+    <div ref={headerRef} className="scroll-mt-24 rounded-t-lg border-b border-gray-200 px-4 py-4 sm:px-7 sm:py-5">
       <p className="text-xs font-bold uppercase tracking-widest text-secondary">
         Step {currentIndex + 1} of {totalSteps} / {step.eyebrow}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <Icon className="size-7 text-primary" aria-hidden="true" />
-        <h2 className="text-2xl font-bold tracking-tight text-gray-950">
+      <div className="mt-2 flex items-center gap-2.5 sm:gap-3">
+        <Icon className="size-6 shrink-0 text-primary sm:size-7" aria-hidden="true" />
+        <h2
+          id="admission-step-heading"
+          ref={headingRef}
+          tabIndex={-1}
+          className="min-w-0 text-xl font-bold tracking-tight text-gray-950 outline-none sm:text-2xl"
+        >
           {step.title}
         </h2>
       </div>
@@ -88,6 +98,8 @@ export default function AdmissionWizard() {
     submissionError, confirmation, existingStudentNotice } = state;
   const currentStudentStepRef =
     React.useRef<CurrentStudentStepHandle | null>(null);
+  const stepHeadingRef = React.useRef<HTMLHeadingElement | null>(null);
+  const stepHeaderRef = React.useRef<HTMLDivElement | null>(null);
 
   const existingStudentFlow = form.applicant_type === EXISTING_STUDENT;
   const visibleSteps = React.useMemo(
@@ -113,6 +125,21 @@ export default function AdmissionWizard() {
     visibleSteps
   );
   const formComplete = incompleteStepIndex === -1;
+  const viewKey = `${currentStep.id}:${confirmation ? "submitted" : showingExistingStudentNotice ? "verified" : "editing"}`;
+  const previousViewRef = React.useRef(viewKey);
+
+  React.useEffect(() => {
+    if (previousViewRef.current === viewKey) return;
+    previousViewRef.current = viewKey;
+
+    const frame = window.requestAnimationFrame(() => {
+      const heading = stepHeadingRef.current;
+      heading?.focus({ preventScroll: true });
+      stepHeaderRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [viewKey]);
 
   function canNavigateToStep(index: number) {
     if (index === safeCurrentIndex) {
@@ -122,6 +149,81 @@ export default function AdmissionWizard() {
     return visibleSteps
       .slice(0, index)
       .every((step) => stepIsComplete(step.id, form, consent));
+  }
+
+  function renderStepLinks(compact = false) {
+    return visibleSteps.map((step, index) => {
+      const Icon = step.icon;
+      const active = index === safeCurrentIndex;
+      const complete = stepIsComplete(step.id, form, consent);
+      const canNavigate = canNavigateToStep(index);
+
+      return (
+        <li key={step.id}>
+          <button
+            type="button"
+            aria-current={active ? "step" : undefined}
+            onClick={(event) => {
+              if (canNavigate) {
+                dispatch({ type: "navigated", index });
+                event.currentTarget.closest("details")?.removeAttribute("open");
+                if (index === safeCurrentIndex) {
+                  stepHeadingRef.current?.focus({ preventScroll: true });
+                }
+              }
+            }}
+            disabled={
+              !canNavigate ||
+              verifyingCurrentStudent ||
+              submissionStatus === "submitting" ||
+              Boolean(confirmation) ||
+              showingExistingStudentNotice
+            }
+            className={cn(
+              "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/25",
+              compact ? "min-h-12" : "min-h-14",
+              active
+                ? "bg-primary text-white"
+                : canNavigate
+                  ? "text-gray-700 hover:bg-gray-100"
+                  : "cursor-not-allowed text-gray-400 opacity-70"
+            )}
+          >
+            <span
+              className={cn(
+                "grid size-8 shrink-0 place-items-center rounded-md border",
+                active
+                  ? "border-white/35 bg-white/15"
+                  : complete
+                    ? "border-primary bg-primary text-white"
+                    : "border-gray-200 bg-white text-gray-500"
+              )}
+            >
+              {complete && !active ? (
+                <Check size={16} aria-hidden="true" />
+              ) : compact ? (
+                <span className="text-sm font-semibold">{index + 1}</span>
+              ) : (
+                <Icon size={16} aria-hidden="true" />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">{step.label}</span>
+              {!compact && (
+                <span
+                  className={cn(
+                    "block text-xs",
+                    active ? "text-white/80" : "text-gray-500"
+                  )}
+                >
+                  {step.eyebrow}
+                </span>
+              )}
+            </span>
+          </button>
+        </li>
+      );
+    });
   }
 
   function updateField(field: FieldName, value: string) {
@@ -224,7 +326,7 @@ export default function AdmissionWizard() {
         if (showingExistingStudentNotice && existingStudentNotice) {
           return (
             <div className="mx-auto flex h-full max-w-2xl items-center">
-              <div className="w-full rounded-2xl border border-emerald-200 bg-emerald-50/70 p-6 shadow-sm">
+              <div className="w-full rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm sm:p-6">
                 <div className="flex items-start gap-3">
                   <div className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white">
                     <Check size={18} aria-hidden="true" />
@@ -233,7 +335,7 @@ export default function AdmissionWizard() {
                     <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
                       Record verified
                     </p>
-                    <h3 className="mt-1 text-2xl font-bold text-gray-950">
+                    <h3 className="mt-1 text-xl font-bold text-gray-950 sm:text-2xl">
                       Check your email for the update link.
                     </h3>
                     <p className="mt-3 text-sm leading-6 text-gray-700">
@@ -272,29 +374,42 @@ export default function AdmissionWizard() {
   }
 
   return (
-    <section id="admission-form" className="relative z-10 bg-gray-50 pb-16">
-      <div className="mx-auto -mt-12 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[290px_1fr]">
-          <aside className="rounded-lg bg-white p-4 shadow-sm sm:border sm:border-gray-200 sm:p-0">
-            <div className="sm:border-b sm:border-gray-200 sm:p-5">
-              <div className="flex items-start justify-between gap-4 sm:block">
+    <section id="admission-form" className="relative z-10 bg-gray-50 pb-10 sm:pb-16">
+      <div className="mx-auto -mt-6 w-full max-w-7xl px-3 sm:px-6 lg:-mt-12 lg:px-8">
+        <div className="grid items-start gap-3 sm:gap-4 lg:grid-cols-[290px_minmax(0,1fr)] lg:gap-6">
+          <aside className="min-w-0 rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="p-4 lg:border-b lg:border-gray-200 lg:p-5">
+              <div className="flex items-center justify-between gap-3 lg:block">
                 <div>
-                  <p className="text-sm font-semibold text-gray-500">
+                  <p className="text-xs font-semibold text-gray-500 lg:text-sm">
                     Admission progress
                   </p>
-                  <p className="mt-1 text-lg font-bold text-gray-950 sm:mt-2 sm:text-2xl">
-                    {safeCurrentIndex + 1}/{visibleSteps.length}
+                  <p className="mt-1 text-base font-bold text-gray-950 lg:mt-2 lg:text-2xl">
+                    Step {safeCurrentIndex + 1} of {visibleSteps.length}
                   </p>
                 </div>
-                <p className="max-w-40 text-right text-sm font-semibold text-primary sm:hidden">
-                  {currentStep.title}
-                </p>
+                <details className="relative shrink-0 lg:hidden">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-md bg-gray-100 px-3 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 [&::-webkit-details-marker]:hidden">
+                    View steps
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </summary>
+                  <ol
+                    className="absolute right-0 top-full z-30 mt-2 grid max-h-[60dvh] w-64 max-w-[calc(100vw-4rem)] gap-1 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg"
+                    aria-label="Admission steps"
+                  >
+                    {renderStepLinks(true)}
+                  </ol>
+                </details>
               </div>
 
-              <div className="mt-4 sm:hidden">
+              <div className="mt-3 lg:hidden">
                 <div
                   className="h-1.5 overflow-hidden rounded-full bg-gray-200"
-                  aria-hidden="true"
+                  role="progressbar"
+                  aria-label="Admission progress"
+                  aria-valuemin={0}
+                  aria-valuemax={visibleSteps.length}
+                  aria-valuenow={safeCurrentIndex + 1}
                 >
                   <div
                     className="h-full rounded-full bg-primary transition-all"
@@ -305,105 +420,14 @@ export default function AdmissionWizard() {
                     }}
                   />
                 </div>
-                <ol
-                  className="mt-3 flex items-center justify-between gap-1"
-                  aria-label="Admission steps"
-                >
-                  {visibleSteps.map((step, index) => {
-                    const active = index === safeCurrentIndex;
-                    const complete = stepIsComplete(step.id, form, consent);
-
-                    return (
-                      <li
-                        key={step.id}
-                        className={cn(
-                          "h-1.5 flex-1 rounded-full",
-                          active || complete ? "bg-primary" : "bg-gray-200"
-                        )}
-                        aria-current={active ? "step" : undefined}
-                      >
-                        <span className="sr-only">
-                          {step.label}
-                          {active
-                            ? ", current step"
-                            : complete
-                              ? ", complete"
-                              : ""}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
               </div>
             </div>
 
-            <ol className="hidden gap-1 p-3 sm:grid">
-              {visibleSteps.map((step, index) => {
-                const Icon = step.icon;
-                const active = index === safeCurrentIndex;
-                const complete = stepIsComplete(step.id, form, consent);
-                const canNavigate = canNavigateToStep(index);
-
-                return (
-                  <li key={step.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (canNavigate) {
-                          dispatch({ type: "navigated", index });
-                        }
-                      }}
-                      disabled={
-                        !canNavigate ||
-                        submissionStatus === "submitting" ||
-                        Boolean(confirmation) ||
-                        showingExistingStudentNotice
-                      }
-                      className={cn(
-                        "flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/25",
-                        active
-                          ? "bg-primary text-white"
-                          : canNavigate
-                            ? "text-gray-700 hover:bg-gray-100"
-                            : "cursor-not-allowed text-gray-400 opacity-70"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "grid size-8 shrink-0 place-items-center rounded-md border",
-                          active
-                            ? "border-white/35 bg-white/15"
-                            : complete
-                              ? "border-primary bg-primary text-white"
-                              : "border-gray-200 bg-white text-gray-500"
-                        )}
-                      >
-                        {complete && !active ? (
-                          <Check size={16} aria-hidden="true" />
-                        ) : (
-                          <Icon size={16} aria-hidden="true" />
-                        )}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold">
-                          {step.label}
-                        </span>
-                        <span
-                          className={cn(
-                            "block truncate text-xs",
-                            active ? "text-white/80" : "text-gray-500"
-                          )}
-                        >
-                          {step.eyebrow}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
+            <ol className="hidden gap-1 p-3 lg:grid" aria-label="Admission steps">
+              {renderStepLinks()}
             </ol>
 
-            <div className="hidden border-t border-gray-200 p-5 sm:block">
+            <div className="hidden border-t border-gray-200 p-5 lg:block">
               <div className="flex items-start gap-3 text-sm leading-6 text-gray-600">
                 <BookOpenCheck
                   className="mt-0.5 size-5 shrink-0 text-secondary"
@@ -419,92 +443,98 @@ export default function AdmissionWizard() {
 
           <form
             onSubmit={handleSubmit}
-            className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+            className="min-w-0 rounded-lg border border-gray-200 bg-white shadow-sm"
           >
             <StepHeader
               step={currentStep}
               currentIndex={safeCurrentIndex}
               totalSteps={visibleSteps.length}
+              headingRef={stepHeadingRef}
+              headerRef={stepHeaderRef}
             />
 
-            <div className="min-h-140 px-5 py-6 sm:px-7">
-              {confirmation ? (
-                <AdmissionConfirmationView confirmation={confirmation} />
-              ) : (
-                renderStep()
-              )}
-            </div>
+            {/* This boundary keeps sticky actions from covering the step header. */}
+            <div className="min-w-0">
+              <div className="px-4 py-5 sm:px-7 sm:py-6 lg:min-h-140">
+                {confirmation ? (
+                  <AdmissionConfirmationView confirmation={confirmation} />
+                ) : (
+                  renderStep()
+                )}
+              </div>
 
-            <div className="flex flex-col gap-4 border-t border-gray-200 bg-gray-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-              {submissionError ? (
-                <p className="text-sm font-medium text-red-700">
-                  {submissionError}
-                </p>
-              ) : showingExistingStudentNotice ? (
-                <p className="text-sm font-medium text-emerald-700">
-                  Your record was verified. Check your email inbox or spam
-                  folder for the secure update link.
-                </p>
-              ) : !confirmation && !currentStepComplete ? (
-                <p className="text-sm font-medium text-secondary">
-                  {currentStep.id === "currentStudent" &&
-                  currentStudentInputsComplete(form)
-                    ? "Continue will verify your student record before you can proceed."
-                    : currentStep.id === "review"
-                      ? "Review the application details and provide consent before submitting."
-                      : "Complete the required fields to continue."}
-                </p>
-              ) : null}
+              <div className="sticky bottom-0 z-20 flex flex-col gap-3 rounded-b-lg border-t border-gray-200 bg-gray-50 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-5 lg:static">
+                {submissionError ? (
+                  <p role="alert" className="min-w-0 text-sm font-medium wrap-break-word text-red-700">
+                    {submissionError}
+                  </p>
+                ) : !confirmation && !showingExistingStudentNotice && !currentStepComplete ? (
+                  <p className="min-w-0 text-xs leading-5 font-medium text-secondary sm:text-sm">
+                    {currentStep.id === "currentStudent" &&
+                    currentStudentInputsComplete(form)
+                      ? "Continue will verify your student record before you can proceed."
+                      : currentStep.id === "review"
+                        ? "Review the application details and provide consent before submitting."
+                        : "Complete the required fields to continue."}
+                  </p>
+                ) : null}
 
-              <div className="flex flex-col gap-3 sm:ml-auto sm:flex-row">
-                <button
-                  type="button"
-                  onClick={confirmation || showingExistingStudentNotice ? resetWizard : goBack}
-                  disabled={
-                    submissionStatus === "submitting" ||
-                    (!(confirmation || showingExistingStudentNotice) && isFirstStep)
-                  }
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {confirmation || showingExistingStudentNotice ? (
-                    <>
-                      <ArrowLeft size={16} aria-hidden="true" />
-                      Start another application
-                    </>
-                  ) : (
-                    <>
-                      <ArrowLeft size={16} aria-hidden="true" />
-                      Back
-                    </>
-                  )}
-                </button>
-
-                {!confirmation && !showingExistingStudentNotice && !existingStudentFlow && isLastStep ? (
-                  <button
-                    type="submit"
-                    disabled={!formComplete || submissionStatus === "submitting"}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-secondary px-5 text-sm font-semibold text-white transition hover:bg-secondary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {submissionStatus === "submitting"
-                      ? "Submitting..."
-                      : "Submit for Review"}
-                    <Send size={16} aria-hidden="true" />
-                  </button>
-                ) : !confirmation ? (
+                <div className={cn(
+                  "grid w-full shrink-0 grid-cols-[minmax(0,0.75fr)_minmax(0,1.5fr)] gap-2 sm:ml-auto sm:flex sm:w-auto sm:gap-3",
+                  (isFirstStep || confirmation || showingExistingStudentNotice) && "grid-cols-1"
+                )}>
                   <button
                     type="button"
-                    onClick={goNext}
+                    onClick={confirmation || showingExistingStudentNotice ? resetWizard : goBack}
                     disabled={
-                      !currentStepReadyToContinue ||
-                      verifyingCurrentStudent ||
-                      submissionStatus === "submitting"
+                      verifyingCurrentStudent || submissionStatus === "submitting" ||
+                      (!(confirmation || showingExistingStudentNotice) && isFirstStep)
                     }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    className={cn(
+                      "inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:px-5",
+                      isFirstStep && !confirmation && !showingExistingStudentNotice && "hidden sm:inline-flex"
+                    )}
                   >
-                    {verifyingCurrentStudent ? "Verifying record..." : "Continue"}
-                    <ArrowRight size={16} aria-hidden="true" />
+                    {confirmation || showingExistingStudentNotice ? (
+                      <>
+                        <ArrowLeft size={16} aria-hidden="true" />
+                        Start another application
+                      </>
+                    ) : (
+                      <>
+                        <ArrowLeft size={16} aria-hidden="true" />
+                        Back
+                      </>
+                    )}
                   </button>
-                ) : null}
+
+                  {!confirmation && !showingExistingStudentNotice && !existingStudentFlow && isLastStep ? (
+                    <button
+                      type="submit"
+                      disabled={!formComplete || submissionStatus === "submitting"}
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-secondary px-3 py-2 text-sm font-semibold text-white transition hover:bg-secondary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/40 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-5"
+                    >
+                      {submissionStatus === "submitting"
+                        ? "Submitting..."
+                        : "Submit for Review"}
+                      <Send size={16} aria-hidden="true" />
+                    </button>
+                  ) : !confirmation && !showingExistingStudentNotice ? (
+                    <button
+                      type="button"
+                      onClick={goNext}
+                      disabled={
+                        !currentStepReadyToContinue ||
+                        verifyingCurrentStudent ||
+                        submissionStatus === "submitting"
+                      }
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-11 sm:px-5"
+                    >
+                      {verifyingCurrentStudent ? "Verifying record..." : "Continue"}
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </form>

@@ -11,12 +11,13 @@ export default async function ProgramsManagementPage() {
       id: true, label: true, code: true, programType: true, slug: true,
       publicTitle: true, publicCode: true, overview: true, sortOrder: true,
       group: { select: { title: true } },
+      _count: { select: { programSubjects: true } },
     },
   });
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <PortalPageHeader label="Management" title="Programs" description="Manage program information for admissions and public course pages.">
+      <PortalPageHeader label="Management" title="Manage Programs" description="Select a program to assign its subjects, or edit its admission and public course information.">
         <PortalCount count={programs.length} label="programs" />
       </PortalPageHeader>
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-label="Program catalog">
@@ -24,6 +25,7 @@ export default async function ProgramsManagementPage() {
           id: program.id.toString(), label: program.label, code: program.code,
           programType: program.programType, category: program.group?.title ?? "Unassigned",
           slug: program.slug, sortOrder: program.sortOrder,
+          subjectCount: program._count.programSubjects,
           listed: Boolean(program.slug && program.group && program.publicTitle && program.publicCode && program.overview),
         }))} />
       </section>

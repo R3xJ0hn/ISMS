@@ -9,13 +9,11 @@ import { studentUpdateSections } from "../components/form-sections";
 
 const initialState: UpdateStudentFormState = { status: "idle", message: "" };
 
-const enrollmentFields = [
-  { id: "latestEnrollmentStatus", label: "Enrollment status" },
-  { id: "latestEnrollmentSchoolYear", label: "Latest school year" },
-  { id: "latestEnrollmentBranch", label: "Branch" },
-  { id: "latestEnrollmentProgram", label: "Program" },
-  { id: "latestEnrollmentYearLevel", label: "Year level" },
-  { id: "latestEnrollmentSection", label: "Section" },
+const admissionFields = [
+  { id: "latestAdmissionStatus", label: "Application status" },
+  { id: "latestAdmissionBranch", label: "Branch" },
+  { id: "latestAdmissionProgram", label: "Program" },
+  { id: "latestAdmissionYearLevel", label: "Year level" },
 ] as const;
 
 export default function UpdateStudentForm({ student }: { student: StudentUpdateRecord }) {
@@ -44,10 +42,10 @@ export default function UpdateStudentForm({ student }: { student: StudentUpdateR
       <div className="space-y-8 px-5 py-6 sm:px-7">
         <section className="space-y-5">
           <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-700">
-            Current school status
+            Latest admission information
           </h2>
           <div className="grid gap-5 md:grid-cols-2">
-            {enrollmentFields.map((field) => (
+            {admissionFields.map((field) => (
               <TextField key={field.id} {...field} value={student[field.id] || "Not available"} readOnly />
             ))}
           </div>

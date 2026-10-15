@@ -1,5 +1,5 @@
 import { CivilStatus, Gender, SchoolType } from "@/lib/generated/prisma/enums";
-import { normalizeText, enumIncludes } from "@/lib/utils";
+import { capitalizeInputText, normalizeEmail, nullableInputText, optionalText, sanitizeInputText, enumIncludes } from "@/lib/utils";
 import { parseDateInput, validateEmail, validatePhone } from "@/lib/validation";
 
 // The public application uses snake case; record edit forms use these camel case keys.
@@ -53,21 +53,94 @@ export const studentUpdateFields = Object.keys(studentSubmissionFields) as reado
 const nullableFields = ["gender", "civilStatus", "citizenship", "birthplace", "phone"] as const;
 type NullableStudentUpdateField = (typeof nullableFields)[number];
 const nullableFieldSet: ReadonlySet<string> = new Set(nullableFields);
+const capitalizedFields: ReadonlySet<StudentUpdateField> = new Set([
+  "firstName", "lastName", "middleName", "suffix", "citizenship", "birthplace", "religion",
+  "addressSubdivision", "addressStreet", "addressBarangay", "addressCity", "addressProvince",
+  "guardianFirstName", "guardianLastName", "guardianMiddleName", "guardianSuffix",
+  "guardianRelationship", "guardianOccupation", "lastSchoolName", "lastSchoolShortName",
+  "lastSchoolSubdivision", "lastSchoolStreet", "lastSchoolBarangay", "lastSchoolCity",
+  "lastSchoolProvince", "lastSchoolYearLevel",
+]);
 
 export type UpdateStudentRecordInput = Record<Exclude<StudentUpdateField, NullableStudentUpdateField>, string> &
   Partial<Record<NullableStudentUpdateField, string | null>>;
 
+export function isCapitalizedStudentField(field: string): field is StudentUpdateField {
+  return capitalizedFields.has(field as StudentUpdateField);
+}
+
+/** Human-readable fields use capitalized words; enum, contact, date and identifier values retain their format. */
+export function normalizeStudentField(field: StudentUpdateField, value: unknown) {
+  if (field === "email") return normalizeEmail(sanitizeInputText(value));
+  if (field === "suffix" || field === "guardianSuffix") return capitalizeInputText(nullableInputText(value) ?? "");
+  return capitalizedFields.has(field) ? capitalizeInputText(value) : sanitizeInputText(value);
+}
+
 export function studentProfileFromSubmission(form: Record<string, string>) {
   return Object.fromEntries(Object.entries(studentSubmissionFields).map(
-    ([field, submissionField]) => [field, form[submissionField]]
+    ([field, submissionField]) => [field, normalizeStudentField(field as StudentUpdateField, form[submissionField])]
   )) as Record<StudentUpdateField, string>;
 }
 
 export function normalizeStudentUpdateInput(input: UpdateStudentRecordInput): UpdateStudentRecordInput {
   return Object.fromEntries(studentUpdateFields.map((field) => {
-    const value = normalizeText(input[field]);
+    const value = normalizeStudentField(field, input[field]);
     return [field, nullableFieldSet.has(field) ? value || null : value];
   })) as UpdateStudentRecordInput;
+}
+
+export function addressDataFromProfile(input: UpdateStudentRecordInput, prefix: "address" | "lastSchool") {
+  input = normalizeStudentUpdateInput(input);
+  return {
+    houseNumber: optionalText(input[`${prefix}HouseNumber`]),
+    subdivision: optionalText(input[`${prefix}Subdivision`]),
+    street: optionalText(input[`${prefix}Street`]),
+    barangay: input[`${prefix}Barangay`],
+    city: input[`${prefix}City`],
+    province: input[`${prefix}Province`],
+    postalCode: optionalText(input[`${prefix}PostalCode`]),
+  };
+}
+
+export function guardianDataFromProfile(input: UpdateStudentRecordInput) {
+  input = normalizeStudentUpdateInput(input);
+  return {
+    firstName: input.guardianFirstName,
+    lastName: input.guardianLastName,
+    middleName: optionalText(input.guardianMiddleName),
+    suffix: nullableInputText(input.guardianSuffix),
+    contactNumber: input.guardianContactNumber,
+    occupation: optionalText(input.guardianOccupation),
+  };
+}
+
+export function lastSchoolDataFromProfile(input: UpdateStudentRecordInput) {
+  input = normalizeStudentUpdateInput(input);
+  return {
+    schoolName: input.lastSchoolName,
+    schoolId: optionalText(input.lastSchoolId),
+    shortName: optionalText(input.lastSchoolShortName),
+    schoolType: input.lastSchoolType as SchoolType,
+  };
+}
+
+export function studentDataFromProfile(input: UpdateStudentRecordInput, birthDate: Date) {
+  input = normalizeStudentUpdateInput(input);
+  return {
+    firstName: input.firstName,
+    lastName: input.lastName,
+    middleName: optionalText(input.middleName),
+    suffix: nullableInputText(input.suffix),
+    birthDate,
+    gender: (input.gender || null) as Gender | null,
+    civilStatus: (input.civilStatus || null) as CivilStatus | null,
+    citizenship: optionalText(input.citizenship ?? ""),
+    birthplace: input.birthplace,
+    religion: optionalText(input.religion),
+    email: input.email,
+    phone: input.phone,
+    facebookAccount: optionalText(input.facebookAccount),
+  };
 }
 
 const requiredUpdateFields: StudentUpdateField[] = [

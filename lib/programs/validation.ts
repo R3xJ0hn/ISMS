@@ -1,5 +1,7 @@
 import { ProgramType } from "@/lib/generated/prisma/enums";
-import { enumIncludes, optionalText, parseId, readFormFields, readFormText } from "@/lib/utils";
+import {
+  capitalizeInputText, enumIncludes, optionalText, parseRecordId, readFormFields, readFormText, sanitizeInputText,
+} from "@/lib/utils";
 
 export const programFields = [
   "code", "label", "programType", "groupId", "slug", "publicTitle", "publicCode",
@@ -14,16 +16,22 @@ export type ProgramFormState = {
 };
 
 function parseLines(value: string) {
-  return [...new Set(value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))];
+  return [...new Set(sanitizeInputText(value, { preserveLineBreaks: true }).split("\n").map(capitalizeInputText).filter(Boolean))];
 }
 
 export function parseProgramForm(formData: FormData) {
-  const id = parseId(readFormText(formData, "programId"));
-  if (id === null || id <= 0n || id > 9223372036854775807n) {
+  const id = parseRecordId(readFormText(formData, "programId"));
+  if (id === null) {
     return { success: false as const, message: "A valid program is required." };
   }
 
   const values = readFormFields(formData, programFields);
+  for (const field of ["label", "publicTitle", "note", "overview"] as const) {
+    values[field] = capitalizeInputText(values[field]);
+  }
+  for (const field of ["code", "publicCode"] as const) {
+    values[field] = sanitizeInputText(values[field]);
+  }
   const fieldErrors: NonNullable<ProgramFormState["fieldErrors"]> = {};
   const programType = enumIncludes(ProgramType, values.programType) ? values.programType : null;
   if (!values.code) fieldErrors.code = "Enter the program code.";
@@ -35,6 +43,9 @@ export function parseProgramForm(formData: FormData) {
     fieldErrors.slug = "Use lowercase letters, numbers, and single hyphens.";
   }
   if (values.groupId) {
+    if (sanitizeInputText(values.groupId) !== values.groupId) {
+      fieldErrors.groupId = "Choose a valid category.";
+    }
     for (const [field, label] of [
       ["slug", "course URL"], ["publicTitle", "public title"],
       ["publicCode", "public code"], ["overview", "overview"],

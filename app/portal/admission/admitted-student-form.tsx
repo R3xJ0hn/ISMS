@@ -12,17 +12,19 @@ import {
   type BulkAdmitStudentsState,
 } from "@/app/portal/admission/actions";
 import {
-  ActionMessage,
   AdmissionField,
   AdmissionModal,
   AdmissionSelect,
   type AdmissionOptions,
 } from "@/app/portal/admission/admission-ui";
 import type { AdmittedStudentPayload } from "@/lib/admission/records";
+import { isCapitalizedStudentField, normalizeStudentField, studentUpdateFields, type StudentUpdateField } from "@/lib/admission/student-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { allowedAcademicLevelSlugsByProgramType } from "@/lib/admission/constants";
+import { useActionToast, usePortalFormFeedback } from "@/components/portal/toasts";
+import { isAcademicLevelAllowedForProgram } from "@/lib/academic-levels";
 import type { AdmissionEditOptions } from "@/lib/portal/admission-options";
+import { generateSchoolYears, sanitizeInputText } from "@/lib/utils";
 
 export type AdmittedStudentEditRecord = Omit<AdmittedStudentPayload, "reviewForm">;
 export type AdmittedStudentEditOptions = AdmissionEditOptions;
@@ -112,31 +114,30 @@ function AdmissionProgramFields({
   student?: AdmittedStudentEditRecord;
 }) {
   const [programId, setProgramId] = useState(student?.programId ?? "");
-  const [levelId, setLevelId] = useState(student?.academicLevelsId ?? "");
+  const [levelValue, setLevelValue] = useState<string>(student?.academicLevel ?? "");
+  const [applicantType, setApplicantType] = useState(student?.applicantType ?? "");
+  const [branchId, setBranchId] = useState(student?.branchId ?? "");
 
   function levelsForProgram(id: string) {
     const program = options.programs.find((item) => item.id === id);
-    if (!student || !program) return options.academicLevels;
-    const slugs = allowedAcademicLevelSlugsByProgramType[program.programType] ?? [];
-    return options.academicLevels.filter((level) => slugs.includes(level.slug ?? ""));
+    if (!program) return [];
+    return options.academicLevels.filter((level) => isAcademicLevelAllowedForProgram(program.programType, level.value));
   }
 
   const levels = levelsForProgram(programId);
-  const academicLevelId = student && !levels.some((level) => level.id === levelId)
-    ? levels[0]?.id ?? ""
-    : levelId;
+  const academicLevel = levels.some((level) => level.value === levelValue) ? levelValue : "";
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <AdmissionField label="Applicant type" required={Boolean(student)}>
-        <AdmissionSelect name="applicantType" defaultValue={student?.applicantType ?? ""} required>
+        <AdmissionSelect name="applicantType" value={applicantType} onChange={(event) => setApplicantType(event.target.value)} required>
           {!student ? <option value="">Select applicant type</option> : null}
           <option value="new">New</option>
           <option value="existing">Existing</option>
         </AdmissionSelect>
       </AdmissionField>
       <AdmissionField label="Branch" required={Boolean(student)}>
-        <AdmissionSelect name="branchId" defaultValue={student?.branchId ?? ""} required>
+        <AdmissionSelect name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
           {!student ? <option value="">Select branch</option> : null}
           {options.branches.map((branch) => (
             <option key={branch.id} value={branch.id}>{branch.title}</option>
@@ -146,20 +147,16 @@ function AdmissionProgramFields({
       <AdmissionField label="Program" required={Boolean(student)}>
         <AdmissionSelect
           name="programId"
-          value={student ? programId : undefined}
-          defaultValue={student ? undefined : ""}
+          value={programId}
           onChange={(event) => {
             const id = event.target.value;
-            if (student) {
-              setProgramId(id);
-              const nextLevels = levelsForProgram(id);
-              setLevelId((current) => nextLevels.some((level) => level.id === current)
-                ? current : nextLevels[0]?.id ?? "");
-            }
+            setProgramId(id);
+            const nextLevels = levelsForProgram(id);
+            setLevelValue((current) => nextLevels.some((level) => level.value === current) ? current : "");
           }}
           required
         >
-          {!student ? <option value="">Select program</option> : null}
+          <option value="">Select program</option>
           {options.programs.map((program) => (
             <option key={program.id} value={program.id}>
               {program.code} - {program.label} ({program.programType})
@@ -168,62 +165,84 @@ function AdmissionProgramFields({
         </AdmissionSelect>
       </AdmissionField>
       <AdmissionField label="Academic level" required={Boolean(student)}>
-        <AdmissionSelect name="academicLevelsId" value={student ? academicLevelId : undefined} defaultValue={student ? undefined : ""} onChange={(event) => { if (student) setLevelId(event.target.value); }} required>
-          {!student ? <option value="">Select academic level</option> : null}
-          {levels.map((level) => <option key={level.id} value={level.id}>{level.label}</option>)}
+        <AdmissionSelect name="academicLevel" value={academicLevel} onChange={(event) => setLevelValue(event.target.value)} required>
+          <option value="">{programId ? "Select academic level" : "Select program first"}</option>
+          {levels.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
         </AdmissionSelect>
       </AdmissionField>
     </div>
   );
 }
 
+const profileFieldNames: ReadonlySet<string> = new Set(studentUpdateFields);
+
+function normalizeStudentFormField(name: keyof AdmittedStudentEditRecord, value: string) {
+  return profileFieldNames.has(name) ? normalizeStudentField(name as StudentUpdateField, value) : sanitizeInputText(value);
+}
+
 function StudentFields({ fields, student }: { fields: StudentField[]; student?: AdmittedStudentEditRecord }) {
-  return fields.map(({ name, label, required, type, choices, placeholder }) => (
-    <AdmissionField
-      key={name}
-      label={label}
-      required={Boolean(student) && required}
-      className={!student && (name === "birthDate" || name === "gender") ? "md:col-span-2" : undefined}
-    >
-      {choices ? (
-        <AdmissionSelect name={name} defaultValue={student?.[name] ?? ""} required={required}>
-          <option value="" disabled={Boolean(student) && required}>{placeholder}</option>
-          {choices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
-        </AdmissionSelect>
-      ) : (
-        <Input name={name} type={type} defaultValue={student?.[name] ?? ""} required={required} />
-      )}
-    </AdmissionField>
-  ));
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(({ name, choices }) => [name,
+    choices || name === "lastSchoolYear" ? student?.[name] ?? "" : normalizeStudentFormField(name, student?.[name] ?? ""),
+  ])));
+  return fields.map(({ name, label, required, type, choices, placeholder }) => {
+    const selectChoices = name === "lastSchoolYear"
+      ? generateSchoolYears({ selectedValue: student?.lastSchoolYear })
+      : choices;
+    const selectPlaceholder = name === "lastSchoolYear" ? "Select school year" : placeholder;
+    return (
+      <AdmissionField
+        key={name}
+        label={label}
+        required={Boolean(student) && required}
+        className={!student && (name === "birthDate" || name === "gender") ? "md:col-span-2" : undefined}
+      >
+        {selectChoices ? (
+          <AdmissionSelect name={name} value={values[name]} onChange={(event) => setValues((current) => ({ ...current, [name]: event.target.value }))} required={required}>
+            <option value="" disabled={Boolean(student) && required}>{selectPlaceholder}</option>
+            {selectChoices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
+          </AdmissionSelect>
+        ) : (
+          <Input name={name} type={type} value={values[name]} required={required}
+            onChange={(event) => setValues((current) => ({ ...current, [name]: event.target.value }))}
+            onBlur={(event) => {
+              const value = normalizeStudentFormField(name, event.currentTarget.value);
+              setValues((current) => ({ ...current, [name]: value }));
+            }}
+            autoCapitalize={isCapitalizedStudentField(name) ? "words" : "none"}
+            spellCheck={type === "email" ? false : undefined}
+          />
+        )}
+      </AdmissionField>
+    );
+  });
 }
 
 export function AddAdmittedStudentModal({ options }: { options: AdmissionOptions }) {
   const [open, setOpen] = useState(false);
-  const [showMessage, setShowMessage] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (previous: AddAdmittedStudentState, formData: FormData) => {
       const next = await addAdmittedStudentAction(previous, formData);
-      setShowMessage(Boolean(next.message));
       if (next.success) setOpen(false);
       return next;
     },
     initialState
   );
 
+  useActionToast(state);
+
   return (
     <AdmissionModal
       open={open}
-      onOpenChange={(value) => { setShowMessage(false); setOpen(value); }}
+      onOpenChange={setOpen}
       trigger={<Button type="button"><Plus />Add Student</Button>}
       title="Add Admitted Student"
       description="Enter the student details to add them to admissions."
     >
-      <form action={formAction} onSubmit={() => setShowMessage(false)} className="space-y-4 overflow-y-auto p-5">
+      <form action={formAction} className="space-y-4 overflow-y-auto p-5">
         <AdmissionProgramFields options={options} />
         <div className="grid gap-4 md:grid-cols-2">
           <StudentFields fields={personalFields.filter((field) => addFieldNames.has(field.name))} />
         </div>
-        {showMessage ? <ActionMessage {...state} /> : null}
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button type="submit" disabled={pending}>{pending ? "Adding..." : "Add to Admit"}</Button>
@@ -235,33 +254,35 @@ export function AddAdmittedStudentModal({ options }: { options: AdmissionOptions
 
 export function EditAdmittedStudentForm({ student, options }: { student: AdmittedStudentEditRecord; options: AdmittedStudentEditOptions }) {
   const [state, formAction, pending] = useActionState(editAdmittedStudentAction, initialState);
+  const formRef = usePortalFormFeedback(state, { returnTo: "/portal/admission" });
 
   return (
-    <form action={formAction} className="space-y-8">
+    <form ref={formRef} action={formAction} aria-busy={pending} className="space-y-8">
       <input name="studentId" type="hidden" value={student.studentId} />
       <input name="applicationId" type="hidden" value={student.applicationId} />
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Applicant And Program</h2>
-        <div className="mt-4"><AdmissionProgramFields options={options} student={student} /></div>
-      </section>
-      {detailSections.map(({ title, fields }) => (
-        <section key={title} className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-2"><StudentFields fields={fields} student={student} /></div>
+      <fieldset disabled={pending || state.success} className="min-w-0 space-y-8">
+        <legend className="sr-only">Student admission details</legend>
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Applicant And Program</h2>
+          <div className="mt-4"><AdmissionProgramFields options={options} student={student} /></div>
         </section>
-      ))}
-      <ActionMessage {...state} />
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background/95 py-4 backdrop-blur">
-        <Button asChild type="button" variant="outline"><Link href="/portal/admission">Back</Link></Button>
-        <Button type="submit" disabled={pending}>{pending ? "Saving..." : "Save Changes"}</Button>
-      </div>
+        {detailSections.map(({ title, fields }) => (
+          <section key={title} className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2"><StudentFields fields={fields} student={student} /></div>
+          </section>
+        ))}
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background/95 py-4 backdrop-blur">
+          <Button asChild type="button" variant="outline"><Link href="/portal/admission">Back</Link></Button>
+          <Button type="submit" disabled={pending || state.success}>{pending ? "Saving..." : "Save Changes"}</Button>
+        </div>
+      </fieldset>
     </form>
   );
 }
 export function BulkAdmitStudentsModal({ options }: { options: AdmissionOptions }) {
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [submittedMessage, setSubmittedMessage] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, formAction, pending] = useActionState(
@@ -271,11 +292,11 @@ export function BulkAdmitStudentsModal({ options }: { options: AdmissionOptions 
         formRef.current?.reset();
         setFileName("");
       }
-      setSubmittedMessage(next.message);
       return next;
     },
     initialState
   );
+  useActionToast(state);
 
   return (
     <AdmissionModal
@@ -285,14 +306,13 @@ export function BulkAdmitStudentsModal({ options }: { options: AdmissionOptions 
           formRef.current?.reset();
           setFileName("");
         }
-        setSubmittedMessage("");
         setOpen(value);
       }}
       trigger={<Button type="button" variant="outline"><FileSpreadsheet />Bulk Admit</Button>}
       title="Bulk Admit Students"
       description="Choose the admission details, then upload an Excel file."
     >
-      <form ref={formRef} action={formAction} onSubmit={() => setSubmittedMessage("")} className="space-y-5 overflow-y-auto p-5">
+      <form ref={formRef} action={formAction} className="space-y-5 overflow-y-auto p-5">
         <AdmissionProgramFields options={options} />
         <label
           className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-4 py-6 text-center transition hover:bg-muted/50"
@@ -324,7 +344,6 @@ export function BulkAdmitStudentsModal({ options }: { options: AdmissionOptions 
             onChange={(event) => setFileName(event.currentTarget.files?.item(0)?.name ?? "")}
           />
         </label>
-        {submittedMessage && submittedMessage === state.message ? <ActionMessage {...state} /> : null}
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button type="submit" disabled={pending}>{pending ? "Importing..." : "Import Students"}</Button>

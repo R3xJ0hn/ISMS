@@ -40,8 +40,8 @@ function ResumeSection({
   first?: boolean;
 }) {
   return (
-    <section className={cn("py-6", !first && "border-t border-gray-200")}>
-      <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
+    <section className={cn("py-5 sm:py-6", !first && "border-t border-gray-200")}>
+      <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
             {eyebrow}
@@ -64,13 +64,13 @@ function ResumeRows({
   }>;
 }) {
   return (
-    <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+    <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 sm:gap-y-4">
       {items.map((item) => (
-        <div key={item.label} className={item.fullWidth ? "sm:col-span-2" : ""}>
+        <div key={item.label} className={cn("min-w-0", item.fullWidth && "sm:col-span-2")}>
           <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
             {item.label}
           </dt>
-          <dd className="mt-1 text-sm leading-6 text-gray-700">{item.value}</dd>
+          <dd className="mt-1 text-sm leading-6 text-gray-700 [overflow-wrap:anywhere]">{item.value}</dd>
         </div>
       ))}
     </dl>
@@ -177,39 +177,38 @@ export function AdmissionReviewDetails({
     ...(form.current_student_record_id ? [{
       title: "Verified current student record", eyebrow: "Verification",
       items: rows(["Verified student", "current_student_verified_name"],
-        ["Latest school year", "current_student_verified_school_year"],
         ["Verified program", "current_student_verified_program"], ["Verified branch", "current_student_verified_branch"]),
     }] : []),
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-5 sm:space-y-8">
       <div>
         <h3 className="text-lg font-semibold text-gray-950">
           Review your admission details
         </h3>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
           Confirm the information below before sending the application to the
-          registrar. Use the step navigation on the left if you need to correct
-          anything.
+          registrar. Use the step navigation to correct any details before
+          submitting.
         </p>
       </div>
 
       <div
         className={cn(
-          "max-h-[58vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm sm:px-7",
+          "max-h-[58vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white px-3 py-4 shadow-sm max-lg:max-h-none max-lg:overflow-visible sm:px-7 sm:py-6",
           className
         )}
       >
         <article>
-          <header className="pb-6">
+          <header className="pb-4 sm:pb-6">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
               Admission Review
             </p>
-            <h4 className="mt-3 text-2xl font-semibold text-gray-950">
+            <h4 className="mt-2 text-xl font-semibold text-gray-950 [overflow-wrap:anywhere] sm:mt-3 sm:text-2xl">
               {studentName === "Not provided" ? "Applicant Record" : studentName}
             </h4>
-            <div className="mt-3 grid gap-2 text-sm leading-6 text-gray-600 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 text-sm leading-6 text-gray-600 [overflow-wrap:anywhere] sm:grid-cols-2">
               <p>
                 <span className="font-semibold text-gray-800">Applicant type:</span>{" "}
                 {displayValue(form.applicant_type)}
@@ -256,12 +255,17 @@ export function AdmissionReviewDetails({
                 </div>
               </div>
 
-              <label className="flex items-start gap-3">
+              <label
+                className={cn(
+                  "flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
+                  consent ? "border-emerald-200 bg-emerald-50" : "border-gray-200 bg-gray-50"
+                )}
+              >
                 <input
                   type="checkbox"
                   checked={consent}
                   onChange={(event) => onConsentChange?.(event.target.checked)}
-                  className="mt-1 size-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="mt-0.5 size-5 shrink-0 rounded border-gray-300 text-primary accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 />
                 <span className="text-sm leading-6 text-gray-700">
                   I have reviewed this application and give my consent to submit

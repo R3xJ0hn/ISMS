@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/tests
+
+# production
+/prisma/migrations
+/prisma/sql
 
 # next.js
 /.next/

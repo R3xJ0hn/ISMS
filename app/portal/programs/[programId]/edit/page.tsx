@@ -1,8 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import { PortalPageHeader } from "@/components/portal/page-header";
-import { Button } from "@/components/ui/button";
+import { PortalFormPage } from "@/components/portal/page-header";
 import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseId } from "@/lib/utils";
@@ -30,15 +27,9 @@ export default async function EditProgramPage({ params }: { params: Promise<{ pr
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <Button asChild variant="outline" className="w-fit">
-        <Link href="/portal/programs">
-          <ArrowLeft aria-hidden="true" />
-          Back to programs
-        </Link>
-      </Button>
-      <PortalPageHeader label="Programs" title={`Edit ${program.code}`} description="Update admission information and the content shown on the public course page." />
+    <PortalFormPage backHref="/portal/programs" backLabel="Back to programs"
+      label="Manage Programs" title={`Edit ${program.code}`} description="Update admission information and the content shown on the public course page.">
       <ProgramEditForm programId={programId.toString()} values={values} groups={groups} />
-    </main>
+    </PortalFormPage>
   );
 }

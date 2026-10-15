@@ -1,14 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { formatAddress, normalizeText } from "@/lib/utils";
-import { allowedAcademicLevelSlugsByProgramType } from "./constants";
+import { academicLevelOptions, isAcademicLevelAllowedForProgram } from "@/lib/academic-levels";
 import { addressSelect } from "./records";
 import type { AdmissionBranchesResult, AdmissionProgramOptionsResult } from "@/lib/types/admission";
-import type { AcademicLevelOption, ProgramOption } from "@/lib/types/catalog";
-
-type InternalProgramOption = Omit<ProgramOption, "academicLevels"> & {
-  academicLevels: Map<string, AcademicLevelOption>;
-};
+import type { ProgramOption } from "@/lib/types/catalog";
 
 const branchSelect = {
   id: true,
@@ -53,7 +49,7 @@ function sortAcademicLevels(
   return left.label.localeCompare(right.label);
 }
 
-function sortPrograms(left: InternalProgramOption, right: InternalProgramOption) {
+function sortPrograms(left: ProgramOption, right: ProgramOption) {
   const typeDifference =
     (programTypeOrder.get(left.programType) ?? Number.MAX_SAFE_INTEGER) -
     (programTypeOrder.get(right.programType) ?? Number.MAX_SAFE_INTEGER);
@@ -108,7 +104,9 @@ export async function getAdmissionProgramOptions(
 ): Promise<AdmissionProgramOptionsResult> {
   const normalizedBranchId = normalizeText(branchId);
 
-  if (!/^\d+$/.test(normalizedBranchId)) {
+  const id = /^\d{1,19}$/.test(normalizedBranchId) ? BigInt(normalizedBranchId) : null;
+
+  if (id === null || id <= 0n || id > 9223372036854775807n) {
     return {
       programs: [],
       error: "A valid branchId is required.",
@@ -118,13 +116,13 @@ export async function getAdmissionProgramOptions(
   try {
     const branch = await prisma.branch.findUnique({
       where: {
-        id: BigInt(normalizedBranchId),
+        id,
       },
       select: {
         id: true,
         slug: true,
         title: true,
-        sections: {
+        branchPrograms: {
           select: {
             program: {
               select: {
@@ -132,13 +130,6 @@ export async function getAdmissionProgramOptions(
                 code: true,
                 label: true,
                 programType: true,
-              },
-            },
-            academicLevels: {
-              select: {
-                id: true,
-                label: true,
-                slug: true,
               },
             },
           },
@@ -153,45 +144,28 @@ export async function getAdmissionProgramOptions(
       };
     }
 
-    const programsById = new Map<string, InternalProgramOption>();
+    const programsById = new Map<string, ProgramOption>();
 
-    for (const section of branch.sections) {
-      const programId = section.program.id.toString();
-      const allowedSlugs =
-        allowedAcademicLevelSlugsByProgramType[section.program.programType];
+    for (const { program } of branch.branchPrograms) {
+      const programId = program.id.toString();
+      const compatibleLevels = academicLevelOptions
+        .filter((level) => isAcademicLevelAllowedForProgram(program.programType, level.value))
+        .map((level) => ({ ...level }))
+        .toSorted(sortAcademicLevels);
 
-      if (!allowedSlugs.includes(section.academicLevels.slug)) {
-        continue;
-      }
+      if (compatibleLevels.length === 0) continue;
 
-      let program = programsById.get(programId);
-
-      if (!program) {
-        program = {
-          id: programId,
-          code: section.program.code,
-          label: section.program.label,
-          programType: section.program.programType,
-          academicLevels: new Map(),
-        };
-        programsById.set(programId, program);
-      }
-
-      program.academicLevels.set(section.academicLevels.id.toString(), {
-        id: section.academicLevels.id.toString(),
-        label: section.academicLevels.label,
-        slug: section.academicLevels.slug,
+      programsById.set(programId, {
+        id: programId,
+        code: program.code,
+        label: program.label,
+        programType: program.programType,
+        academicLevels: compatibleLevels,
       });
     }
 
     const programOptions = Array.from(programsById.values())
-      .toSorted(sortPrograms)
-      .map(({ academicLevels, ...program }) => ({
-        ...program,
-        academicLevels: Array.from(academicLevels.values()).toSorted(
-          sortAcademicLevels
-        ),
-      }));
+      .toSorted(sortPrograms);
 
     return {
       branch: {

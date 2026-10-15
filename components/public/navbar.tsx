@@ -7,14 +7,16 @@ import { usePathname } from "next/navigation";
 import { Phone, Mail, Menu, X } from "lucide-react";
 import { cn, isActivePath } from "@/lib/utils";
 import { SCHOOL } from "@/lib/public/site";
+import { DEFAULT_SITE_SETTINGS, type PublicSiteSettings } from "@/lib/site-settings/defaults";
+import { safeExternalUrl } from "@/lib/site-settings/validation";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
   { label: "Admissions", href: "/admission" },
   { label: "Programs", href: "/programs" },
-  { label: "Branches", href: "/" },
-  { label: "Contact", href: "/" },
-  { label: "About Us", href: "/" },
+  { label: "Branches", href: "/branches" },
+  { label: "Contact", href: "/contact" },
+  { label: "About Us", href: "/about" },
 ];
 
 function isActiveLink(
@@ -28,10 +30,11 @@ function isActiveLink(
   return isActivePath(pathname, item.href);
 }
 
-export default function Navbar() {
+export default function Navbar({ settings = DEFAULT_SITE_SETTINGS }: { settings?: PublicSiteSettings } = {}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const portalActive = isActivePath(pathname, "/portal");
+  const officialWebsite = safeExternalUrl(settings.officialWebsiteUrl);
 
   function renderLinks(mobile = false) {
     return NAV_ITEMS.map((item) => {
@@ -60,31 +63,30 @@ export default function Navbar() {
     <>
       {/* Top Bar */}
       <div className="flex w-full flex-col gap-2 bg-[#3b3570] px-5 py-1 text-xs text-white sm:flex-row sm:items-center sm:justify-between">
-        <p className="whitespace-normal sm:whitespace-nowrap sm:truncate">
+        <p className="whitespace-normal sm:min-w-0 sm:flex-1 sm:whitespace-nowrap sm:truncate">
           This is not the official website of Datamex College of Saint Adeline.
-          For official information, visit the school&apos;s
-          <a href={SCHOOL.contact.officialWebsite} className="underline">
-            {" "}
-            Official Website
-          </a>
-          .
+          {officialWebsite ? (
+            <> For official information, visit the school&apos;s <a href={officialWebsite} className="underline">Official Website</a>.</>
+          ) : (
+            <> For official information, contact the school directly.</>
+          )}
         </p>
 
-        <div className="hidden items-center gap-6 sm:flex">
-          <div className="flex items-center gap-1">
-            <Phone size={12} />
-            <span>{SCHOOL.contact.phone}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Mail size={12} />
-            <span>{SCHOOL.contact.email}</span>
-          </div>
+        <div className="hidden min-w-0 max-w-[48%] items-center gap-4 sm:flex">
+          {settings.contactPhone && <div className="flex min-w-0 items-center gap-1">
+            <Phone size={12} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">{settings.contactPhone}</span>
+          </div>}
+          {settings.contactEmail && <div className="flex min-w-0 items-center gap-1">
+            <Mail size={12} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">{settings.contactEmail}</span>
+          </div>}
         </div>
       </div>
 
       {/* Main Nav */}
       <nav className="sticky top-0 z-50 bg-white shadow-2xs">
-        <div className="flex h-20 items-center justify-between mx-auto px-5 lg:px-20 shadow-md/30">
+        <div className="mx-auto flex h-20 items-center justify-between gap-4 px-5 shadow-md/30 xl:px-10 2xl:px-20">
           {/* Logo */}
           <div className="flex items-center gap-3">
             <Image
@@ -104,7 +106,7 @@ export default function Navbar() {
           </div>
 
           {/* Desktop Menu */}
-          <ul className="hidden lg:flex items-center gap-10 font-medium text-gray-600">
+          <ul className="hidden items-center gap-2 font-medium text-gray-600 xl:flex 2xl:gap-6">
             {renderLinks()}
           </ul>
 
@@ -113,7 +115,7 @@ export default function Navbar() {
             href="/portal"
             aria-current={portalActive ? "page" : undefined}
             className={cn(
-              "hidden border-b-2 border-transparent px-3 py-2 font-semibold text-[#2e2a6b] transition-colors hover:text-accent lg:block",
+              "hidden border-b-2 border-transparent px-3 py-2 font-semibold text-[#2e2a6b] transition-colors hover:text-accent xl:block",
               portalActive && "border-accent font-bold text-accent"
             )}
           >
@@ -122,7 +124,7 @@ export default function Navbar() {
 
           {/* Mobile Toggle */}
           <button
-            className="lg:hidden"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary xl:hidden"
             onClick={() => setOpen((prev) => !prev)}
             aria-label="Toggle Menu"
             aria-expanded={open}
@@ -136,7 +138,7 @@ export default function Navbar() {
         {open && (
           <div
             id="mobile-menu"
-            className="lg:hidden border-t bg-white absolute w-full px-5 shadow-md/30"
+            className="absolute max-h-[calc(100dvh-5rem)] w-full overflow-y-auto border-t bg-white px-5 shadow-md/30 xl:hidden"
           >
             <ul className="flex flex-col divide-y text-center font-medium">
               {renderLinks(true)}

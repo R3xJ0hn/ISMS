@@ -12,7 +12,6 @@ const detailFields = Object.values(detailsSteps).flatMap((step) =>
 const emptyVerification = {
   current_student_record_id: "",
   current_student_verified_name: "",
-  current_student_verified_school_year: "",
   current_student_verified_program: "",
   current_student_verified_branch: "",
 };
@@ -24,7 +23,7 @@ export const emptyProgramSelection = {
   program_id: "",
   program_code: "",
   program_label: "",
-  academic_level_id: "",
+  academic_level: "",
   academic_level_label: "",
 };
 
@@ -35,9 +34,7 @@ export const initialFormValues = {
   ...emptyProgramSelection,
   applicant_type: "",
   branch_id: "",
-  current_year_level: "",
-  current_section: "",
-  current_school_year: "",
+  last_school_record_id: "",
 };
 
 export type AdmissionFormValues = typeof initialFormValues;
@@ -46,7 +43,7 @@ export type AdmissionConfirmation = { message: string; submissionId: string; sub
 
 const requiredFields: Partial<Record<StepId, readonly FieldName[]>> = {
   applicant: ["applicant_type", "branch_id"],
-  program: ["program_type", "program_id", "academic_level_id"],
+  program: ["program_type", "program_id", "academic_level"],
   currentStudent: [...currentStudentFields.map(({ id }) => id), "current_student_record_id"],
   ...Object.fromEntries(Object.entries(detailsSteps).map(([id, step]) => [
     id, step.sections.flatMap((section) => section.fields.filter((field) => field.required).map((field) => field.id)),
@@ -134,7 +131,6 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
           ...form,
           current_student_record_id: verification.recordId,
           current_student_verified_name: verification.displayName,
-          current_student_verified_school_year: verification.schoolYear,
           current_student_verified_program: verification.program,
           current_student_verified_branch: verification.branch,
           contact_email: form.contact_email || form.current_student_email,

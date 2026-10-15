@@ -2,8 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function GradesTableSkeleton({ semester }: { semester?: string }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div className="border-b border-border px-4 py-3">
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card" aria-label="Loading grade records">
+      <div className="border-b border-border px-5 py-4 sm:px-6">
         {semester ? (
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-foreground">

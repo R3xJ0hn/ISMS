@@ -1,4 +1,5 @@
 import type { StudentUpdateRecord } from "@/lib/admission/student-update";
+import { generateSchoolYears } from "@/lib/utils";
 import { civilStatusOptions, genderOptions, schoolTypeOptions } from "./config";
 import type { FormFieldDefinition } from "./form-fields";
 
@@ -66,7 +67,7 @@ const schoolAddressFields = [
 ] as const satisfies readonly AdmissionField[];
 
 const schoolAcademicFields = [
-  { id: "last_school_year", updateId: "lastSchoolYear", label: "Last school year attended", placeholder: "Example: 2025-2026", required: true },
+  { id: "last_school_year", updateId: "lastSchoolYear", label: "Last school year attended", placeholder: "Select school year", options: (selectedValue: string) => generateSchoolYears({ selectedValue }), required: true },
   { id: "last_school_year_level", updateId: "lastSchoolYearLevel", label: "Year level completed", placeholder: "Example: Grade 12 / First Year", required: true },
   { id: "last_school_graduation_date", updateId: "lastSchoolGraduationDate", label: "Graduation date", type: "date", hint: "Leave blank if not yet graduated." },
 ] as const satisfies readonly AdmissionField[];

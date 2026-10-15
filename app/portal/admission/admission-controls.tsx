@@ -7,6 +7,7 @@ import {
   type UpdateApplicationStatusState,
 } from "@/app/portal/admission/actions";
 import { AdmissionSelect } from "@/app/portal/admission/admission-ui";
+import { useActionToast } from "@/components/portal/toasts";
 
 type ApplicationStatusSelectProps = {
   applicationId: string;
@@ -28,7 +29,6 @@ export function ApplicationStatusSelect({
   statuses,
 }: ApplicationStatusSelectProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const errorId = `application-status-error-${applicationId}`;
   const [state, formAction, pending] = useActionState(
     updateApplicationStatusAction,
     {
@@ -37,6 +37,7 @@ export function ApplicationStatusSelect({
       status,
     } satisfies UpdateApplicationStatusState
   );
+  useActionToast(state);
   const committedStatus = state.success || state.message ? state.status : status;
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(
     committedStatus,
@@ -50,9 +51,7 @@ export function ApplicationStatusSelect({
       <AdmissionSelect
         name="applicationStatus"
         aria-label="Application status"
-        aria-describedby={
-          state.message && !state.success && !pending ? errorId : undefined
-        }
+        aria-invalid={Boolean(state.message && !state.success && !pending)}
         value={optimisticStatus}
         disabled={pending}
         onChange={(event) => {
@@ -73,10 +72,6 @@ export function ApplicationStatusSelect({
       </AdmissionSelect>
       {pending ? (
         <p className="text-xs text-muted-foreground">Saving...</p>
-      ) : state.message && !state.success ? (
-        <p id={errorId} aria-live="polite" className="text-xs text-destructive">
-          {state.message}
-        </p>
       ) : null}
     </form>
   );

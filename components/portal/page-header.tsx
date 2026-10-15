@@ -1,11 +1,17 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function PortalPageHeader({ label, title, description, children }: {
+type PortalPageHeaderProps = {
   label: ReactNode;
   title: string;
   description: string;
   children?: ReactNode;
-}) {
+};
+
+export function PortalPageHeader({ label, title, description, children }: PortalPageHeaderProps) {
   return (
     <section className="flex flex-col gap-2">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
@@ -17,6 +23,19 @@ export function PortalPageHeader({ label, title, description, children }: {
         {children}
       </div>
     </section>
+  );
+}
+
+/** Common shell for create, edit and assignment pages. Feature pages retain their own data loading. */
+export function PortalFormPage({ label, title, description, backHref, backLabel, headerActions, className, children }:
+  PortalPageHeaderProps & { backHref: string; backLabel: string; headerActions?: ReactNode; className?: string }
+) {
+  return (
+    <main className={cn("flex flex-1 flex-col gap-6 p-4 md:p-6", className)}>
+      <Button asChild variant="outline" className="w-fit"><Link href={backHref}><ArrowLeft aria-hidden="true" />{backLabel}</Link></Button>
+      <PortalPageHeader label={label} title={title} description={description}>{headerActions}</PortalPageHeader>
+      {children}
+    </main>
   );
 }
 

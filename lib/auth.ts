@@ -1,5 +1,5 @@
 import { hashPassword, isBcryptHash, verifyPassword } from "@/lib/auth/credentials";
-import { normalizeEmail } from "@/lib/utils";
+import { normalizeEmail, parseId } from "@/lib/utils";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -20,12 +20,14 @@ type SessionUser = {
   email: string;
   role: UserRole;
   emailVerified: boolean;
+  sessionVersion: number;
 };
 
 type SessionTokenPayload = JWTPayload & {
   email: string;
   role: UserRole;
   emailVerified: boolean;
+  sessionVersion?: number;
 };
 
 function getJwtSecret() {
@@ -57,6 +59,7 @@ export async function authenticateUser(email: string, password: string) {
       role: true,
       emailVerified: true,
       passwordHash: true,
+      sessionVersion: true,
     },
   });
 
@@ -71,16 +74,18 @@ export async function authenticateUser(email: string, password: string) {
 
   if (!isBcryptHash(user.passwordHash)) {
     try {
-      await prisma.user.update({
+      await prisma.user.updateMany({
         where: {
           id: user.id,
+          passwordHash: user.passwordHash,
+          sessionVersion: user.sessionVersion,
         },
         data: {
           passwordHash: await hashPassword(password),
         },
       });
-    } catch (error) {
-      console.error("Failed to rehash user password:", error);
+    } catch {
+      console.error("Failed to rehash user password.");
     }
   }
 
@@ -91,6 +96,7 @@ export async function authenticateUser(email: string, password: string) {
       email: user.email,
       role: user.role,
       emailVerified: user.emailVerified,
+      sessionVersion: user.sessionVersion,
     } satisfies SessionUser,
   };
 }
@@ -109,6 +115,7 @@ export async function createSession(
     email: user.email,
     role: user.role,
     emailVerified: user.emailVerified,
+    sessionVersion: user.sessionVersion,
   } satisfies Omit<SessionTokenPayload, keyof JWTPayload | "sub">)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -143,7 +150,9 @@ async function verifySessionToken(token: string): Promise<SessionUser | null> {
       typeof payload.sub !== "string" ||
       typeof payload.email !== "string" ||
       typeof payload.role !== "string" ||
-      typeof payload.emailVerified !== "boolean"
+      typeof payload.emailVerified !== "boolean" ||
+      (payload.sessionVersion !== undefined &&
+        (!Number.isInteger(payload.sessionVersion) || payload.sessionVersion < 0 || payload.sessionVersion > 2147483647))
     ) {
       return null;
     }
@@ -153,6 +162,7 @@ async function verifySessionToken(token: string): Promise<SessionUser | null> {
       email: payload.email,
       role: payload.role as UserRole,
       emailVerified: payload.emailVerified,
+      sessionVersion: payload.sessionVersion ?? 0,
     };
   } catch {
     return null;
@@ -167,27 +177,55 @@ export async function getCurrentSession() {
     return null;
   }
 
-  return verifySessionToken(token);
+  const session = await verifySessionToken(token);
+  if (!session) return null;
+  const id = parseId(session.id);
+  if (id === null || id <= 0n || id > 9223372036854775807n) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, role: true, emailVerified: true, sessionVersion: true },
+  });
+  if (!user || user.sessionVersion !== session.sessionVersion) return null;
+  return {
+    id: user.id.toString(),
+    email: user.email,
+    role: user.role,
+    emailVerified: user.emailVerified,
+    sessionVersion: user.sessionVersion,
+  } satisfies SessionUser;
 }
 
 export function isAdminRole(role: UserRole) {
   return role === "admin" || role === "superAdmin";
 }
 
-export async function requireSession() {
+export async function requireAuthenticatedSession() {
   const session = await getCurrentSession();
   if (!session) redirect("/login");
   return session;
 }
 
+export async function requireSession() {
+  const session = await requireAuthenticatedSession();
+  if (!session.emailVerified) redirect("/verify-email");
+  return session;
+}
+
 export async function requireAdmin() {
-  const session = await getCurrentSession();
-  if (!session || !isAdminRole(session.role)) redirect("/portal");
+  const session = await requireSession();
+  if (!isAdminRole(session.role)) redirect("/portal");
   return session;
 }
 
 export async function requireSuperAdmin() {
   const session = await requireSession();
   if (session.role !== "superAdmin") redirect("/portal");
+  return session;
+}
+
+export async function requireTeacher() {
+  const session = await requireSession();
+  if (session.role !== "teacher") redirect("/portal");
   return session;
 }

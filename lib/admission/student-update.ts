@@ -1,13 +1,17 @@
 import { studentProfileFromRecord, studentUpdateSelect, type StudentUpdateQueryResult } from "@/lib/admission/records";
-import { parseDateInput } from "@/lib/validation";
-import { firstInvalidStudentUpdateField, normalizeStudentUpdateInput, type UpdateStudentRecordInput } from "./student-fields";
-import { addressDataFromProfile, guardianDataFromProfile, lastSchoolDataFromProfile, studentDataFromProfile } from "./profile-data";
+import { parseDateInput, validateEmail } from "@/lib/validation";
+import { addressDataFromProfile, firstInvalidStudentUpdateField, guardianDataFromProfile, normalizeStudentUpdateInput, studentDataFromProfile, type UpdateStudentRecordInput } from "./student-fields";
+import { resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
+import { formatAcademicLevel } from "@/lib/academic-levels";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { normalizeEmail, parseId } from "@/lib/utils";
 
 import {
-  ApplicantType,
   ApplicationStatus,
+  UserRole,
+  VerificationTokenPurpose,
 } from "@/lib/generated/prisma/enums";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export { studentUpdateFields, type UpdateStudentRecordInput } from "./student-fields";
@@ -19,6 +23,9 @@ export type StudentUpdateTokenPayload = {
   studentId: string;
   jti: string;
   exp: number;
+  userId?: string;
+  email?: string;
+  sessionVersion?: number;
 };
 
 export type StudentUpdateRecord = ReturnType<typeof mapStudentRecord>;
@@ -43,9 +50,11 @@ function signStudentUpdateToken(encodedPayload: string) {
 }
 
 export function verifyStudentUpdateToken(token: string) {
-  const [encodedPayload, signature] = token.split(".");
+  if (!token || token.length > 4096) return null;
+  const parts = token.split(".");
+  const [encodedPayload, signature] = parts;
 
-  if (!encodedPayload || !signature) {
+  if (parts.length !== 2 || !encodedPayload || !signature) {
     return null;
   }
 
@@ -67,12 +76,27 @@ export function verifyStudentUpdateToken(token: string) {
 
     if (
       payload.scope !== "student-update" ||
-      !/^\d+$/.test(payload.studentId) ||
+      typeof payload.studentId !== "string" ||
+      parseId(payload.studentId) === null ||
+      BigInt(payload.studentId) <= 0n ||
+      BigInt(payload.studentId) > 9223372036854775807n ||
       typeof payload.jti !== "string" ||
+      !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(payload.jti) ||
+      !Number.isSafeInteger(payload.exp) ||
       payload.exp <= Date.now()
     ) {
       return null;
     }
+
+    const hasAccountClaims = payload.userId !== undefined || payload.email !== undefined;
+    if (hasAccountClaims && (
+      typeof payload.userId !== "string" || !/^[1-9]\d*$/.test(payload.userId) ||
+      BigInt(payload.userId) > 9223372036854775807n ||
+      typeof payload.email !== "string" || payload.email.length > 320 ||
+      payload.email !== normalizeEmail(payload.email) || !validateEmail(payload.email)
+    )) return null;
+    if (payload.sessionVersion !== undefined && (typeof payload.sessionVersion !== "number" ||
+      !Number.isSafeInteger(payload.sessionVersion) || payload.sessionVersion < 0 || payload.sessionVersion > 2147483647)) return null;
 
     return payload;
   } catch {
@@ -119,53 +143,60 @@ function mapStudentRecord(
     student.guardians.find((guardian) => guardian.isPrimary) ??
     student.guardians[0];
   const latestApplication = student.applications[0];
-  const latestEnrollment = student.enrollments[0];
 
   return {
     token,
     studentId: student.id.toString(),
     ...studentProfileFromRecord(student, latestApplication, primaryGuardian),
-    latestEnrollmentStatus:
-      latestEnrollment?.enrollmentStatus ??
-      latestApplication?.applicationStatus ??
-      "",
-    latestEnrollmentSchoolYear: latestEnrollment?.schoolYear.name ?? "",
-    latestEnrollmentBranch:
-      latestEnrollment?.branch.title ?? latestApplication?.branch.title ?? "",
-    latestEnrollmentProgram:
-      latestEnrollment?.program.label ?? latestApplication?.program.label ?? "",
-    latestEnrollmentYearLevel:
-      latestEnrollment?.academicLevels.label ??
-      latestApplication?.academicLevels.label ??
-      "",
-    latestEnrollmentSection:
-      latestEnrollment?.section?.sectionName ??
-      latestEnrollment?.section?.sectionCode ??
-      "",
+    latestAdmissionStatus: latestApplication?.applicationStatus ?? "",
+    latestAdmissionBranch: latestApplication?.branch.title ?? "",
+    latestAdmissionProgram: latestApplication?.program.label ?? "",
+    latestAdmissionYearLevel: latestApplication
+      ? formatAcademicLevel(latestApplication.academicLevel)
+      : "",
   };
 }
 
-export async function createStudentUpdateUrl(studentId: string) {
-  const expiresAt = new Date(Date.now() + STUDENT_UPDATE_LINK_TTL_MS);
-  const payload: StudentUpdateTokenPayload = {
-    scope: "student-update",
-    studentId,
-    jti: randomUUID(),
-    exp: expiresAt.getTime(),
+export function studentTokenWhere(payload: StudentUpdateTokenPayload) {
+  return {
+    jti: payload.jti, purpose: VerificationTokenPurpose.studentUpdate,
+    employeeId: null,
+    ...(payload.userId ? { userId: BigInt(payload.userId) } : {}),
+    consumedAt: null, expiresAt: { gt: new Date() },
   };
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signature = signStudentUpdateToken(encodedPayload);
-  const token = `${encodedPayload}.${signature}`;
+}
 
-  await prisma.studentUpdateToken.create({
-    data: {
-      jti: payload.jti,
-      studentId: BigInt(studentId),
-      expiresAt,
-    },
-  });
-
+export async function createStudentUpdateUrl(studentId: string, recipientEmail: string) {
+  const id = parseId(studentId);
+  if (id === null || id <= 0n || id > 9223372036854775807n) throw new Error("Invalid student ID.");
+  const email = normalizeEmail(recipientEmail);
+  if (!validateEmail(email) || email.length > 320) throw new Error("Invalid student email.");
   const updateUrl = new URL("/admission/update", getAppBaseUrl());
+  const token = await prisma.$transaction(async (tx) => {
+    const student = await tx.student.findUnique({ where: { id }, select: { email: true } });
+    if (!student || normalizeEmail(student.email) !== email) throw new Error("The student email changed. Request a new link.");
+    let user = await tx.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } }, select: { id: true, role: true, sessionVersion: true },
+    });
+    if (user && user.role !== UserRole.student) throw new Error("This email belongs to another portal account.");
+    if (!user) {
+      user = await tx.user.create({
+        data: { email, role: UserRole.student, passwordHash: "!password-setup-required", emailVerified: false, sessionVersion: 0 },
+        select: { id: true, role: true, sessionVersion: true },
+      });
+    }
+    const expiresAt = new Date(Date.now() + STUDENT_UPDATE_LINK_TTL_MS);
+    const payload: StudentUpdateTokenPayload = {
+      scope: "student-update", studentId, userId: user.id.toString(), email, sessionVersion: user.sessionVersion,
+      jti: randomUUID(), exp: expiresAt.getTime(),
+    };
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const signed = `${encodedPayload}.${signStudentUpdateToken(encodedPayload)}`;
+    await tx.verificationToken.create({
+      data: { jti: payload.jti, userId: user.id, purpose: VerificationTokenPurpose.studentUpdate, expiresAt },
+    });
+    return signed;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   updateUrl.searchParams.set("token", token);
 
   return updateUrl.toString();
@@ -178,6 +209,11 @@ export async function getStudentUpdateRecord(token: string) {
     return null;
   }
 
+  const tokenRecord = await prisma.verificationToken.findFirst({
+    where: studentTokenWhere(payload), select: { userId: true },
+  });
+  if (!tokenRecord || tokenRecord.userId === null) return null;
+
   const student = await prisma.student.findUnique({
     where: {
       id: BigInt(payload.studentId),
@@ -188,6 +224,9 @@ export async function getStudentUpdateRecord(token: string) {
   if (!student) {
     return null;
   }
+
+  const account = await prisma.user.findUnique({ where: { id: tokenRecord.userId }, select: { email: true, role: true } });
+  if (!account || account.role !== UserRole.student || normalizeEmail(account.email) !== normalizeEmail(student.email)) return null;
 
   return mapStudentRecord(token, student);
 }
@@ -206,6 +245,7 @@ export async function updateStudentRecordFromToken(
   }
 
   const normalizedInput = normalizeStudentUpdateInput(input);
+  normalizedInput.email = normalizeEmail(normalizedInput.email);
   const invalidField = firstInvalidStudentUpdateField(normalizedInput);
 
   if (invalidField) {
@@ -225,13 +265,26 @@ export async function updateStudentRecordFromToken(
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await runLastSchoolTransaction(async (tx) => {
+      const tokenRecord = await tx.verificationToken.findFirst({
+        where: studentTokenWhere(payload), select: { userId: true },
+      });
+      if (!tokenRecord || tokenRecord.userId === null) throw new Error("Student update token is invalid or no longer available.");
+      // Lock the still-valid token without consuming it; password setup uses the same link afterward.
+      const validToken = await tx.verificationToken.updateMany({
+        where: {
+          ...studentTokenWhere(payload), userId: tokenRecord.userId,
+        },
+        data: { consumedAt: null },
+      });
+      if (validToken.count !== 1) throw new Error("Student update token is invalid or no longer available.");
       const student = await tx.student.findUnique({
         where: {
           id: BigInt(payload.studentId),
         },
         select: {
           id: true,
+          email: true,
           addressId: true,
           guardians: {
             orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
@@ -242,37 +295,12 @@ export async function updateStudentRecordFromToken(
             },
           },
           applications: {
-            orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+            orderBy: [{ submittedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
             take: 1,
             select: {
               id: true,
-              branchId: true,
-              programId: true,
-              academicLevelsId: true,
-              programType: true,
-              lastSchoolId: true,
               applicationStatus: true,
               submittedAt: true,
-              lastSchool: {
-                select: {
-                  id: true,
-                  addressId: true,
-                },
-              },
-            },
-          },
-          enrollments: {
-            orderBy: [{ schoolYearId: "desc" }, { enrolledAt: "desc" }],
-            take: 1,
-            select: {
-              branchId: true,
-              programId: true,
-              academicLevelsId: true,
-              program: {
-                select: {
-                  programType: true,
-                },
-              },
             },
           },
         },
@@ -282,18 +310,38 @@ export async function updateStudentRecordFromToken(
         throw new Error("Student record not found.");
       }
 
+      const latestApplication = student.applications[0];
+      if (!latestApplication) {
+        throw new Error("Student admission record not found.");
+      }
+
+      const account = await tx.user.findUnique({
+        where: { id: tokenRecord.userId }, select: { email: true, role: true, sessionVersion: true },
+      });
+      if (!account || account.role !== UserRole.student || normalizeEmail(account.email) !== normalizeEmail(student.email)) {
+        throw new Error("The student account changed. Request a new link.");
+      }
+      const updatedEmail = normalizeEmail(normalizedInput.email);
+      if (updatedEmail !== normalizeEmail(account.email) && account.sessionVersion !== (payload.sessionVersion ?? 0)) {
+        throw new Error("Request a current student update link before changing the account email.");
+      }
+      const updatedAccount = await tx.user.updateMany({
+        where: { id: tokenRecord.userId, email: account.email, role: UserRole.student, sessionVersion: account.sessionVersion },
+        data: { email: updatedEmail, ...(normalizeEmail(account.email) !== updatedEmail ? { emailVerified: false } : {}) },
+      });
+      if (updatedAccount.count !== 1) throw new Error("The student account changed.");
+
       const addressData = addressDataFromProfile(normalizedInput, "address");
 
       let addressId = student.addressId;
 
       if (addressId) {
-        const addressStudentCount = await tx.student.count({
-          where: {
-            addressId,
-          },
-        });
+        const [addressStudentCount, addressSchoolCount] = await Promise.all([
+          tx.student.count({ where: { addressId } }),
+          tx.lastSchool.count({ where: { addressId } }),
+        ]);
 
-        if (addressStudentCount > 1) {
+        if (addressStudentCount > 1 || addressSchoolCount > 0) {
           const address = await tx.address.create({
             data: addressData,
           });
@@ -370,119 +418,29 @@ export async function updateStudentRecordFromToken(
         });
       }
 
-      const lastSchoolAddressData = addressDataFromProfile(normalizedInput, "lastSchool");
+      const lastSchool = await resolveLastSchool(tx, normalizedInput);
 
-      const latestApplication = student.applications[0];
-      const latestEnrollment = student.enrollments[0];
-      let lastSchoolId = latestApplication?.lastSchoolId ?? null;
-      let lastSchoolAddressId = latestApplication?.lastSchool?.addressId ?? null;
-      const lastSchoolData = lastSchoolDataFromProfile(normalizedInput);
-
-      if (lastSchoolId) {
-        const lastSchoolApplicationCount = await tx.admissionApplication.count({
-          where: {
-            lastSchoolId,
-          },
-        });
-
-        if (lastSchoolApplicationCount > 1) {
-          const lastSchoolAddress = await tx.address.create({
-            data: lastSchoolAddressData,
-          });
-          const lastSchool = await tx.lastSchool.create({
-            data: {
-              ...lastSchoolData,
-              addressId: lastSchoolAddress.id,
-            },
-          });
-
-          lastSchoolId = lastSchool.id;
-          lastSchoolAddressId = lastSchoolAddress.id;
-        } else {
-          if (latestApplication?.lastSchool?.addressId) {
-            await tx.address.update({
-              where: {
-                id: latestApplication.lastSchool.addressId,
-              },
-              data: lastSchoolAddressData,
-            });
-          } else {
-            const lastSchoolAddress = await tx.address.create({
-              data: lastSchoolAddressData,
-            });
-
-            lastSchoolAddressId = lastSchoolAddress.id;
-          }
-
-          await tx.lastSchool.update({
-            where: {
-              id: lastSchoolId,
-            },
-            data: {
-              ...lastSchoolData,
-              addressId: lastSchoolAddressId,
-            },
-          });
-        }
-      } else {
-        const lastSchoolAddress = await tx.address.create({
-          data: lastSchoolAddressData,
-        });
-
-        const lastSchool = await tx.lastSchool.create({
-          data: {
-            ...lastSchoolData,
-            addressId: lastSchoolAddress.id,
-          },
-        });
-
-        lastSchoolId = lastSchool.id;
-        lastSchoolAddressId = lastSchoolAddress.id;
-      }
-
-      if (latestApplication) {
-        const shouldMarkReviewing =
-          latestApplication.applicationStatus === ApplicationStatus.draft;
-        await tx.admissionApplication.update({
-          where: {
-            id: latestApplication.id,
-          },
-          data: {
-            lastSchoolId,
-            LSSchoolYearEnd: normalizedInput.lastSchoolYear,
-            LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
-            ...(shouldMarkReviewing
-              ? {
-                  applicationStatus: ApplicationStatus.reviewing,
-                  submittedAt: latestApplication.submittedAt ?? new Date(),
-                }
-              : {}),
-            LSGraduationDate: normalizedInput.lastSchoolGraduationDate
-              ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
-              : null,
-          },
-        });
-      } else if (latestEnrollment && lastSchoolId) {
-        await tx.admissionApplication.create({
-          data: {
-            studentId: student.id,
-            applicantType: ApplicantType.existing,
-            applicationStatus: ApplicationStatus.reviewing,
-            lastSchoolId,
-            LSSchoolYearEnd: normalizedInput.lastSchoolYear,
-            LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
-            LSGraduationDate: normalizedInput.lastSchoolGraduationDate
-              ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
-              : null,
-            branchId: latestEnrollment.branchId,
-            programType: latestEnrollment.program.programType,
-            programId: latestEnrollment.programId,
-            academicLevelsId: latestEnrollment.academicLevelsId,
-            remarks: "Created from secure student update link.",
-            submittedAt: new Date(),
-          },
-        });
-      }
+      const shouldMarkReviewing =
+        latestApplication.applicationStatus === ApplicationStatus.draft;
+      await tx.admissionApplication.update({
+        where: {
+          id: latestApplication.id,
+        },
+        data: {
+          lastSchoolId: lastSchool.id,
+          LSSchoolYearEnd: normalizedInput.lastSchoolYear,
+          LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
+          ...(shouldMarkReviewing
+            ? {
+                applicationStatus: ApplicationStatus.reviewing,
+                submittedAt: latestApplication.submittedAt ?? new Date(),
+              }
+            : {}),
+          LSGraduationDate: normalizedInput.lastSchoolGraduationDate
+            ? parseDateInput(normalizedInput.lastSchoolGraduationDate)
+            : null,
+        },
+      });
 
       await tx.student.update({
         where: {
@@ -499,8 +457,8 @@ export async function updateStudentRecordFromToken(
       success: true,
       message: "Your student information has been updated.",
     };
-  } catch (error) {
-    console.error("Failed to update student record from email link:", error);
+  } catch {
+    console.error("Failed to update student record from email link.");
 
     return {
       success: false,

@@ -33,12 +33,10 @@ export type VerifyCurrentStudentResult = {
   student?: {
     id: string;
     displayName: string;
-    latestEnrollment?: {
-      schoolYear: string | null;
+    latestAdmission?: {
       branch: string | null;
       program: string | null;
       yearLevel: string | null;
-      section: string | null;
     } | null;
   };
 };
@@ -61,7 +59,6 @@ export type ReviewFormValues = StudentSubmissionProfile & {
   academic_level_label: string;
   current_student_record_id: string;
   current_student_verified_name: string;
-  current_student_verified_school_year: string;
   current_student_verified_program: string;
   current_student_verified_branch: string;
 };

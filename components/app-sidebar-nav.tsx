@@ -8,7 +8,10 @@ import {
   ClipboardList,
   GraduationCap,
   History,
+  Info,
+  Mail,
   PanelsTopLeft,
+  Settings2,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +50,16 @@ type SidebarParentItem = {
 type SidebarItem = SidebarLinkItem | SidebarParentItem;
 
 function getSidebarItems(role: UserRoleValue): SidebarItem[] {
+  if (role === UserRole.teacher) {
+    return [
+      {
+        title: "My Classes",
+        href: "/portal/my-classes",
+        icon: BookOpen,
+      },
+    ];
+  }
+
   if (role === UserRole.student) {
     return [
       {
@@ -64,8 +77,23 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
         href: "/portal/login-history",
         icon: History,
       },
+    ];
+  }
+
+  return [
+    {
+      title: "Portal",
+      href: "/portal",
+      icon: PanelsTopLeft,
+    },
+  ];
+}
+
+function getManagementItems(role: UserRoleValue): SidebarItem[] {
+  if (role === UserRole.admin || role === UserRole.superAdmin) {
+    return [
       {
-        title: "Student",
+        title: "Manage Students",
         icon: Users,
         children: [
           {
@@ -80,16 +108,18 @@ function getSidebarItems(role: UserRoleValue): SidebarItem[] {
           },
         ],
       },
+      { title: "Manage Branch Programs", href: "/portal/branch-programs", icon: BookOpen },
+      ...(role === UserRole.superAdmin ? [
+        { title: "Manage Classes", href: "/portal/classes", icon: ClipboardList },
+        { title: "Manage Employees", href: "/portal/employees", icon: Users },
+        { title: "Manage Teachers", href: "/portal/teachers", icon: Users },
+        { title: "Manage Programs", href: "/portal/programs", icon: BookOpen },
+        { title: "Manage Subjects", href: "/portal/subjects", icon: BookOpen },
+      ] : []),
     ];
   }
 
-  return [
-    {
-      title: "Portal",
-      href: "/portal",
-      icon: PanelsTopLeft,
-    },
-  ];
+  return [];
 }
 
 function hasChildren(item: SidebarItem): item is SidebarParentItem {
@@ -151,6 +181,13 @@ function SidebarParentNavItem({
 export function AppSidebarNav({ role }: { role: UserRoleValue }) {
   const pathname = usePathname();
   const navigationItems = getSidebarItems(role);
+  const managementItems = getManagementItems(role);
+  const canManageSite = role === UserRole.admin || role === UserRole.superAdmin;
+  const siteItems = [
+    { title: "Overview", href: "/portal/site-settings", icon: Settings2 },
+    { title: "About Us", href: "/portal/site-settings/about", icon: Info },
+    { title: "Contact", href: "/portal/site-settings/contact", icon: Mail },
+  ];
 
   return (
     <>
@@ -175,19 +212,49 @@ export function AppSidebarNav({ role }: { role: UserRoleValue }) {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      {role === UserRole.superAdmin && (
+      {managementItems.length > 0 && (
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActivePath(pathname, "/portal/programs")}>
-                  <Link href="/portal/programs">
-                    <BookOpen />
-                    <span>Programs</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {managementItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  {!hasChildren(item) ? (
+                    <SidebarMenuButton asChild isActive={isActivePath(pathname, item.href)}>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarParentNavItem item={item} pathname={pathname} />
+                  )}
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
+      {canManageSite && (
+        <SidebarGroup>
+          <SidebarGroupLabel>Site Settings</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {siteItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={item.href === "/portal/site-settings"
+                      ? pathname === item.href
+                      : isActivePath(pathname, item.href)}
+                  >
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

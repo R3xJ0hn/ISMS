@@ -21,7 +21,7 @@ export type ProgramFieldName =
   | "program_id"
   | "program_code"
   | "program_label"
-  | "academic_level_id"
+  | "academic_level"
   | "academic_level_label";
 
 type ProgramFormValues = Record<ProgramFieldName | "branch_id", string>;
@@ -55,7 +55,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
     onChange("program_id", "");
     onChange("program_code", "");
     onChange("program_label", "");
-    onChange("academic_level_id", "");
+    onChange("academic_level", "");
     onChange("academic_level_label", "");
   });
   const updateBranchMetadata = React.useEffectEvent(
@@ -144,7 +144,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
     onChange("program_id", "");
     onChange("program_code", "");
     onChange("program_label", "");
-    onChange("academic_level_id", "");
+    onChange("academic_level", "");
     onChange("academic_level_label", "");
   }
 
@@ -176,32 +176,32 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
 
     if (program.academicLevels.length === 1) {
       const [level] = program.academicLevels;
-      onChange("academic_level_id", level.id);
+      onChange("academic_level", level.value);
       onChange("academic_level_label", level.label);
       return;
     }
 
-    onChange("academic_level_id", "");
+    onChange("academic_level", "");
     onChange("academic_level_label", "");
   }
 
-  function handleAcademicLevelChange(academicLevelId: string) {
+  function handleAcademicLevelChange(academicLevelValue: string) {
     const level = availableAcademicLevels.find(
-      (entry) => entry.id === academicLevelId
+      (entry) => entry.value === academicLevelValue
     );
 
     if (!level) {
-      onChange("academic_level_id", "");
+      onChange("academic_level", "");
       onChange("academic_level_label", "");
       return;
     }
 
-    onChange("academic_level_id", level.id);
+    onChange("academic_level", level.value);
     onChange("academic_level_label", level.label);
   }
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <div>
         <h3 className="text-lg font-semibold text-gray-950">Program Selection</h3>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -218,7 +218,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
 
       {form.branch_id && status === "loading" ? (
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm font-medium text-gray-700">
-          <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+          <LoaderCircle className="size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
           Loading available programs for this branch...
         </div>
       ) : null}
@@ -234,7 +234,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
       ) : null}
 
       {form.branch_id && status === "success" && branch ? (
-        <section className="rounded-2xl border border-primary/20 bg-primary/6 p-5">
+        <section className="min-w-0 rounded-xl border border-primary/20 bg-primary/6 p-4 sm:rounded-2xl sm:p-5">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
             Admission Branch
           </p>
@@ -243,10 +243,10 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
               <Building2 size={18} aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h4 className="text-lg font-semibold text-gray-950">
+              <h4 className="wrap-break-word text-base font-semibold text-gray-950 sm:text-lg">
                 {branch.title}
               </h4>
-              <p className="mt-1 text-sm uppercase tracking-[0.18em] text-gray-600">
+              <p className="mt-1 wrap-break-word text-sm uppercase tracking-[0.18em] text-gray-600">
                 {branch.code}
               </p>
             </div>
@@ -261,8 +261,8 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
       ) : null}
 
       {form.branch_id && status === "success" && programs.length > 0 ? (
-        <div className="space-y-6">
-          <div className="grid gap-5 lg:grid-cols-2">
+        <div className="min-w-0 space-y-5 sm:space-y-6">
+          <div className="grid min-w-0 gap-4 sm:gap-5 lg:grid-cols-2">
             <SelectField
               id="program_type"
               label="Program Type"
@@ -304,9 +304,9 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
           </div>
 
           <SelectField
-            id="academic_level_id"
+            id="academic_level"
             label="Entry Level"
-            value={form.academic_level_id}
+            value={form.academic_level}
             required
             disabled={!selectedProgram}
             placeholder={
@@ -320,14 +320,14 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
             }
           >
             {availableAcademicLevels.map((level) => (
-              <option key={level.id} value={level.id}>
+              <option key={level.value} value={level.value}>
                 {level.label}
               </option>
             ))}
           </SelectField>
 
           {selectedProgram ? (
-            <section className="rounded-2xl border border-secondary/20 bg-secondary/5 p-5">
+            <section className="min-w-0 rounded-xl border border-secondary/20 bg-secondary/5 p-4 sm:rounded-2xl sm:p-5">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-secondary">
                 Selected Program
               </p>
@@ -340,7 +340,7 @@ export default function ProgramStep({ form, onChange }: ProgramStepProps) {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-base font-semibold text-gray-950">
+                  <h4 className="wrap-break-word text-base font-semibold text-gray-950">
                     {selectedProgram.code} - {selectedProgram.label}
                   </h4>
                   <p className="mt-1 text-sm leading-6 text-gray-600">

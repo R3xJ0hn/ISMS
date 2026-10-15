@@ -14,7 +14,6 @@ export type { CurrentStudentFieldName } from "./form-schema";
 export type CurrentStudentVerification = {
   recordId: string;
   displayName: string;
-  schoolYear: string;
   program: string;
   branch: string;
   message?: string;
@@ -32,7 +31,6 @@ type CurrentStudentFormValues = Record<
   | "branch_title"
   | "current_student_record_id"
   | "current_student_verified_name"
-  | "current_student_verified_school_year"
   | "current_student_verified_program"
   | "current_student_verified_branch",
   string
@@ -59,7 +57,7 @@ function PreviousSelectionSummary({ form }: { form: CurrentStudentFormValues }) 
           <UserRound className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
           <div className="min-w-0">
             <dt className="font-semibold text-gray-600">Applicant type</dt>
-            <dd className="mt-0.5 truncate text-gray-950">
+            <dd className="mt-0.5 wrap-break-word text-gray-950">
               {form.applicant_type || "Not selected"}
             </dd>
           </div>
@@ -68,7 +66,7 @@ function PreviousSelectionSummary({ form }: { form: CurrentStudentFormValues }) 
           <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
           <div className="min-w-0">
             <dt className="font-semibold text-gray-600">Branch</dt>
-            <dd className="mt-0.5 truncate text-gray-950">
+            <dd className="mt-0.5 wrap-break-word text-gray-950">
               {branchName}
             </dd>
           </div>
@@ -81,13 +79,11 @@ function PreviousSelectionSummary({ form }: { form: CurrentStudentFormValues }) 
 function formatProgramSummary({
   program,
   yearLevel,
-  section,
 }: {
   program?: string | null;
   yearLevel?: string | null;
-  section?: string | null;
 }) {
-  return [program, yearLevel, section].filter(Boolean).join(" / ");
+  return [program, yearLevel].filter(Boolean).join(" / ");
 }
 
 const statusCardClass = {
@@ -179,7 +175,7 @@ const CurrentStudentStep = React.forwardRef<
         );
       }
 
-      const latestEnrollment = data.student.latestEnrollment;
+      const latestAdmission = data.student.latestAdmission;
 
       if (verifyRequestIdRef.current !== requestId) {
         return false;
@@ -188,13 +184,11 @@ const CurrentStudentStep = React.forwardRef<
       onVerified({
         recordId: data.student.id,
         displayName: data.student.displayName,
-        schoolYear: latestEnrollment?.schoolYear ?? "",
         program: formatProgramSummary({
-          program: latestEnrollment?.program,
-          yearLevel: latestEnrollment?.yearLevel,
-          section: latestEnrollment?.section,
+          program: latestAdmission?.program,
+          yearLevel: latestAdmission?.yearLevel,
         }),
-        branch: latestEnrollment?.branch ?? "",
+        branch: latestAdmission?.branch ?? "",
         message:
           data.message ??
           "Student record verified. Please check your email inbox or spam folder for the update link.",
@@ -275,7 +269,7 @@ const CurrentStudentStep = React.forwardRef<
         : ShieldCheck;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
 
       <div>
         <h3 className="text-lg font-semibold text-gray-950">
@@ -289,7 +283,7 @@ const CurrentStudentStep = React.forwardRef<
 
       <PreviousSelectionSummary form={form} />
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid min-w-0 gap-4 sm:gap-5 md:grid-cols-2">
         {currentStudentFields.map((field) => (
           <TextField
             key={field.id}
@@ -325,7 +319,7 @@ const CurrentStudentStep = React.forwardRef<
                     ? "Unable to verify this record"
                     : "Verification required"}
             </p>
-            <p className="mt-1 text-sm leading-6">{statusMessage}</p>
+            <p className="mt-1 wrap-break-word text-sm leading-6">{statusMessage}</p>
           </div>
         </div>
 

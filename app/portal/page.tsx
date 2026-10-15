@@ -1,17 +1,17 @@
-import { getCurrentSession } from "@/lib/auth"
+import { requireSession } from "@/lib/auth"
 import { UserRole } from "@/lib/generated/prisma/enums"
 import { portalTheme } from "@/lib/portal/theme"
 import { redirect } from "next/navigation"
 
 export default async function Page() {
-  const session = await getCurrentSession()
-
-  if (!session) {
-    redirect("/login")
-  }
+  const session = await requireSession()
 
   if (session.role === UserRole.student) {
-    redirect("/portal/grades")
+    redirect("/portal/classroom")
+  }
+
+  if (session.role === UserRole.teacher) {
+    redirect("/portal/my-classes")
   }
 
   return (

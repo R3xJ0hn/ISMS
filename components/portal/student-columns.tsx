@@ -1,10 +1,12 @@
 import type { PortalTableColumn } from "@/components/portal/data-table";
 import { formatStudentName } from "@/lib/utils";
+import { formatAcademicLevel } from "@/lib/academic-levels";
+import type { AcademicLevel } from "@/lib/generated/prisma/enums";
 
 type StudentApplicationSummary = {
   applicantType: string;
   program: { label: string };
-  academicLevels: { label: string };
+  academicLevel: AcademicLevel;
   student: Parameters<typeof formatStudentName>[0] & {
     email: string;
     phone: string | null;
@@ -27,9 +29,9 @@ export const studentColumns = {
   },
   program: {
     header: "Program",
-    cell: ({ program, academicLevels }) => <>
+    cell: ({ program, academicLevel }) => <>
       <div className="font-medium text-foreground">{program.label}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{academicLevels.label}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{formatAcademicLevel(academicLevel)}</div>
     </>,
   },
   contact: {
