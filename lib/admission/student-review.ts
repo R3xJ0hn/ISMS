@@ -170,6 +170,7 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
     return { success: false, message: "Your admission information changed. Reload this page before saving." };
   }
 
+  let saveStage = "load-account";
   try {
     await runLastSchoolTransaction(async (tx) => {
       const account = await tx.user.findUnique({
@@ -179,6 +180,7 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
       if (!account || account.email !== session.email || account.role !== UserRole.student ||
         !account.emailVerified || account.sessionVersion !== session.sessionVersion) throw new ReviewUnavailableError();
 
+      saveStage = "load-student";
       const students = await tx.student.findMany({
         where: { email: literalInsensitiveEquality(normalizeEmail(account.email)) }, select: reviewSelect, take: 2,
       });
@@ -192,6 +194,7 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
         field, field === "email" ? baseline[field] : formData.get(field),
       ])) as UpdateStudentRecordInput);
       const schoolRecordId = formData.get("lastSchoolRecordId");
+      saveStage = "load-school";
       const profile = await canonicalReviewSchool(tx, student, submittedProfile, schoolRecordId);
       const invalidField = firstInvalidStudentUpdateField(profile);
       if (invalidField) throw new ReviewFieldError(invalidField, "Complete this field with valid information.");
@@ -205,9 +208,13 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
       const birthDate = parseDateInput(profile.birthDate);
       if (!birthDate) throw new ReviewFieldError("birthDate", "Enter a valid birth date.");
 
+      saveStage = "save-address";
       const addressId = await saveReviewAddress(tx, student, profile);
+      saveStage = "save-guardian";
       await saveReviewGuardian(tx, student, profile);
+      saveStage = "save-school";
       const lastSchool = await resolveLastSchool(tx, profile, typeof schoolRecordId === "string" ? schoolRecordId : undefined);
+      saveStage = "save-admission";
       const savedApplication = await tx.admissionApplication.updateMany({
         where: { id: application.id, studentId: student.id, applicationStatus: ApplicationStatus.reviewing },
         data: {
@@ -222,7 +229,10 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
       // Account identity stays unchanged even when a crafted form supplies another email.
       const { email: _email, ...editableStudentData } = studentData;
       void _email;
-      await tx.student.update({ where: { id: student.id }, data: { ...editableStudentData, addressId } });
+      saveStage = "save-student";
+      await tx.student.update({
+        where: { id: student.id }, data: { ...editableStudentData, addressId }, select: { id: true },
+      });
     });
   } catch (error) {
     if (error instanceof LastSchoolSelectionError) {
@@ -237,7 +247,11 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
     if (error instanceof ReviewUnavailableError) {
       return { success: false, message: "Your admission information changed or is no longer under review. Reload this page before saving." };
     }
-    console.error("Failed to save the signed-in student's admission review.");
+    const details = (typeof error === "object" && error !== null ? error : {}) as { code?: unknown; meta?: { code?: unknown } };
+    const safeCode = (value: unknown) => typeof value === "string" && /^[A-Z0-9_]{1,40}$/.test(value) ? value : "UNKNOWN";
+    console.error("Failed to save the signed-in student's admission review.", {
+      stage: saveStage, code: safeCode(details.code), databaseCode: safeCode(details.meta?.code),
+    });
     return { success: false, message: "We could not save your information right now. Please try again." };
   }
 

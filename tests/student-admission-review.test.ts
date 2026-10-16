@@ -68,6 +68,8 @@ function harness(options: {
   sharedGuardian?: boolean;
   concurrentApproval?: boolean;
   failStudentWrite?: boolean;
+  studentWriteError?: Error;
+  photoColumnMissing?: boolean;
   schools?: School[];
 } = {}) {
   let students = structuredClone(options.students ?? [student()]);
@@ -90,10 +92,14 @@ function harness(options: {
       update: async (query: Query) => {
         call("student.update", query);
         if (options.failStudentWrite) throw new Error("Synthetic write failure");
+        if (options.studentWriteError) throw options.studentWriteError;
+        if (options.photoColumnMissing && (!query.select || query.select.userImage)) {
+          throw Object.assign(new Error("The students.user_image column does not exist."), { code: "P2022" });
+        }
         const row = students.find((entry) => entry.id === query.where.id);
         assert.ok(row);
         Object.assign(row, query.data);
-        return row;
+        return query.select?.id ? { id: row.id } : row;
       },
     },
     address: {
@@ -270,6 +276,27 @@ test("missing and malformed expected application IDs cannot select or update a s
     assert.equal(h.calls.some((entry) => entry.method.endsWith(".update") || entry.method.endsWith(".updateMany") || entry.method.endsWith(".create")), false);
     assert.equal(h.paths.length, 0);
   }
+});
+
+test("review saves do not depend on the optional photo column in an older database", async () => {
+  const h = harness({ photoColumnMissing: true }), before = h.snapshot()[0];
+  const result = await h.service.saveStudentAdmissionReview(form({ firstName: " <b>lina</b> ", suffix: "n/a" }));
+  assert.equal(result.success, true, result.message);
+  const saved = h.snapshot()[0];
+  assert.equal(saved.firstName, "Lina");
+  assert.equal(saved.suffix, null);
+  assert.equal(saved.studentNumber, before.studentNumber);
+  assert.equal(saved.email, before.email);
+  assert.deepEqual(saved.applications, before.applications);
+  assert.deepEqual(h.account, account);
+  const write = h.calls.find((entry) => entry.method === "student.update")!;
+  assert.deepEqual(write.query.select, { id: true });
+  assert.equal(Object.hasOwn(write.query.data!, "userImage"), false);
+  for (const lookup of h.calls.filter((entry) => entry.method === "student.findMany")) {
+    assert.equal(Object.hasOwn(lookup.query.select!, "userImage"), false);
+  }
+  assert.equal(h.errors.length, 0);
+  assert.ok(h.paths.some(([path]) => path === "/portal/admission-review"));
 });
 
 test("current session account and unique student identity are rechecked inside the save transaction", async () => {
@@ -452,5 +479,28 @@ test("a concurrent admission approval or failed profile save rolls back every wr
     const guard = h.calls.find((entry) => entry.method === "admissionApplication.updateMany")!;
     assert.deepEqual(guard.query.where, { id: 5n, studentId: 4n, applicationStatus: "reviewing" });
     assert.equal(Object.hasOwn(guard.query.data!, "applicationStatus"), false);
+  }
+});
+
+test("unexpected review write errors log only the stage and safe database codes", async () => {
+  const privateEmail = "private-student@example.test", privatePassword = "password=Secret-123";
+  for (const diagnostic of [
+    { code: "P2002", meta: { code: "23505" }, expectedCode: "P2002", expectedDatabaseCode: "23505" },
+    { code: privateEmail, meta: { code: privatePassword }, expectedCode: "UNKNOWN", expectedDatabaseCode: "UNKNOWN" },
+  ]) {
+    const studentWriteError = Object.assign(new Error(`Write failed for ${privateEmail}; ${privatePassword}`), diagnostic);
+    const h = harness({ studentWriteError }), before = h.snapshot();
+    const result = await h.service.saveStudentAdmissionReview(form({ firstName: "Updated" }));
+    assert.equal(result.success, false);
+    assert.equal(result.message, "We could not save your information right now. Please try again.");
+    assert.deepEqual(h.snapshot(), before);
+    assert.equal(h.paths.length, 0);
+    assert.deepEqual(structuredClone(h.errors), [["Failed to save the signed-in student's admission review.", {
+      stage: "save-student", code: diagnostic.expectedCode, databaseCode: diagnostic.expectedDatabaseCode,
+    }]]);
+    const serialized = JSON.stringify(h.errors);
+    assert.equal(serialized.includes(privateEmail), false);
+    assert.equal(serialized.includes(privatePassword), false);
+    assert.equal(serialized.includes("Write failed"), false);
   }
 });

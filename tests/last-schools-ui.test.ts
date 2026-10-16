@@ -47,6 +47,7 @@ function loadModule(path: string, overrides: Record<string, unknown> = {}) {
 function schools(count = 3): LastSchoolTableRow[] {
   return Array.from({ length: count }, (_, index) => ({
     id: index === 0 ? "9007199254740993" : String(index + 1),
+    schoolIdentifier: index === 0 ? "00saved-Ab1" : "",
     schoolName: `School ${String(index + 1).padStart(2, "0")}`, shortName: index === 0 ? "S01" : "",
     schoolType: "Public", street: "Main Street", barangay: "Central", city: "Manila", province: "Metro Manila", postalCode: "0100",
     verificationStatus: (["pending", "rejected", "verified"] as const)[index % 3],
@@ -148,7 +149,8 @@ function formHarness(props: { mode: "create" } | { mode: "edit"; school: LastSch
 test("school creation requires school identity and locality, makes a verified record, and omits hidden legacy fields", () => {
   const h = formHarness({ mode: "create" });
   const markup = h.render();
-  for (const name of ["schoolName", "barangay", "city", "province"]) assert.match(markup, new RegExp(`<input(?=[^>]*name="${name}")(?=[^>]*required="")[^>]*>`));
+  for (const name of ["schoolName", "schoolIdentifier", "barangay", "city", "province"]) assert.match(markup, new RegExp(`<input(?=[^>]*name="${name}")(?=[^>]*required="")[^>]*>`));
+  assert.match(markup, /<input(?=[^>]*name="schoolIdentifier")(?=[^>]*maxLength="100")(?=[^>]*autoCapitalize="none")[^>]*>/);
   assert.match(markup, /<select(?=[^>]*name="schoolType")(?=[^>]*required="")[^>]*>/);
   for (const type of Object.values(enums.SchoolType)) assert.ok(markup.includes(`value="${type}"`));
   assert.match(markup, /<button(?=[^>]*name="intent")(?=[^>]*value="verify")[^>]*>/);
@@ -157,11 +159,25 @@ test("school creation requires school identity and locality, makes a verified re
   assert.match(markup, /href="\/portal\/last-schools">Cancel/);
 });
 
+test("the shared School ID preserves leading zeros, casing, and drafts after validation errors in add and edit", () => {
+  for (const props of [{ mode: "create" }, { mode: "edit", school: schools()[0] }] as const) {
+    const h = formHarness(props);
+    h.render(); h.flush();
+    h.change("schoolIdentifier", "  <b>00abC-019</b>  ");
+    h.blur("schoolIdentifier", "  <b>00abC-019</b>  ");
+    const markup = h.render({ success: false, message: "Check the school details.", fieldErrors: { schoolIdentifier: "Check the School ID." } }); h.flush();
+    assert.match(markup, /<input(?=[^>]*name="schoolIdentifier")(?=[^>]*value="00abC-019")(?=[^>]*aria-invalid="true")(?=[^>]*aria-describedby="[^"]*last-school-identifier-error[^"]*")[^>]*>/);
+    assert.match(markup, /id="last-school-identifier-error"[^>]*>Check the School ID\./);
+    assert.deepEqual(h.events, ["toast:Check the school details."]);
+  }
+});
+
 test("editing a suggestion supports saving its status separately from verifying and preserves drafts after errors", () => {
   const h = formHarness({ mode: "edit", school: schools()[0] });
   let markup = h.render(); h.flush();
   assert.match(markup, /name="schoolId" value="9007199254740993"/);
   assert.doesNotMatch(markup, /name="id"/);
+  assert.match(markup, /<input(?=[^>]*name="schoolIdentifier")(?=[^>]*value="00saved-Ab1")(?=[^>]*required="")(?=[^>]*maxLength="100")(?=[^>]*autoCapitalize="none")[^>]*>/);
   assert.match(markup, /<button(?=[^>]*name="intent")(?=[^>]*value="save")[^>]*>/);
   assert.match(markup, /<button(?=[^>]*name="intent")(?=[^>]*value="verify")[^>]*>/);
   h.change("schoolName", "draft school");
@@ -176,6 +192,7 @@ test("editing a suggestion supports saving its status separately from verifying 
   h.render({ success: true, message: "School saved." }); h.flush();
   assert.deepEqual(h.events, ["toast:School saved.", "/portal/last-schools", "refresh"]);
   const verified = formHarness({ mode: "edit", school: schools()[2] }).render();
+  assert.match(verified, /<input(?=[^>]*name="schoolIdentifier")(?=[^>]*value="")(?=[^>]*required="")[^>]*>/);
   assert.match(verified, /<button(?=[^>]*name="intent")(?=[^>]*value="save")[^>]*>/);
   assert.doesNotMatch(verified, /<button(?=[^>]*name="intent")(?=[^>]*value="verify")[^>]*>|Save and verify/);
 });
