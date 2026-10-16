@@ -23,7 +23,7 @@ const missingSchool = (): LastSchoolFormState => ({ success: false, message: "Th
 
 function formRecord(school: SchoolRecord): LastSchoolFormRecord {
   return {
-    id: school.id.toString(), schoolName: school.schoolName, shortName: school.shortName ?? "", schoolType: school.schoolType,
+    id: school.id.toString(), schoolIdentifier: school.schoolId ?? "", schoolName: school.schoolName, shortName: school.shortName ?? "", schoolType: school.schoolType,
     street: school.address?.street ?? "", barangay: school.address?.barangay ?? "", city: school.address?.city ?? "",
     province: school.address?.province ?? "", postalCode: school.address?.postalCode ?? "", verificationStatus: school.verificationStatus,
   };
@@ -54,7 +54,10 @@ function parseSchoolForm(formData: FormData) {
     field, field === "postalCode" ? sanitizeInputText(readFormText(formData, field)) : capitalizeInputText(readFormText(formData, field)),
   ])) as Record<keyof typeof fieldLimits, string>;
   const schoolType = readFormText(formData, "schoolType");
-  const fieldErrors: Partial<Record<LastSchoolField, string>> = {};
+  const schoolIdentifier = sanitizeInputText(readFormText(formData, "schoolIdentifier"));
+  const fieldErrors: NonNullable<LastSchoolFormState["fieldErrors"]> = {};
+  if (!schoolIdentifier) fieldErrors.schoolIdentifier = "Enter the school ID.";
+  if (schoolIdentifier.length > 100) fieldErrors.schoolIdentifier = "Use 100 characters or fewer.";
   for (const field of ["schoolName", "barangay", "city", "province"] as const) {
     if (!values[field]) fieldErrors[field] = "Complete this field.";
   }
@@ -62,14 +65,14 @@ function parseSchoolForm(formData: FormData) {
     if (values[field as keyof typeof fieldLimits].length > limit) fieldErrors[field as LastSchoolField] = `Use ${limit} characters or fewer.`;
   }
   if (!enumIncludes(SchoolType, schoolType)) fieldErrors.schoolType = "Choose a valid school type.";
-  return { values, schoolType, fieldErrors };
+  return { values, schoolType, schoolIdentifier, fieldErrors };
 }
 
-function schoolProfile(values: ReturnType<typeof parseSchoolForm>["values"], schoolType: string, saved?: SchoolRecord) {
+function schoolProfile(values: ReturnType<typeof parseSchoolForm>["values"], schoolType: string, schoolIdentifier: string, saved?: SchoolRecord) {
   return normalizeStudentUpdateInput({
     ...Object.fromEntries(studentUpdateFields.map((field) => [field, ""])),
     lastSchoolName: values.schoolName, lastSchoolShortName: values.shortName, lastSchoolType: schoolType,
-    lastSchoolId: saved?.schoolId ?? "", lastSchoolHouseNumber: saved?.address?.houseNumber ?? "",
+    lastSchoolId: schoolIdentifier, lastSchoolHouseNumber: saved?.address?.houseNumber ?? "",
     lastSchoolSubdivision: saved?.address?.subdivision ?? "", lastSchoolStreet: values.street,
     lastSchoolBarangay: values.barangay, lastSchoolCity: values.city, lastSchoolProvince: values.province, lastSchoolPostalCode: values.postalCode,
   } as UpdateStudentRecordInput);
@@ -114,7 +117,7 @@ export async function saveManagedLastSchool(formData: FormData): Promise<LastSch
     result = await runLastSchoolTransaction(async (tx): Promise<LastSchoolFormState> => {
       const saved = id === null ? null : await tx.lastSchool.findUnique({ where: { id }, select: schoolSelect });
       if (id !== null && !saved) return missingSchool();
-      const profile = schoolProfile(parsed.values, parsed.schoolType, saved ?? undefined);
+      const profile = schoolProfile(parsed.values, parsed.schoolType, parsed.schoolIdentifier, saved ?? undefined);
       if (saved) {
         const duplicate = await findMatchingLastSchool(tx, profile, saved.id);
         if (duplicate) return { success: false, message: "Another saved school already matches these details. Review that record instead.", fieldErrors: { schoolName: "These school details are already saved." } };

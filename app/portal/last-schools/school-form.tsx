@@ -35,17 +35,29 @@ export function LastSchoolForm(props: Props) {
     return Object.fromEntries(fields.map(({ name }) => [name, normalizeField(name, school?.[name] ?? "")])) as Record<FieldName, string>;
   });
   const [schoolType, setSchoolType] = useState<string>(props.mode === "edit" ? props.school.schoolType : "");
+  const [schoolIdentifier, setSchoolIdentifier] = useState(() => sanitizeInputText(props.mode === "edit" ? props.school.schoolIdentifier : ""));
   const [state, formAction, pending] = useActionState(saveLastSchoolAction, initialState);
   const disabled = pending || state.success;
   const formRef = usePortalFormFeedback(state, { returnTo: "/portal/last-schools", refresh: true });
   const mayVerify = props.mode === "edit" && props.school.verificationStatus !== "verified";
   const typeError = state.fieldErrors?.schoolType;
+  const identifierError = state.fieldErrors?.schoolIdentifier;
 
   return (
     <form ref={formRef} action={formAction} aria-busy={pending} className="w-full max-w-4xl space-y-6">
       {props.mode === "edit" && <input type="hidden" name="schoolId" value={props.school.id} />}
       <fieldset disabled={disabled} className="grid min-w-0 gap-5 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5 md:grid-cols-2">
         <legend className="px-2 text-base font-semibold">School details</legend>
+        <div className="min-w-0 space-y-2 md:col-span-2">
+          <label htmlFor="last-school-identifier" className="block text-sm font-medium">School ID<span className="text-destructive"> *</span></label>
+          <Input id="last-school-identifier" name="schoolIdentifier" value={schoolIdentifier} required maxLength={100}
+            autoCapitalize="none" autoComplete="off" spellCheck={false}
+            onChange={(event) => setSchoolIdentifier(event.target.value)}
+            onBlur={(event) => setSchoolIdentifier(sanitizeInputText(event.currentTarget.value))}
+            aria-invalid={Boolean(identifierError)} aria-describedby={`last-school-identifier-hint${identifierError ? " last-school-identifier-error" : ""}`} />
+          <p id="last-school-identifier-hint" className="text-xs text-muted-foreground">Enter the institution&apos;s official school ID. Leading zeros are preserved.</p>
+          {identifierError && <p id="last-school-identifier-error" className="text-sm text-destructive">{identifierError}</p>}
+        </div>
         {fields.map((field) => {
           const id = `last-school-${field.name}`;
           const error = state.fieldErrors?.[field.name];
@@ -61,7 +73,7 @@ export function LastSchoolForm(props: Props) {
             </div>
           );
         })}
-        <div className="min-w-0 space-y-2 md:col-start-2 md:row-start-2">
+        <div className="min-w-0 space-y-2 md:col-start-2 md:row-start-3">
           <label htmlFor="last-school-type" className="block text-sm font-medium">School type<span className="text-destructive"> *</span></label>
           <AdmissionSelect id="last-school-type" name="schoolType" required value={schoolType}
             onChange={(event) => setSchoolType(event.target.value)} aria-invalid={Boolean(typeError)} aria-describedby={typeError ? "last-school-type-error" : undefined}>

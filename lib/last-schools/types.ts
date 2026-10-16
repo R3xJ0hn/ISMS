@@ -1,6 +1,6 @@
 import type { LastSchoolVerificationStatus, SchoolType } from "@/lib/generated/prisma/enums";
 
-export type LastSchoolField = "schoolName" | "shortName" | "schoolType" | "street" | "barangay" | "city" | "province" | "postalCode";
+export type LastSchoolField = "schoolIdentifier" | "schoolName" | "shortName" | "schoolType" | "street" | "barangay" | "city" | "province" | "postalCode";
 
 export type LastSchoolFormRecord = Record<Exclude<LastSchoolField, "schoolType">, string> & {
   id: string;

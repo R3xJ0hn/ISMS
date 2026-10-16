@@ -186,7 +186,7 @@ Sign in with the first administrator account and prepare these items in order:
 2. **Manage Subjects:** add each subject's code, name, and units.
 3. **Manage Programs:** edit program information, then click a program's name, code, or subject count to assign its subjects.
 4. **Manage Branch Programs:** select which programs each branch offers. Public admission and class creation use these assignments.
-5. **Manage Last Schools:** add verified schools for the admission dropdown. Review student suggestions here before making them available to everyone.
+5. **Manage Last Schools:** add verified schools for the admission dropdown. Add and Edit School share the same form and require the school's ID; students do not need to enter it when suggesting a school. Review student suggestions here before making them available to everyone.
 6. **Site Settings:** fill in the About Us and Contact content used by the public website.
 7. Add employees, activate teacher accounts, and prepare student records using the instructions below.
 8. **Manage Classes:** choose the school year, semester, branch, program, subject, teacher, section, and year level. Add students to the roster and save.

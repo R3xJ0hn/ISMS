@@ -18,7 +18,7 @@ const source = ts.transpileModule(readFileSync(new URL("../lib/last-schools/admi
 
 function form(overrides: Record<string, string> = {}) {
   const result = new FormData();
-  for (const [key, value] of Object.entries({ schoolName: "Central School", shortName: "CS", schoolType: "Public", street: "Main Road", barangay: "Central", city: "Manila", province: "Metro Manila", postalCode: "0100", ...overrides })) result.set(key, value);
+  for (const [key, value] of Object.entries({ schoolName: "Central School", schoolIdentifier: "00123", shortName: "CS", schoolType: "Public", street: "Main Road", barangay: "Central", city: "Manila", province: "Metro Manila", postalCode: "0100", ...overrides })) result.set(key, value);
   return result;
 }
 
@@ -88,19 +88,23 @@ test("school management authenticates before every read/write and returns exact 
   for (const operation of [() => denied.service.getManagedLastSchools(), () => denied.service.getManagedLastSchool("71"), () => denied.service.saveManagedLastSchool(form()), () => denied.service.reviewManagedLastSchool(form({ schoolId: "71", decision: "verify" }))]) await assert.rejects(operation, /Forbidden/);
   assert.deepEqual(denied.calls, ["auth", "auth", "auth", "auth"]);
   const h = harness(); h.seed("verified", 9223372036854775807n);
+  h.schools.get(9223372036854775807n)!.schoolId = "00saved-Ab1";
   const rows = await h.service.getManagedLastSchools();
   const serialized = JSON.parse(JSON.stringify(rows));
   assert.equal(serialized[0].id, "9223372036854775807");
   assert.equal(serialized[0].createdAt, "2026-10-01T00:00:00.000Z");
   assert.equal(serialized[0].reviewedAt, "2026-10-02T00:00:00.000Z");
   assert.equal(serialized[0].applicationCount, 3);
+  assert.equal(serialized[0].schoolIdentifier, "00saved-Ab1");
   assert.equal(serialized[0].protectedData, undefined);
   assert.equal(serialized[0].schoolId, undefined);
   assert.equal(serialized[0].addressId, undefined);
   const select = h.reads[0].select as Record<string, unknown>;
   assert.equal(select.applications, undefined, "Only the linked application count may be read");
   assert.deepEqual(JSON.parse(JSON.stringify(select._count)), { select: { applications: true } });
-  assert.equal((await h.service.getManagedLastSchool("9223372036854775807"))?.id, "9223372036854775807");
+  const school = await h.service.getManagedLastSchool("9223372036854775807");
+  assert.equal(school?.id, "9223372036854775807");
+  assert.equal(school?.schoolIdentifier, "00saved-Ab1");
 });
 
 test("malformed IDs, incomplete school identities, invalid actions, and missing records cannot mutate data", async () => {
@@ -130,19 +134,64 @@ test("malformed IDs, incomplete school identities, invalid actions, and missing 
 test("administrator creation sanitizes school details and verifies new or reused suggestions", async () => {
   for (const reuse of [false, true]) {
     const h = harness(reuse ? { resolveId: 71n } : {}); if (reuse) h.seed("pending");
-    const result = await h.service.saveManagedLastSchool(form({ schoolName: " <b>central</b>  school <script>bad()</script>", shortName: "cs", street: " main\troad ", barangay: "central", city: "manila", province: "metro manila", postalCode: " <i>0100</i> ", verificationStatus: "rejected", reviewedAt: "1900-01-01" }));
+    if (reuse) h.schools.get(71n)!.schoolId = "00abC-019";
+    const result = await h.service.saveManagedLastSchool(form({ schoolName: " <b>central</b>  school <script>bad()</script>", schoolIdentifier: " <b>00abC-019</b> <script>bad()</script> ", shortName: "cs", street: " main\troad ", barangay: "central", city: "manila", province: "metro manila", postalCode: " <i>0100</i> ", verificationStatus: "rejected", reviewedAt: "1900-01-01" }));
     assert.equal(result.success, true);
     const saved = [...h.schools.values()][0];
     assert.equal(saved.verificationStatus, "verified");
     assert.ok(saved.reviewedAt instanceof Date);
     assert.ok((saved.reviewedAt as Date).getFullYear() > 2000);
     assert.equal(h.profiles[0].lastSchoolName, "Central School");
+    assert.equal(h.profiles[0].lastSchoolId, "00abC-019");
+    assert.equal(saved.schoolId, "00abC-019", "School identifiers retain leading zeros and intentional casing");
     assert.equal(h.profiles[0].lastSchoolStreet, "Main Road");
     assert.equal(h.profiles[0].lastSchoolPostalCode, "0100");
     assert.equal(h.schools.size, 1);
     assert.equal(h.addresses.size, 1, "Reusing a school must not make a second address");
     assert.ok(h.refreshed.includes("/admission"));
     assert.ok(h.refreshed.includes("/portal/admission-review"));
+  }
+});
+
+test("administrator creation and editing require a nonblank school identifier of at most 100 characters", async () => {
+  for (const editing of [false, true]) for (const schoolIdentifier of [undefined, "", " \t\r\n ", " <b></b> <script>bad()</script> ", "x".repeat(101)]) {
+    const h = harness();
+    if (editing) h.seed();
+    const before = { schools: structuredClone([...h.schools]), addresses: structuredClone([...h.addresses]) };
+    const data = form(editing ? { schoolId: "71" } : {});
+    if (schoolIdentifier === undefined) data.delete("schoolIdentifier");
+    else data.set("schoolIdentifier", schoolIdentifier);
+    const result = await h.service.saveManagedLastSchool(data);
+    assert.equal(result.success, false);
+    assert.ok(result.fieldErrors?.schoolIdentifier, "The required School ID field identifies its validation error");
+    assert.deepEqual(h.calls, ["auth"], "Invalid identifiers must fail before opening a transaction");
+    assert.deepEqual([...h.schools], before.schools);
+    assert.deepEqual([...h.addresses], before.addresses);
+    assert.equal(h.refreshed.length, 0);
+  }
+  for (const editing of [false, true]) {
+    const h = harness();
+    if (editing) h.seed();
+    const schoolIdentifier = `00${"aB".repeat(49)}`;
+    assert.equal((await h.service.saveManagedLastSchool(form({ schoolIdentifier, ...(editing ? { schoolId: "71" } : {}) }))).success, true);
+    assert.equal([...h.schools.values()][0].schoolId, schoolIdentifier, "The full 100-character identifier is accepted unchanged");
+  }
+});
+
+test("school edits can add or change the official identifier without confusing it with the internal record ID", async () => {
+  for (const savedIdentifier of [null, "00saved-Ab1"]) {
+    for (const intent of ["save", "verify"]) {
+      const h = harness(); h.seed();
+      h.schools.get(71n)!.schoolId = savedIdentifier;
+      const data = form({ schoolId: "71", schoolIdentifier: " <b>00new-XyZ</b> <script>bad()</script> ", intent });
+      assert.equal((await h.service.saveManagedLastSchool(data)).success, true);
+      assert.equal(h.schools.get(71n)!.schoolId, "00new-XyZ");
+      assert.equal(h.profiles[0].lastSchoolId, "00new-XyZ");
+      assert.equal(h.schools.get(71n)!.id, 71n);
+      assert.equal(h.schools.get(71n)!.verificationStatus, intent === "verify" ? "verified" : "pending");
+      assert.equal(h.schools.size, 1);
+      assert.equal(h.addresses.size, 1);
+    }
   }
 });
 
@@ -154,7 +203,7 @@ test("editing preserves review state unless explicitly verified and safely reuse
     assert.equal(result.success, true);
     assert.equal(h.schools.get(71n)!.verificationStatus, intent === "verify" ? "verified" : status);
     if (intent === "save" && status !== "verified") assert.deepEqual(h.schools.get(71n)!.reviewedAt, reviewedAt);
-    assert.equal(h.schools.get(71n)!.schoolId, null, "School ID is not editable through forged fields");
+    assert.equal(h.schools.get(71n)!.schoolId, "00123");
     assert.equal(h.addresses.size, 1);
     assert.equal(h.calls.some((call) => call.startsWith("address.")), false, "Unchanged addresses should be reused without writes");
   }
@@ -202,6 +251,7 @@ test("review verifies only complete schools, rejects unverified suggestions, and
     const h = harness(); h.seed();
     assert.equal((await h.service.reviewManagedLastSchool(form({ schoolId: "71", decision, verificationStatus: "verified" }))).success, true);
     assert.equal(h.schools.get(71n)!.verificationStatus, decision === "verify" ? "verified" : "rejected");
+    assert.equal(h.schools.get(71n)!.schoolId, null, "Suggestions can still be reviewed without a School ID");
     assert.ok(h.schools.get(71n)!.reviewedAt instanceof Date);
     assert.ok(h.refreshed.length > 0);
   }
