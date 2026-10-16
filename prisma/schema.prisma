@@ -18,6 +18,12 @@ enum SchoolType {
   Other
 }
 
+enum LastSchoolVerificationStatus {
+  pending
+  verified
+  rejected
+}
+
 enum ProgramType {
   Bachelor
   SeniorHigh
@@ -31,6 +37,11 @@ enum AcademicLevel {
   SecondYear
   ThirdYear
   FourthYear
+}
+
+enum Semester {
+  FirstSemester
+  SecondSemester
 }
 
 enum Gender {
@@ -139,6 +150,7 @@ model Employee {
   address         String         @db.Text
   contactNumber   String         @map("contact_number") @db.Text
   emailAddress    String         @unique @map("email_address") @db.VarChar(320)
+  userImage       String?        @map("user_image") @db.Text
   tin             String?        @db.Text
   sssNo           String?        @map("sss_no") @db.Text
   philHealthNo    String?        @map("philhealth_no") @db.Text
@@ -173,6 +185,7 @@ model Class {
   programId      BigInt?  @map("program_id")
   subjectId      BigInt?  @map("subject_id")
   schoolYear     String   @map("school_year") @db.Text
+  semester       Semester?
   sectionName    String   @map("section_name") @db.Text
   yearLevel      AcademicLevel @map("year_level")
   teacherId      BigInt   @map("teacher_id")
@@ -192,7 +205,7 @@ model Class {
   programSubject ProgramSubject? @relation(fields: [programId, subjectId], references: [programId, subjectId], onDelete: Restrict)
   students ClassStudent[]
 
-  @@unique([teacherId, branchId, schoolYear, sectionName, yearLevel, programId, subjectId], map: "classes_assignment_key")
+  @@unique([teacherId, branchId, schoolYear, semester, sectionName, yearLevel, programId, subjectId], map: "classes_assignment_key")
   @@index([teacherId, schoolYear])
   @@index([branchId, schoolYear])
   @@index([programId, subjectId])
@@ -288,11 +301,14 @@ model LastSchool {
   shortName  String?    @map("short_name") @db.Text
   addressId  BigInt?    @map("address_id")
   schoolType SchoolType @map("school_type")
+  verificationStatus LastSchoolVerificationStatus @default(pending) @map("verification_status")
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(6)
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   address      Address?               @relation(fields: [addressId], references: [id], onDelete: SetNull)
   applications AdmissionApplication[]
 
+  @@index([verificationStatus])
   @@map("last_schools")
 }
 
@@ -369,6 +385,7 @@ model Student {
   birthplace      String?      @db.Text
   religion        String?      @db.Text
   email           String       @unique @db.Text
+  userImage       String?      @map("user_image") @db.Text
   phone           String?      @db.Text
   facebookAccount String?      @map("facebook_account") @db.Text
   addressId       BigInt?      @map("address_id")

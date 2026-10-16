@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth"
+import { studentNeedsAdmissionReview } from "@/lib/admission/student-review"
 import { UserRole } from "@/lib/generated/prisma/enums"
 import { portalTheme } from "@/lib/portal/theme"
 import { redirect } from "next/navigation"
@@ -7,6 +8,9 @@ export default async function Page() {
   const session = await requireSession()
 
   if (session.role === UserRole.student) {
+    if (await studentNeedsAdmissionReview(session.email)) {
+      redirect("/portal/admission-review")
+    }
     redirect("/portal/classroom")
   }
 

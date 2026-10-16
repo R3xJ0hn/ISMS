@@ -13,7 +13,7 @@ export async function getClassFormOptions() {
     }),
     prisma.student.findMany({
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
-      select: { id: true, studentNumber: true, firstName: true, middleName: true, lastName: true, suffix: true },
+      select: { id: true, studentNumber: true, firstName: true, middleName: true, lastName: true, suffix: true, userImage: true },
     }),
     prisma.branch.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true } }),
     prisma.program.findMany({
@@ -24,7 +24,7 @@ export async function getClassFormOptions() {
   ]);
   return {
     teachers: teachers.map((teacher) => ({ id: teacher.employeeId.toString(), name: getEmployeeFullName(teacher.employee), email: teacher.user.email })),
-    students: students.map((student) => ({ id: student.id.toString(), name: formatStudentName(student), studentNumber: student.studentNumber })),
+    students: students.map((student) => ({ id: student.id.toString(), name: formatStudentName(student), studentNumber: student.studentNumber, userImage: student.userImage ?? null })),
     branches: branches.map((branch) => ({ id: branch.id.toString(), title: branch.title })),
     programs: programs.map((program) => ({ id: program.id.toString(), code: program.code, label: program.label, programType: program.programType, branchIds: program.branchPrograms.map((entry) => entry.branchId.toString()), subjectIds: program.programSubjects.map((entry) => entry.subjectId.toString()) })),
     subjects: subjects.map((subject) => ({ id: subject.id.toString(), name: subject.name, code: subject.code })),

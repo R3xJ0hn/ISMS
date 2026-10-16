@@ -194,11 +194,11 @@ async function applyCanonicalLastSchoolSelection(form: Record<string, string>) {
   const school = await prisma.lastSchool.findUnique({
     where: { id: recordId },
     select: {
-      id: true, schoolName: true, schoolId: true, shortName: true, schoolType: true,
+      id: true, schoolName: true, schoolId: true, shortName: true, schoolType: true, verificationStatus: true,
       address: { select: addressSelect },
     },
   });
-  if (!school?.address) return null;
+  if (school?.verificationStatus !== "verified" || !school.address) return null;
 
   const schoolProfile = {
     lastSchoolName: school.schoolName,

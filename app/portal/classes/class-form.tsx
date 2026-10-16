@@ -9,14 +9,16 @@ import { usePortalFormFeedback } from "@/components/portal/toasts";
 import type { ClassFormState, ClassFormValues } from "@/lib/classes/validation";
 import { generateSchoolYears } from "@/lib/utils";
 import { createClassAction, updateClassAction } from "./actions";
-import { academicLevelOptions, isAcademicLevelAllowedForProgram } from "@/lib/academic-levels";
+import { ClassRosterImportDialog } from "./class-roster-import-dialog";
+import { ClassStudentPicker, type ClassStudentOption } from "./class-student-picker";
+import { academicLevelOptions, getSemesterOption, isAcademicLevelAllowedForProgram, semesterOptions } from "@/lib/academic-levels";
 
 type ClassFormProps = {
   teachers: Array<{ id: string; email: string; name?: string }>;
   branches: Array<{ id: string; title: string }>;
   programs: Array<{ id: string; code: string; label: string; programType: string; branchIds: string[]; subjectIds: string[] }>;
   subjects: Array<{ id: string; name: string; code: string | null }>;
-  students?: Array<{ id: string; name: string; studentNumber: string | null }>;
+  students?: ClassStudentOption[];
 } & ({ mode: "create" } | { mode: "edit"; classId: string; values: ClassFormValues });
 
 type ClassField = {
@@ -29,10 +31,11 @@ type ClassField = {
 
 const initialState: ClassFormState = { success: false, message: "" };
 const emptyValues: ClassFormValues = {
-  teacherId: "", branchId: "", programId: "", subjectId: "", schoolYear: "", sectionName: "", yearLevel: "", studentIds: [],
+  teacherId: "", branchId: "", programId: "", subjectId: "", schoolYear: "", semester: "", sectionName: "", yearLevel: "", studentIds: [],
 };
 const fields: ClassField[] = [
   { name: "schoolYear", label: "School year", placeholder: "Select school year", maxLength: 20, help: "Select the school year for this class." },
+  { name: "semester", label: "Semester", placeholder: "Select semester", maxLength: 20 },
   { name: "sectionName", label: "Section name", placeholder: "BSIT 1-A", maxLength: 150 },
   { name: "yearLevel", label: "Year level", placeholder: "Select year level", maxLength: 100 },
 ];
@@ -48,15 +51,14 @@ export function ClassForm(props: ClassFormProps) {
       ...props.values,
       teacherId: props.teachers.some((teacher) => teacher.id === props.values.teacherId) ? props.values.teacherId : "",
       branchId, programId: program?.id ?? "", subjectId,
+      semester: getSemesterOption(props.values.semester)?.value ?? "",
       yearLevel: program && isAcademicLevelAllowedForProgram(program.programType, props.values.yearLevel as Parameters<typeof isAcademicLevelAllowedForProgram>[1]) ? props.values.yearLevel : "",
     };
   });
   const [state, formAction, pending] = useActionState(creating ? createClassAction : updateClassAction, initialState);
   const formRef = usePortalFormFeedback(state, { returnTo: "/portal/classes" });
   const errors = state.fieldErrors;
-  const [studentSearch, setStudentSearch] = useState("");
   const selectedStudents = values.studentIds ?? [];
-  const visibleStudents = (props.students ?? []).filter((student) => (student.name + " " + (student.studentNumber ?? "")).toLowerCase().includes(studentSearch.trim().toLowerCase()));
   const availablePrograms = props.programs.filter((program) => program.branchIds.includes(values.branchId));
   const selectedProgram = availablePrograms.find((program) => program.id === values.programId);
   const availableSubjects = selectedProgram ? props.subjects.filter((subject) => selectedProgram.subjectIds.includes(subject.id)) : [];
@@ -140,6 +142,15 @@ export function ClassForm(props: ClassFormProps) {
                       <option key={schoolYear} value={schoolYear}>{schoolYear}</option>
                     ))}
                   </select>
+                ) : field.name === "semester" ? (
+                  <select
+                    id={id} name={field.name} value={values.semester} onChange={changeValue} required
+                    aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive"
+                  >
+                    <option value="">{field.placeholder}</option>
+                    {semesterOptions.map((semester) => <option key={semester.value} value={semester.value}>{semester.label}</option>)}
+                  </select>
                 ) : field.name === "yearLevel" ? (
                   <select
                     id={id} name={field.name} value={values.yearLevel} onChange={changeValue} required disabled={!selectedProgram}
@@ -166,27 +177,15 @@ export function ClassForm(props: ClassFormProps) {
       </fieldset>
       <fieldset disabled={pending || state.success} className="min-w-0 space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
         <legend className="px-2 text-base font-semibold">Class students</legend>
-        <p className="text-sm text-muted-foreground">Choose saved student records for this class. A student can belong to more than one subject class.</p>
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+          <p className="min-w-0 flex-1 text-sm text-muted-foreground">Manage the students in this class. Search to add a saved student or upload an Excel reference.</p>
+          <ClassRosterImportDialog students={props.students ?? []} selectedIds={selectedStudents} disabled={pending || state.success}
+            onApply={(studentIds) => setValues((current) => ({ ...current, studentIds: [...new Set([...(current.studentIds ?? []), ...studentIds])] }))} />
+        </div>
         <input type="hidden" name="studentIds" value="" />
         {selectedStudents.map((studentId) => <input key={studentId} type="hidden" name="studentIds" value={studentId} />)}
-        {(props.students?.length ?? 0) > 0 ? (
-          <>
-            <label htmlFor="class-student-search" className="block text-sm font-medium">Search students</label>
-            <Input id="class-student-search" type="search" value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Search name or student number..." autoComplete="off" />
-            <p className="text-sm text-muted-foreground">{selectedStudents.length} {selectedStudents.length === 1 ? "student" : "students"} selected</p>
-            <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border border-border p-3" aria-label="Saved student records">
-              {visibleStudents.length ? visibleStudents.map((student) => (
-                <label key={student.id} className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted">
-                  <input type="checkbox" value={student.id} checked={selectedStudents.includes(student.id)} aria-label={"Add " + student.name + " to this class"} className="mt-1 size-4 shrink-0 accent-primary" onChange={(event) => {
-                    const checked = event.target.checked;
-                    setValues((current) => ({ ...current, studentIds: checked ? [...(current.studentIds ?? []), student.id] : (current.studentIds ?? []).filter((id) => id !== student.id) }));
-                  }} />
-                  <span className="min-w-0 [overflow-wrap:anywhere]"><span className="block text-sm font-medium">{student.name}</span><span className="text-xs text-muted-foreground">{student.studentNumber ?? "Student number not assigned"}</span></span>
-                </label>
-              )) : <p className="text-sm text-muted-foreground">No students match your search.</p>}
-            </div>
-          </>
-        ) : <p className="text-sm text-muted-foreground">No saved students are available yet. You can add students through Manage Students and update this roster later.</p>}
+        <ClassStudentPicker students={props.students ?? []} selectedIds={selectedStudents} disabled={pending || state.success}
+          onChange={(studentIds) => setValues((current) => ({ ...current, studentIds: [...new Set(studentIds)] }))} />
         {errors?.studentIds && <p id="class-studentIds-error" role="alert" className="text-sm text-destructive">{errors.studentIds}</p>}
       </fieldset>
       <div className="flex flex-wrap items-center justify-end gap-3 lg:col-span-2">

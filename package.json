@@ -20,7 +20,8 @@
     "test:branch-program-migration": "node script/test-branch-program-migration.mjs",
     "test:subjects-programs": "node script/test-subject-program-migration.mjs",
     "test:site-settings": "node script/test-site-settings-migration.mjs",
-    "test:class-period-visibility": "node script/test-class-period-visibility-migration.mjs"
+    "test:class-period-visibility": "node script/test-class-period-visibility-migration.mjs",
+    "test:class-semester": "node script/test-class-semester-migration.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

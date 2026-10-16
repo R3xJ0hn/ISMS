@@ -92,10 +92,10 @@ export function AdmissionBranchFilter({
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
-    <form ref={formRef} action="/portal/admission" className="space-y-2">
+    <form ref={formRef} action="/portal/admission" method="get" className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
       <label
         htmlFor="branch-filter"
-        className="text-sm font-medium text-foreground"
+        className="shrink-0 text-sm font-medium text-foreground"
       >
         Branch
       </label>
@@ -104,7 +104,7 @@ export function AdmissionBranchFilter({
         name="branchId"
         defaultValue={selectedBranchId}
         onChange={() => formRef.current?.requestSubmit()}
-        className="w-auto min-w-60"
+        className="min-w-0 flex-1 sm:w-auto sm:max-w-64 sm:flex-none"
       >
         <option value="">All branches</option>
         {branches.map((branch) => (

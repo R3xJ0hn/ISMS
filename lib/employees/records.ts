@@ -9,7 +9,7 @@ export const employeeOverviewSelect = {
 } as const satisfies Prisma.EmployeeSelect;
 export const employeeEditSelect = {
   ...employeeOverviewSelect, birthDate: true, placeOfBirth: true, gender: true, civilStatus: true,
-  nationality: true, address: true, tin: true, sssNo: true, philHealthNo: true, pagIbigNo: true,
+  nationality: true, address: true, tin: true, sssNo: true, philHealthNo: true, pagIbigNo: true, userImage: true,
 } as const satisfies Prisma.EmployeeSelect;
 
 type EmployeeOverviewQueryResult = Prisma.EmployeeGetPayload<{ select: typeof employeeOverviewSelect }>;
@@ -29,5 +29,5 @@ export function serializeEmployeeForEdit(employee: EmployeeEditQueryResult) {
     const value = employee[field];
     return [field, value instanceof Date ? formatDateInput(value) : value ?? ""];
   })) as EmployeeFormValues;
-  return { id: employee.id.toString(), values, fullName: getEmployeeFullName(employee) };
+  return { id: employee.id.toString(), values, fullName: getEmployeeFullName(employee), userImage: employee.userImage ?? null };
 }

@@ -22,7 +22,7 @@ function duplicateClassError(): ClassFormState {
   return {
     success: false,
     message: "This teacher already has this class assignment.",
-    fieldErrors: { subjectId: "This subject, program, section, year level, school year and branch are already assigned to this teacher." },
+    fieldErrors: { subjectId: "This subject, program, section, year level, school year, semester and branch are already assigned to this teacher." },
   };
 }
 
@@ -56,6 +56,7 @@ function saveClassError(error: unknown): ClassFormState {
 function refreshClassPages(id: bigint) {
   for (const path of [
     "/portal/classes", `/portal/classes/${id}/edit`, "/portal/my-classes", `/portal/my-classes/${id}`,
+    "/portal/classroom", `/portal/classroom/${id}`, "/portal/grades",
   ]) revalidatePath(path);
 }
 
@@ -99,6 +100,7 @@ async function saveClass(formData: FormData, mode: "create" | "edit"): Promise<C
         where: {
           ...(id === undefined ? {} : { id: { not: id } }),
           teacherId: parsed.data.teacherId, schoolYear: parsed.data.schoolYear,
+          semester: parsed.data.semester,
           sectionName: parsed.data.sectionName, yearLevel: parsed.data.yearLevel,
           programId: parsed.data.programId, subjectId: parsed.data.subjectId,
           branchId: parsed.data.branchId,

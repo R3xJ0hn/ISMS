@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentStudent, studentClassMembershipWhere } from "@/lib/portal/student";
+import type { Semester } from "@/lib/generated/prisma/enums";
 import type { StudentGrade } from "@/lib/student-grades";
 import { getClassPeriodVisibility, type ClassPeriodVisibility } from "./period-visibility";
 
 export type SemesterClassVisibility = ClassPeriodVisibility & {
+  semester: Semester | null;
   subjectName: string;
   subject: { code: string | null; name: string } | null;
 };
@@ -29,9 +31,13 @@ function matchesSubject(grade: StudentGrade, assignedClass: SemesterClassVisibil
 export function filterSemesterGradesByVisibility(
   grades: readonly StudentGrade[],
   classes: readonly SemesterClassVisibility[],
+  requestedSemester?: Semester,
 ): VisibleSemesterGrade[] {
   return grades.map((grade) => {
-    const matches = classes.filter((assignedClass) => matchesSubject(grade, assignedClass));
+    const matches = classes.filter((assignedClass) =>
+      (!requestedSemester || !assignedClass.semester || assignedClass.semester === requestedSemester) &&
+      matchesSubject(grade, assignedClass)
+    );
     const periodVisibility = matches.reduce<ClassPeriodVisibility>((visibility, assignedClass) => {
       const assignedVisibility = getClassPeriodVisibility(assignedClass);
       return {
@@ -68,6 +74,7 @@ export async function getStudentSemesterGradeVisibility() {
   const classes = await prisma.class.findMany({
     where: studentClassMembershipWhere(student.id),
     select: {
+      semester: true,
       subjectName: true,
       subject: { select: { code: true, name: true } },
       prelimVisible: true,

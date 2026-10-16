@@ -6,7 +6,7 @@ import { ClassworkView } from "@/components/classroom/classwork-view";
 import { StudentGradeSummary } from "@/components/classroom/student-grade-summary";
 import { WorkspaceTabs } from "@/components/classroom/workspace-tabs";
 import { Button } from "@/components/ui/button";
-import { formatAcademicLevel } from "@/lib/academic-levels";
+import { formatAcademicLevel, formatSemester } from "@/lib/academic-levels";
 import { getStudentClass } from "@/lib/classes/student";
 
 export default async function StudentClassroomDetailPage({ params, searchParams }: {
@@ -26,6 +26,7 @@ export default async function StudentClassroomDetailPage({ params, searchParams 
         subjectName={assignedClass.subjectName}
         sectionName={assignedClass.sectionName}
         schoolYear={assignedClass.schoolYear}
+        semester={assignedClass.semester}
         yearLevel={assignedClass.yearLevel}
         branchTitle={assignedClass.branchTitle}
         teacherName={assignedClass.teacherName}
@@ -40,6 +41,7 @@ export default async function StudentClassroomDetailPage({ params, searchParams 
               ["Section", assignedClass.sectionName],
               ["Year level", formatAcademicLevel(assignedClass.yearLevel)],
               ["School year", assignedClass.schoolYear],
+              ["Semester", formatSemester(assignedClass.semester)],
               ["Branch", assignedClass.branchTitle ?? "Not assigned"],
             ].map(([label, value]) => (
               <div key={label} className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-medium [overflow-wrap:anywhere]">{value}</dd></div>

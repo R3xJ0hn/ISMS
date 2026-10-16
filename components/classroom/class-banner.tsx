@@ -1,15 +1,10 @@
 import { Building2, CalendarDays, GraduationCap, UserRound } from "lucide-react";
-import { formatAcademicLevel } from "@/lib/academic-levels";
-import type { AcademicLevel } from "@/lib/generated/prisma/enums";
+import { formatAcademicLevel, formatSemester } from "@/lib/academic-levels";
+import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
 import { cn } from "@/lib/utils";
+import { classCoverTheme } from "@/lib/portal/classroom-colors";
 
-const coverThemes = ["bg-blue-700", "bg-emerald-700", "bg-teal-700", "bg-slate-700"] as const;
-
-export function classCoverTheme(classId: string) {
-  let hash = 0;
-  for (const character of classId) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return coverThemes[hash % coverThemes.length];
-}
+export { classCoverTheme };
 
 export function ClassCoverDecoration() {
   return (
@@ -21,11 +16,12 @@ export function ClassCoverDecoration() {
   );
 }
 
-export function ClassBanner({ classId, subjectName, sectionName, schoolYear, yearLevel, branchTitle, teacherName }: {
+export function ClassBanner({ classId, subjectName, sectionName, schoolYear, semester, yearLevel, branchTitle, teacherName }: {
   classId: string;
   subjectName: string;
   sectionName: string;
   schoolYear: string;
+  semester?: Semester | null;
   yearLevel: AcademicLevel;
   branchTitle: string | null;
   teacherName?: string;
@@ -35,12 +31,13 @@ export function ClassBanner({ classId, subjectName, sectionName, schoolYear, yea
       <ClassCoverDecoration />
       <div className="relative flex min-h-36 flex-col justify-between gap-8">
         <div className="min-w-0 max-w-3xl">
-          <p className="mb-2 text-sm font-medium text-white/80 [overflow-wrap:anywhere]">{sectionName} <span aria-hidden="true">·</span> {formatAcademicLevel(yearLevel)}</p>
+          <p className="mb-2 text-sm font-medium text-white/90 [overflow-wrap:anywhere]">{sectionName} <span aria-hidden="true">·</span> {formatAcademicLevel(yearLevel)}</p>
           <h1 className="break-words text-3xl font-semibold tracking-tight sm:text-4xl">{subjectName}</h1>
           {teacherName && <p className="mt-3 flex min-w-0 items-center gap-2 text-sm text-white/90"><UserRound aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{teacherName}</span></p>}
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/90">
           <span className="inline-flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4" />{schoolYear}</span>
+          <span>{formatSemester(semester)}</span>
           <span className="inline-flex min-w-0 max-w-full items-center gap-2"><Building2 aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{branchTitle ?? "Branch not assigned"}</span></span>
           <GraduationCap aria-hidden="true" className="ml-auto hidden size-8 text-white/60 sm:block" />
         </div>

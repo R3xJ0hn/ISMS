@@ -10,7 +10,7 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ e
   return (
     <PortalFormPage backHref="/portal/employees" backLabel="Back to employees"
       label="Employees" title="Edit employee" description={`Update the employee record for ${employee.fullName}.`}>
-      <EmployeeForm mode="edit" employeeRecordId={employee.id} values={employee.values} />
+      <EmployeeForm mode="edit" employeeRecordId={employee.id} values={employee.values} userImage={employee.userImage} />
     </PortalFormPage>
   );
 }

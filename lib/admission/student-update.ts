@@ -173,7 +173,7 @@ export async function createStudentUpdateUrl(studentId: string, recipientEmail: 
   if (!validateEmail(email) || email.length > 320) throw new Error("Invalid student email.");
   const updateUrl = new URL("/admission/update", getAppBaseUrl());
   const token = await prisma.$transaction(async (tx) => {
-    const student = await tx.student.findUnique({ where: { id }, select: { email: true } });
+    const student = await tx.student.findUnique({ where: { id }, select: { email: true, userImage: true } });
     if (!student || normalizeEmail(student.email) !== email) throw new Error("The student email changed. Request a new link.");
     let user = await tx.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } }, select: { id: true, role: true, sessionVersion: true },
@@ -181,7 +181,7 @@ export async function createStudentUpdateUrl(studentId: string, recipientEmail: 
     if (user && user.role !== UserRole.student) throw new Error("This email belongs to another portal account.");
     if (!user) {
       user = await tx.user.create({
-        data: { email, role: UserRole.student, passwordHash: "!password-setup-required", emailVerified: false, sessionVersion: 0 },
+        data: { email, role: UserRole.student, passwordHash: "!password-setup-required", emailVerified: false, sessionVersion: 0, userImage: student.userImage ?? null },
         select: { id: true, role: true, sessionVersion: true },
       });
     }

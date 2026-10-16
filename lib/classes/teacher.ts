@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseClassId, parseTeacherSpreadsheetForm, type TeacherSpreadsheetFormState } from "./validation";
 import { parseClassPeriodVisibilityForm, type ClassPeriodVisibilityFormState } from "./period-visibility";
+import { classStudentPreviewSelection } from "./student-preview";
 
 const classSelection = {
   id: true,
   schoolYear: true,
+  semester: true,
   sectionName: true,
   yearLevel: true,
   subjectName: true,
@@ -43,7 +45,7 @@ export async function getAssignedClasses() {
   if (!teacher) return [];
   return prisma.class.findMany({
     where: assignmentWhere(teacher),
-    select: { ...classSelection, _count: { select: { students: true } } },
+    select: { ...classSelection, ...classStudentPreviewSelection },
     orderBy: [{ schoolYear: "desc" }, { subjectName: "asc" }, { sectionName: "asc" }],
   });
 }

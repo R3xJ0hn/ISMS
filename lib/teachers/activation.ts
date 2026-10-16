@@ -58,7 +58,7 @@ export async function activateTeacher(_previousState: TeacherFormState, formData
         consumedAt: null, expiresAt: { gt: new Date(), equals: claims.expiresAt },
       }, data: { consumedAt: new Date() } });
       if (consumed.count !== 1) return invalid;
-      const user = await tx.user.create({ data: { email: claims.email, role: UserRole.teacher, emailVerified: true, passwordHash }, select: { id: true } });
+      const user = await tx.user.create({ data: { email: claims.email, role: UserRole.teacher, emailVerified: true, passwordHash, userImage: employee.userImage ?? null }, select: { id: true } });
       await tx.teacher.create({ data: { employeeId, userId: user.id } });
       return { success: true, message: "Your teacher account is activated. Sign in with your email and chosen password." };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

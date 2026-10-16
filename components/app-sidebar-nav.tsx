@@ -108,6 +108,8 @@ function getManagementItems(role: UserRoleValue): SidebarItem[] {
           },
         ],
       },
+      { title: "Manage Users", href: "/portal/users", icon: Users },
+      { title: "Manage Last Schools", href: "/portal/last-schools", icon: GraduationCap },
       { title: "Manage Branch Programs", href: "/portal/branch-programs", icon: BookOpen },
       ...(role === UserRole.superAdmin ? [
         { title: "Manage Classes", href: "/portal/classes", icon: ClipboardList },

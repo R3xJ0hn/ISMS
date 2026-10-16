@@ -27,6 +27,7 @@ export async function getAdmissionLastSchools(): Promise<AdmissionLastSchoolsRes
   try {
     // Read school metadata only. Applicant and student relationships stay private.
     const records = await prisma.lastSchool.findMany({
+      where: { verificationStatus: "verified" },
       orderBy: { id: "asc" },
       select: lastSchoolSelect,
     });

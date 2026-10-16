@@ -1,4 +1,5 @@
 import { admittedStudentInclude, serializeAdmittedStudent } from "./records";
+import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
@@ -12,17 +13,21 @@ import {
   CivilStatus,
   Gender,
   SchoolType,
+  UserRole,
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { parseDateInput, validateEmail, validatePhone, validateSchoolYear } from "@/lib/validation";
 import { addressDataFromProfile, guardianDataFromProfile, normalizeStudentUpdateInput, studentDataFromProfile, studentUpdateFields } from "./student-fields";
 import { resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
 import { prisma } from "@/lib/prisma";
-import { capitalizeInputText, normalizeEmail, normalizeHeader, sanitizeInputText, enumIncludes, parseId,readFormFields, readFormText, formatDateInput} from "@/lib/utils";
+import { cleanupProfileImage, prepareProfileImage } from "@/lib/users/profile-image";
+import { getUserForProfile, ProfileIdentityError, type UserIdentity } from "@/lib/users/profiles";
+import { capitalizeInputText, normalizeEmail, normalizeHeader, sanitizeInputText, enumIncludes, parseId, parseRecordId, readFormFields, readFormText, formatDateInput, literalInsensitiveEquality } from "@/lib/utils";
 
 export type AddAdmittedStudentState = {
   success: boolean;
   message: string;
+  fieldErrors?: { image?: string };
 };
 
 export type EditAdmittedStudentState = AddAdmittedStudentState;
@@ -41,6 +46,49 @@ const initialState = {
   success: false,
   message: "",
 } satisfies AddAdmittedStudentState;
+
+class StudentAccountEditError extends Error {}
+
+/** Student accounts are email-linked: move the existing student account without taking over another record. */
+async function syncStudentAccountEmail(transaction: Prisma.TransactionClient, studentId: bigint, previousEmail: string, email: string) {
+  const previous = normalizeEmail(previousEmail);
+  const [duplicateStudent, accounts] = await Promise.all([
+    transaction.student.findFirst({
+      where: { email: literalInsensitiveEquality(email), NOT: { id: studentId } }, select: { id: true },
+    }),
+    transaction.user.findMany({
+      where: { email: literalInsensitiveEquality(previous) }, take: 2,
+      select: { id: true, email: true, role: true, sessionVersion: true },
+    }),
+  ]);
+  if (duplicateStudent) throw new StudentAccountEditError("Another student already uses this email address. Choose a different email.");
+  if (accounts.length > 1 || (accounts[0] && accounts[0].role !== UserRole.student)) {
+    throw new StudentAccountEditError("The student's email is linked to conflicting portal records. Resolve the account conflict before saving.");
+  }
+  const account = accounts[0];
+  if (account) {
+    const students = await transaction.student.findMany({
+      where: { email: literalInsensitiveEquality(previous) }, take: 2, select: { id: true },
+    });
+    if (students.length !== 1 || students[0].id !== studentId) {
+      throw new StudentAccountEditError("The student's email is linked to conflicting portal records. Resolve the account conflict before saving.");
+    }
+  }
+  const duplicateAccount = await transaction.user.findFirst({
+    where: { email: literalInsensitiveEquality(email), ...(account ? { NOT: { id: account.id } } : {}) },
+    select: { id: true },
+  });
+  if (duplicateAccount) throw new StudentAccountEditError("Another portal account already uses this email address. Choose a different email.");
+  if (!account || previous === email) return { emailChanged: false, accountId: account?.id ?? null };
+
+  const updated = await transaction.user.updateMany({
+    where: { id: account.id, email: account.email, role: UserRole.student, sessionVersion: account.sessionVersion },
+    data: { email, emailVerified: false, sessionVersion: { increment: 1 } },
+  });
+  if (updated.count !== 1) throw new StudentAccountEditError("The student's account changed. Reload the page and try again.");
+  await transaction.verificationToken.deleteMany({ where: { userId: account.id } });
+  return { emailChanged: true, accountId: account.id };
+}
 
 function getAdminProgramSelection(branchId: bigint, programId: bigint) {
   return Promise.all([
@@ -231,6 +279,9 @@ export async function addAdmittedStudentAction(
     };
   }
 
+  const image = await prepareProfileImage(formData, `student:${randomUUID()}`);
+  if (!image.success) return image;
+
   try {
     await prisma.$transaction(async (transaction) => {
       const student = await transaction.student.create({
@@ -245,11 +296,23 @@ export async function addAdmittedStudentAction(
           citizenship: null,
           birthplace,
           phone,
+          ...(image.change ? { userImage: image.change.value } : {}),
         },
         select: {
           id: true,
         },
       });
+
+      if (image.change) {
+        const account = await getUserForProfile(transaction, { kind: "student", id: student.id });
+        if (account) {
+          const updated = await transaction.user.updateMany({
+            where: { id: account.id, email: account.email, role: UserRole.student },
+            data: { userImage: image.change.value },
+          });
+          if (updated.count !== 1) throw new StudentAccountEditError("The student's account changed. Reload the page and try again.");
+        }
+      }
 
       await transaction.admissionApplication.create({
         data: {
@@ -266,6 +329,8 @@ export async function addAdmittedStudentAction(
       });
     });
   } catch (error) {
+    await cleanupProfileImage(image.change);
+    if (error instanceof StudentAccountEditError || error instanceof ProfileIdentityError) return { success: false, message: error.message };
     const message = getStudentUniqueConstraintMessage(error);
 
     if (message) {
@@ -284,6 +349,8 @@ export async function addAdmittedStudentAction(
   }
 
   revalidatePath("/portal/admission");
+  revalidatePath("/portal/users");
+  if (image.change) revalidatePath("/portal", "layout");
 
   return {
     success: true,
@@ -683,16 +750,35 @@ export async function editAdmittedStudentAction(
   previousState: EditAdmittedStudentState = initialState,
   formData: FormData
 ): Promise<EditAdmittedStudentState> {
+  return saveStudentDetails(previousState, formData, false);
+}
+
+/** Manage Students edits stay scoped to an approved admission, including at save time. */
+export async function editManagedStudentAction(
+  previousState: EditAdmittedStudentState = initialState,
+  formData: FormData
+): Promise<EditAdmittedStudentState> {
+  return saveStudentDetails(previousState, formData, true);
+}
+
+async function saveStudentDetails(
+  previousState: EditAdmittedStudentState,
+  formData: FormData,
+  approvedOnly: boolean
+): Promise<EditAdmittedStudentState> {
   void previousState;
 
   await requireAdmin();
 
-  const studentId = parseId(readFormText(formData, "studentId"));
-  const applicationId = parseId(readFormText(formData, "applicationId"));
+  const studentId = parseRecordId(readFormText(formData, "studentId"));
+  const applicationId = parseRecordId(readFormText(formData, "applicationId"));
   const applicantType = readFormText(formData, "applicantType");
-  const branchId = parseId(readFormText(formData, "branchId"));
-  const programId = parseId(readFormText(formData, "programId"));
-  const academicLevel = getAcademicLevelOption(readFormText(formData, "academicLevel"));
+  const branchInput = readFormText(formData, "branchId");
+  const programInput = readFormText(formData, "programId");
+  const academicLevelInput = readFormText(formData, "academicLevel");
+  const branchId = parseRecordId(branchInput);
+  const programId = parseRecordId(programInput);
+  const academicLevel = getAcademicLevelOption(academicLevelInput);
   const studentNumber = sanitizeInputText(readFormText(formData, "studentNumber"));
   const profile = normalizeStudentUpdateInput(readFormFields(formData, studentUpdateFields));
   const {
@@ -707,9 +793,7 @@ export async function editAdmittedStudentAction(
     ? parseDateInput(lastSchoolGraduationDate)
     : null;
 
-  if (
-    !studentId ||
-    !applicationId ||
+  if (!studentId || !applicationId || (approvedOnly && (
     !branchId ||
     !programId ||
     !academicLevel ||
@@ -736,7 +820,7 @@ export async function editAdmittedStudentAction(
     !lastSchoolProvince ||
     !lastSchoolYear ||
     !lastSchoolYearLevel
-  ) {
+  ))) {
     return {
       success: false,
       message: "Complete all required fields before saving the student.",
@@ -744,15 +828,19 @@ export async function editAdmittedStudentAction(
   }
 
   if (
-    !enumIncludes(Gender, gender) ||
-    !enumIncludes(ApplicantType, applicantType) ||
+    (gender && !enumIncludes(Gender, gender)) ||
+    (applicantType && !enumIncludes(ApplicantType, applicantType)) ||
+    (branchInput && !branchId) ||
+    (programInput && !programId) ||
+    (academicLevelInput && !academicLevel) ||
+    (profile.birthDate && !birthDate) ||
     (civilStatus &&
       !enumIncludes(CivilStatus, civilStatus)) ||
-    !enumIncludes(SchoolType, lastSchoolType) ||
-    !validateEmail(email) ||
-    !validatePhone(phone) ||
-    !validatePhone(guardianContactNumber) ||
-    !validateSchoolYear(lastSchoolYear) ||
+    (lastSchoolType && !enumIncludes(SchoolType, lastSchoolType)) ||
+    (email && !validateEmail(email)) ||
+    (phone && !validatePhone(phone)) ||
+    (guardianContactNumber && !validatePhone(guardianContactNumber)) ||
+    (lastSchoolYear && !validateSchoolYear(lastSchoolYear)) ||
     (lastSchoolGraduationDate && !parsedLastSchoolGraduationDate)
   ) {
     return {
@@ -761,29 +849,61 @@ export async function editAdmittedStudentAction(
     };
   }
 
-  const [branch, program] = await getAdminProgramSelection(branchId, programId);
+  const selection = branchId && programId ? await getAdminProgramSelection(branchId, programId) : null;
+  const [branch, program] = selection ?? [null, null];
 
-  if (!branch || !program) {
+  if (selection && (!branch || !program)) {
     return {
       success: false,
       message: "Select a valid branch, program, and academic level.",
     };
   }
 
-  if (!isAcademicLevelAllowedForProgram(program.programType, academicLevel.value)) {
+  if (program && academicLevel && !isAcademicLevelAllowedForProgram(program.programType, academicLevel.value)) {
     return {
       success: false,
       message: "Select an academic level that matches the program type.",
     };
   }
 
+  let accountEmailChanged = false;
+  let expectedPhotoAccount: UserIdentity | null = null;
+  let expectedPhoto: string | null = null;
+  let expectedPhotoEmail: string | undefined;
+  // Check the target before uploading; the transaction repeats this check before any writes.
+  const imageEntries = formData.getAll("image");
+  const changingImage = formData.has("removeImage") || imageEntries.length > 1 || imageEntries.some(
+    (entry) => typeof entry === "string" || entry.size > 0,
+  );
+  if (changingImage) {
+    try {
+      const application = await prisma.admissionApplication.findFirst({
+        where: { id: applicationId, studentId, ...(approvedOnly ? { applicationStatus: ApplicationStatus.approved } : {}) },
+        select: { id: true },
+      });
+      if (!application) return { success: false, message: "Student admission record not found. Reload the page and try again." };
+      const saved = await prisma.student.findUnique({ where: { id: studentId }, select: { email: true, userImage: true } });
+      if (!saved) return { success: false, message: "Student admission record not found. Reload the page and try again." };
+      expectedPhotoEmail = saved.email;
+      expectedPhoto = saved.userImage ?? null;
+      expectedPhotoAccount = await getUserForProfile(prisma, { kind: "student", id: studentId });
+    } catch { return { success: false, message: "Unable to load the student's record. Please try again." }; }
+  }
+  const image = await prepareProfileImage(formData, `student:${studentId}`);
+  if (!image.success) return image;
+
   try {
-    await runLastSchoolTransaction(async (transaction) => {
+    accountEmailChanged = await runLastSchoolTransaction(async (transaction) => {
       const student = await transaction.student.findUnique({
         where: {
           id: studentId,
         },
         select: {
+          firstName: true,
+          lastName: true,
+          birthDate: true,
+          email: true,
+          userImage: true,
           addressId: true,
           guardians: {
             orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
@@ -800,9 +920,16 @@ export async function editAdmittedStudentAction(
         where: {
           id: applicationId,
           studentId,
+          ...(approvedOnly ? { applicationStatus: ApplicationStatus.approved } : {}),
         },
         select: {
           id: true,
+          applicantType: true,
+          branchId: true,
+          programId: true,
+          academicLevel: true,
+          lastSchoolId: true,
+          lastSchool: { select: { schoolName: true, schoolType: true } },
         },
       });
 
@@ -810,97 +937,151 @@ export async function editAdmittedStudentAction(
         throw new Error("Student admission record not found.");
       }
 
+      // Admissions can save an incomplete record; non-null identity and admission
+      // choices keep their stored values when an administrator leaves them blank.
+      const savedProfile = {
+        ...profile,
+        firstName: firstName || student.firstName,
+        lastName: lastName || student.lastName,
+        email: email || normalizeEmail(student.email),
+      };
+      const savedBirthDate = birthDate ?? student.birthDate;
+      const savedApplicantType = applicantType || application.applicantType;
+      const savedAcademicLevel = academicLevel ?? getAcademicLevelOption(application.academicLevel);
+      const [savedBranch, savedProgram] = branch && program
+        ? [branch, program]
+        : await getAdminProgramSelection(branchId ?? application.branchId, programId ?? application.programId);
+      if (!savedBranch || !savedProgram || !savedAcademicLevel || !enumIncludes(ApplicantType, savedApplicantType)) {
+        throw new StudentAccountEditError("Select a valid branch, program, and academic level.");
+      }
+      if (!isAcademicLevelAllowedForProgram(savedProgram.programType, savedAcademicLevel.value)) {
+        throw new StudentAccountEditError("Select an academic level that matches the program type.");
+      }
+
+      const photoAccount = image.change ? await getUserForProfile(transaction, { kind: "student", id: studentId }) : null;
+      if (image.change && (student.email !== expectedPhotoEmail || (student.userImage ?? null) !== expectedPhoto ||
+        photoAccount?.id !== expectedPhotoAccount?.id || photoAccount?.email !== expectedPhotoAccount?.email ||
+        photoAccount?.userImage !== expectedPhotoAccount?.userImage)) {
+        throw new StudentAccountEditError("The student's profile or account changed. Reload the page and try again.");
+      }
+      const account = await syncStudentAccountEmail(transaction, studentId, student.email, savedProfile.email);
+      if (image.change && account.accountId) {
+        if (!photoAccount || photoAccount.id !== account.accountId) {
+          throw new StudentAccountEditError("The student's account changed. Reload the page and try again.");
+        }
+        const updated = await transaction.user.updateMany({
+          where: { id: account.accountId, role: UserRole.student, email: account.emailChanged ? savedProfile.email : photoAccount.email, userImage: photoAccount.userImage },
+          data: { userImage: image.change.value },
+        });
+        if (updated.count !== 1) throw new StudentAccountEditError("The student's account changed. Reload the page and try again.");
+      }
+
       const addressData = addressDataFromProfile(profile, "address");
-      let addressId: bigint;
+      let addressId = student.addressId;
 
-      if (student.addressId) {
-        const [addressStudentCount, addressSchoolCount] = await Promise.all([
-          transaction.student.count({ where: { addressId: student.addressId } }),
-          transaction.lastSchool.count({ where: { addressId: student.addressId } }),
-        ]);
+      if (approvedOnly || Object.values(addressData).some(Boolean)) {
+        if (student.addressId) {
+          const [addressStudentCount, addressSchoolCount] = await Promise.all([
+            transaction.student.count({ where: { addressId: student.addressId } }),
+            transaction.lastSchool.count({ where: { addressId: student.addressId } }),
+          ]);
 
-        if (addressStudentCount > 1 || addressSchoolCount > 0) {
+          if (addressStudentCount > 1 || addressSchoolCount > 0) {
+            const address = await transaction.address.create({
+              data: addressData,
+            });
+            addressId = address.id;
+          } else {
+            const address = await transaction.address.update({
+              where: {
+                id: student.addressId,
+              },
+              data: addressData,
+            });
+            addressId = address.id;
+          }
+        } else {
           const address = await transaction.address.create({
             data: addressData,
           });
           addressId = address.id;
-        } else {
-          const address = await transaction.address.update({
-            where: {
-              id: student.addressId,
-            },
-            data: addressData,
-          });
-          addressId = address.id;
         }
-      } else {
-        const address = await transaction.address.create({
-          data: addressData,
-        });
-        addressId = address.id;
       }
 
       const primaryGuardianLink = student.guardians[0];
       const guardianData = guardianDataFromProfile(profile);
 
-      if (primaryGuardianLink) {
-        const guardianLinkCount = await transaction.studentGuardian.count({
-          where: {
-            guardianId: primaryGuardianLink.guardianId,
-          },
-        });
+      if (approvedOnly || guardianRelationship || Object.values(guardianData).some(Boolean)) {
+        if (primaryGuardianLink) {
+          const guardianLinkCount = await transaction.studentGuardian.count({
+            where: {
+              guardianId: primaryGuardianLink.guardianId,
+            },
+          });
 
-        const guardian =
-          guardianLinkCount > 1
-            ? await transaction.guardian.create({
-                data: guardianData,
-              })
-            : await transaction.guardian.update({
-                where: {
-                  id: primaryGuardianLink.guardianId,
-                },
-                data: guardianData,
-              });
+          const guardian =
+            guardianLinkCount > 1
+              ? await transaction.guardian.create({
+                  data: guardianData,
+                })
+              : await transaction.guardian.update({
+                  where: {
+                    id: primaryGuardianLink.guardianId,
+                  },
+                  data: guardianData,
+                });
 
-        await transaction.studentGuardian.update({
-          where: {
-            id: primaryGuardianLink.id,
-          },
-          data: {
-            guardianId: guardian.id,
-            relationship: guardianRelationship,
-            isPrimary: true,
-          },
-        });
-      } else {
-        const guardian = await transaction.guardian.create({
-          data: guardianData,
-        });
-        await transaction.studentGuardian.create({
-          data: {
-            studentId,
-            guardianId: guardian.id,
-            relationship: guardianRelationship,
-            isPrimary: true,
-          },
-        });
+          await transaction.studentGuardian.update({
+            where: {
+              id: primaryGuardianLink.id,
+            },
+            data: {
+              guardianId: guardian.id,
+              relationship: guardianRelationship,
+              isPrimary: true,
+            },
+          });
+        } else {
+          const guardian = await transaction.guardian.create({
+            data: guardianData,
+          });
+          await transaction.studentGuardian.create({
+            data: {
+              studentId,
+              guardianId: guardian.id,
+              relationship: guardianRelationship,
+              isPrimary: true,
+            },
+          });
+        }
       }
 
-      const lastSchool = await resolveLastSchool(transaction, profile);
+      const hasSchoolDetails = studentUpdateFields.some((field) =>
+        field.startsWith("lastSchool") &&
+        !["lastSchoolYear", "lastSchoolYearLevel", "lastSchoolGraduationDate"].includes(field) &&
+        Boolean(profile[field]),
+      );
+      const lastSchool = approvedOnly || hasSchoolDetails
+        ? await resolveLastSchool(transaction, {
+            ...profile,
+            lastSchoolName: lastSchoolName || application.lastSchool?.schoolName || "",
+            lastSchoolType: lastSchoolType || application.lastSchool?.schoolType || SchoolType.Other,
+          }, undefined, { allowIncomplete: !approvedOnly })
+        : null;
 
       await transaction.admissionApplication.update({
         where: {
           id: applicationId,
         },
         data: {
-          applicantType: applicantType as ApplicantTypeValue,
-          branchId: branch.id,
-          programType: program.programType,
-          programId: program.id,
-          academicLevel: academicLevel.value,
-          lastSchoolId: lastSchool.id,
-          LSSchoolYearEnd: lastSchoolYear,
-          LSAttainedLevelText: lastSchoolYearLevel,
+          applicantType: savedApplicantType as ApplicantTypeValue,
+          branchId: savedBranch.id,
+          programType: savedProgram.programType,
+          programId: savedProgram.id,
+          academicLevel: savedAcademicLevel.value,
+          ...(lastSchool ? { lastSchoolId: lastSchool.id } : {}),
+          LSSchoolYearEnd: lastSchoolYear || null,
+          LSAttainedLevelText: lastSchoolYearLevel || null,
           LSGraduationDate: parsedLastSchoolGraduationDate,
         },
       });
@@ -910,13 +1091,17 @@ export async function editAdmittedStudentAction(
           id: studentId,
         },
         data: {
-          ...studentDataFromProfile(profile, birthDate),
-          studentNumber,
+          ...studentDataFromProfile(savedProfile, savedBirthDate),
+          studentNumber: studentNumber || null,
           addressId,
+          ...(image.change ? { userImage: image.change.value } : {}),
         },
       });
+      return account.emailChanged;
     });
   } catch (error) {
+    await cleanupProfileImage(image.change);
+    if (error instanceof StudentAccountEditError || error instanceof ProfileIdentityError) return { success: false, message: error.message };
     const message = getStudentUniqueConstraintMessage(error);
 
     if (message) {
@@ -936,11 +1121,30 @@ export async function editAdmittedStudentAction(
 
   revalidatePath("/portal/admission");
   revalidatePath(`/portal/admission/${applicationId.toString()}/edit`);
+  revalidatePath("/portal/students");
+  revalidatePath(`/portal/students/${applicationId.toString()}`);
+  revalidatePath(`/portal/students/${applicationId.toString()}/edit`);
+  revalidatePath("/portal/information");
+  revalidatePath("/portal/users");
+  if (image.change) revalidatePath("/portal", "layout");
 
   return {
     success: true,
-    message: "Student details updated.",
+    message: accountEmailChanged
+      ? "Student details updated. The student must sign in with the new email and verify it before using the portal."
+      : "Student details updated.",
   };
+}
+
+export async function getManagedStudentApplication(applicationId: string) {
+  await requireAdmin();
+  const id = parseRecordId(applicationId);
+  if (!id) return null;
+
+  return prisma.admissionApplication.findFirst({
+    where: { id, applicationStatus: ApplicationStatus.approved },
+    include: admittedStudentInclude,
+  });
 }
 
 export async function getAdmittedStudentDetails(applicationId: string) {
