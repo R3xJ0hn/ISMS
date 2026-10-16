@@ -1,10 +1,10 @@
 import { capitalizeInputText, parseRecordId, readFormFields, readFormText } from "@/lib/utils";
 import { validateSchoolYear } from "@/lib/validation";
-import { getAcademicLevelOption } from "@/lib/academic-levels";
-import type { AcademicLevel } from "@/lib/generated/prisma/enums";
+import { getAcademicLevelOption, getSemesterOption } from "@/lib/academic-levels";
+import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
 
 export const classFields = [
-  "schoolYear", "sectionName", "yearLevel", "teacherId", "programId", "subjectId", "branchId",
+  "schoolYear", "semester", "sectionName", "yearLevel", "teacherId", "programId", "subjectId", "branchId",
 ] as const;
 
 export type ClassFormValues = Record<typeof classFields[number], string> & { studentIds?: string[] };
@@ -24,7 +24,7 @@ type ClassFormFailure = ClassFormState & { success: false };
 type ClassFormSuccess = {
   success: true;
   id?: bigint;
-  data: { schoolYear: string; sectionName: string; teacherId: bigint; branchId: bigint; programId: bigint; subjectId: bigint; yearLevel: AcademicLevel };
+  data: { schoolYear: string; semester: Semester; sectionName: string; teacherId: bigint; branchId: bigint; programId: bigint; subjectId: bigint; yearLevel: AcademicLevel };
   studentIds?: bigint[];
 };
 
@@ -90,6 +90,7 @@ export function parseClassForm(
   const programId = parseClassId(values.programId);
   const subjectId = parseClassId(values.subjectId);
   const yearLevel = getAcademicLevelOption(values.yearLevel)?.value;
+  const semester = formData.getAll("semester").length === 1 ? getSemesterOption(values.semester)?.value : undefined;
   let studentIds: bigint[] | undefined;
   if (formData.has("studentIds")) {
     const entries = formData.getAll("studentIds");
@@ -108,6 +109,7 @@ export function parseClassForm(
   if (programId === null) fieldErrors.programId = "Choose a program offered by this branch.";
   if (subjectId === null) fieldErrors.subjectId = "Choose a subject assigned to this program.";
   if (!yearLevel) fieldErrors.yearLevel = "Select a valid year level.";
+  if (!semester) fieldErrors.semester = "Select a valid semester.";
   if (!validateSchoolYear(values.schoolYear)) {
     fieldErrors.schoolYear = "Select a valid school year.";
   }
@@ -118,7 +120,7 @@ export function parseClassForm(
       fieldErrors[field] = `Enter the ${label} using up to ${maximum} characters.`;
     }
   }
-  if (Object.keys(fieldErrors).length || teacherId === null || branchId === null || programId === null || subjectId === null || !yearLevel) {
+  if (Object.keys(fieldErrors).length || teacherId === null || branchId === null || programId === null || subjectId === null || !yearLevel || !semester) {
     return { success: false, message: "Check the highlighted fields.", fieldErrors };
   }
 
@@ -128,6 +130,7 @@ export function parseClassForm(
     ...(studentIds !== undefined ? { studentIds } : {}),
     data: {
       schoolYear: values.schoolYear.replace(/\s*-\s*/g, "-"),
+      semester,
       sectionName: values.sectionName,
       yearLevel,
       teacherId,

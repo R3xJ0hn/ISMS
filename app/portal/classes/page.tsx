@@ -14,7 +14,7 @@ export default async function ClassesManagementPage() {
       where: { teacher: { user: { role: { not: "superAdmin" } } } },
       orderBy: [{ schoolYear: "desc" }, { sectionName: "asc" }, { subjectName: "asc" }],
       select: {
-        id: true, schoolYear: true, sectionName: true, yearLevel: true,
+        id: true, schoolYear: true, semester: true, sectionName: true, yearLevel: true,
         subjectName: true, spreadsheetUrl: true,
         teacher: { select: { employee: { select: { firstName: true, middleName: true, lastName: true, suffix: true } }, user: { select: { email: true } } } },
         branch: { select: { title: true } },
@@ -42,7 +42,7 @@ export default async function ClassesManagementPage() {
       )}
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-label="Class assignments">
         <ClassesTable classes={classes.map((classRecord) => ({
-          id: classRecord.id.toString(), schoolYear: classRecord.schoolYear,
+          id: classRecord.id.toString(), schoolYear: classRecord.schoolYear, semester: classRecord.semester,
           sectionName: classRecord.sectionName, yearLevel: classRecord.yearLevel,
           subjectName: classRecord.subjectName, teacherEmail: classRecord.teacher.user.email,
           teacherName: getEmployeeFullName(classRecord.teacher.employee), studentCount: classRecord._count.students,

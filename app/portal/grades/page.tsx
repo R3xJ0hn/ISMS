@@ -5,7 +5,7 @@ import { AlertCircle } from "lucide-react";
 import { GradesView } from "@/app/portal/grades/grades-view";
 import { PortalTable } from "@/components/portal/data-table";
 import { requireSession } from "@/lib/auth";
-import { UserRole } from "@/lib/generated/prisma/enums";
+import { Semester, UserRole } from "@/lib/generated/prisma/enums";
 import { getStudentGrades, normalizeSemester } from "@/lib/student-grades";
 import { filterSemesterGradesByVisibility, getStudentSemesterGradeVisibility } from "@/lib/classes/semester-visibility";
 
@@ -49,7 +49,9 @@ export default async function StudentGradesPage({ searchParams }: PageProps) {
       classes = latestVisibility.classes;
     }
   }
-  const visibleGrades = gradesResult.success ? filterSemesterGradesByVisibility(gradesResult.grades, classes) : [];
+  const visibleGrades = gradesResult.success ? filterSemesterGradesByVisibility(
+    gradesResult.grades, classes, semester === "2ndSem" ? Semester.SecondSemester : Semester.FirstSemester,
+  ) : [];
   const hasHiddenPeriods = visibleGrades.some((grade) => Object.values(grade.periodVisibility).some((visible) => !visible));
   const displayName =
     gradesResult.success && gradesResult.studentName

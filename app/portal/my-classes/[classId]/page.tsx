@@ -75,7 +75,7 @@ export default async function ClassSummaryPage({ params, searchParams }: {
         defaultTab={selectedTab === "grades" || selectedTab === "students" || selectedTab === "classwork" ? selectedTab : "overview"}
         overview={(
           <>
-            <ClassBanner classId={assignedClass.id.toString()} subjectName={assignedClass.subjectName} sectionName={assignedClass.sectionName} schoolYear={assignedClass.schoolYear} yearLevel={assignedClass.yearLevel} branchTitle={assignedClass.branch?.title ?? null} />
+            <ClassBanner classId={assignedClass.id.toString()} subjectName={assignedClass.subjectName} sectionName={assignedClass.sectionName} schoolYear={assignedClass.schoolYear} semester={assignedClass.semester} yearLevel={assignedClass.yearLevel} branchTitle={assignedClass.branch?.title ?? null} />
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
                 <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Users aria-hidden="true" className="size-5" /></div>

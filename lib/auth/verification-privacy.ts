@@ -8,10 +8,14 @@ export function isVerificationPath(pathname: string) {
 
 export function isAnalyticsExcludedPath(pathname: string) {
   return isVerificationPath(pathname) || pathname === "/portal/employees" || pathname.startsWith("/portal/employees/") ||
+    pathname === "/portal/users" || pathname.startsWith("/portal/users/") ||
+    pathname === "/portal/students" || pathname.startsWith("/portal/students/") ||
     pathname === "/portal/teachers" || pathname.startsWith("/portal/teachers/") ||
     pathname === "/portal/classes" || pathname.startsWith("/portal/classes/") ||
     pathname === "/portal/my-classes" || pathname.startsWith("/portal/my-classes/") ||
     pathname === "/portal/classroom" || pathname.startsWith("/portal/classroom/") ||
+    pathname === "/portal/admission-review" || pathname.startsWith("/portal/admission-review/") ||
+    pathname === "/portal/last-schools" || pathname.startsWith("/portal/last-schools/") ||
     pathname === "/portal/information" || pathname.startsWith("/portal/information/");
 }
 

@@ -82,12 +82,16 @@ export function AdmissionReviewDetails({
   consent = false,
   onConsentChange,
   showConsent = true,
+  showHeading = true,
+  recordLabel = "Admission Review",
   className,
 }: {
   form: ReviewFormValues;
   consent?: boolean;
   onConsentChange?: (value: boolean) => void;
   showConsent?: boolean;
+  showHeading?: boolean;
+  recordLabel?: string;
   className?: string;
 }) {
   const homeAddress = joinValues([
@@ -183,7 +187,7 @@ export function AdmissionReviewDetails({
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-8">
-      <div>
+      {showHeading ? <div>
         <h3 className="text-lg font-semibold text-gray-950">
           Review your admission details
         </h3>
@@ -192,7 +196,7 @@ export function AdmissionReviewDetails({
           registrar. Use the step navigation to correct any details before
           submitting.
         </p>
-      </div>
+      </div> : null}
 
       <div
         className={cn(
@@ -203,7 +207,7 @@ export function AdmissionReviewDetails({
         <article>
           <header className="pb-4 sm:pb-6">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
-              Admission Review
+              {recordLabel}
             </p>
             <h4 className="mt-2 text-xl font-semibold text-gray-950 [overflow-wrap:anywhere] sm:mt-3 sm:text-2xl">
               {studentName === "Not provided" ? "Applicant Record" : studentName}

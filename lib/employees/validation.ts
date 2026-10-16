@@ -14,7 +14,7 @@ export type EmployeeFormValues = Record<typeof employeeFields[number], string>;
 export type EmployeeFormState = {
   success: boolean;
   message: string;
-  fieldErrors?: Partial<Record<keyof EmployeeFormValues | "employeeRecordId", string>>;
+  fieldErrors?: Partial<Record<keyof EmployeeFormValues | "employeeRecordId" | "image", string>>;
 };
 export const emptyEmployeeFormValues = Object.fromEntries(employeeFields.map((field) => [field, ""])) as EmployeeFormValues;
 export const employeeFieldLabels: EmployeeFormValues = {

@@ -6,10 +6,12 @@ import { getCurrentStudent, studentClassMembershipWhere } from "@/lib/portal/stu
 import { getStudentClasswork, type ClassSummaryStudent, type ClassworkCatalogResult } from "./spreadsheet";
 import { parseClassId } from "./validation";
 import { getClassPeriodVisibility, classPeriodDefinitions, type ClassPeriodVisibility } from "./period-visibility";
+import { classStudentPreviewSelection, serializeClassStudentPreviews } from "./student-preview";
 
 const classSelection = {
   id: true,
   schoolYear: true,
+  semester: true,
   sectionName: true,
   yearLevel: true,
   subjectName: true,
@@ -30,6 +32,7 @@ function classroomMetadata(assignedClass: SelectedClass) {
   return {
     id: assignedClass.id.toString(),
     schoolYear: assignedClass.schoolYear,
+    semester: assignedClass.semester,
     sectionName: assignedClass.sectionName,
     yearLevel: assignedClass.yearLevel,
     subjectName: assignedClass.subjectName,
@@ -59,10 +62,14 @@ export async function getStudentClasses() {
   if (!student) return [];
   const classes = await prisma.class.findMany({
     where: studentClassMembershipWhere(student.id),
-    select: classSelection,
+    select: { ...classSelection, ...classStudentPreviewSelection },
     orderBy: [{ schoolYear: "desc" }, { subjectName: "asc" }, { sectionName: "asc" }],
   });
-  return classes.map(classroomMetadata);
+  return classes.map((assignedClass) => ({
+    ...classroomMetadata(assignedClass),
+    studentPreviews: serializeClassStudentPreviews(assignedClass.students),
+    studentCount: assignedClass._count.students,
+  }));
 }
 
 export type StudentClassGrades =

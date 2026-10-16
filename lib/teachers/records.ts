@@ -6,6 +6,7 @@ import { getEmployeeFullName } from "@/lib/employees/names";
 export const teacherEmployeeSelect = {
   id: true, employeeId: true, firstName: true, middleName: true, lastName: true, suffix: true,
   emailAddress: true, contactNumber: true, status: true, role: true,
+  userImage: true,
   teacher: { select: { userId: true, user: { select: { email: true, role: true, emailVerified: true } } } },
   verificationTokens: {
     where: { purpose: VerificationTokenPurpose.teacherSetup, userId: null },

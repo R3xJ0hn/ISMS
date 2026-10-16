@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, CheckCircle2, LoaderCircle, Search } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronDown, LoaderCircle, Search } from "lucide-react";
 
 import type { AdmissionLastSchool } from "@/lib/types/last-schools";
-import { Field, FormFields, inputClass, SelectField, TextField } from "./form-fields";
+import { Field, FormFields, inputClass, TextField } from "./form-fields";
 import { detailsSteps, type DetailsFieldName } from "./form-schema";
 
 export type LastSchoolFieldName = DetailsFieldName | "last_school_record_id";
@@ -14,6 +14,12 @@ export type LastSchoolFormValues = Record<DetailsFieldName, string> & {
 
 const OTHER_SCHOOL = "other";
 const schoolSections = detailsSteps.lastSchool.sections.slice(0, 2);
+const hiddenSchoolFields: ReadonlySet<DetailsFieldName> = new Set([
+  "last_school_id", "last_school_house_number", "last_school_subdivision",
+]);
+const visibleSchoolSections = schoolSections.map((section) => ({
+  ...section, fields: section.fields.filter(({ id }) => !hiddenSchoolFields.has(id)),
+}));
 const academicSection = detailsSteps.lastSchool.sections[2];
 
 function schoolValues(school: AdmissionLastSchool) {
@@ -32,11 +38,6 @@ function schoolValues(school: AdmissionLastSchool) {
   } satisfies Partial<Record<DetailsFieldName, string>>;
 }
 
-function schoolOptionLabel(school: AdmissionLastSchool) {
-  return [school.schoolName, school.formattedAddress, school.schoolId ? `ID: ${school.schoolId}` : ""]
-    .filter(Boolean).join(" — ");
-}
-
 export function LastSchoolStep({ form, onChange }: {
   form: LastSchoolFormValues;
   onChange: (field: LastSchoolFieldName, value: string) => void;
@@ -48,6 +49,11 @@ export function LastSchoolStep({ form, onChange }: {
   } | null>(null);
   const [loadAttempt, setLoadAttempt] = React.useState(0);
   const [search, setSearch] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+  const [activeValue, setActiveValue] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const activeOptionRef = React.useRef<HTMLButtonElement>(null);
+  const listId = React.useId();
   const [otherSelected, setOtherSelected] = React.useState(() =>
     !form.last_school_record_id && Boolean(form.last_school_name)
   );
@@ -59,9 +65,17 @@ export function LastSchoolStep({ form, onChange }: {
   const selectedSchool = schools.find((school) => school.id === recordId);
   const query = search.normalize("NFC").trim().toLocaleLowerCase();
   const filteredSchools = schools.filter((school) => !query || [
-    school.schoolName, school.shortName, school.schoolId, school.formattedAddress,
+    school.schoolName, school.shortName, school.formattedAddress,
   ].some((value) => value?.normalize("NFC").toLocaleLowerCase().includes(query)));
-  const selectionInOptions = filteredSchools.some((school) => school.id === recordId);
+  const optionValues = [...filteredSchools.map((school) => school.id), OTHER_SCHOOL];
+  const activeOption = activeValue && optionValues.includes(activeValue) ? activeValue : null;
+  const selectedLabel = recordId
+    ? selectedSchool?.schoolName || form.last_school_name || "Selected school"
+    : otherSelected ? "Other — school not listed" : "";
+
+  React.useEffect(() => {
+    activeOptionRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeOption]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -92,15 +106,43 @@ export function LastSchoolStep({ form, onChange }: {
       for (const { fields } of schoolSections) {
         for (const { id } of fields) onChange(id, "");
       }
-      return;
+    } else {
+      const school = schools.find((option) => option.id === value);
+      if (!school) return;
+      setOtherSelected(false);
+      onChange("last_school_record_id", school.id);
+      for (const [field, fieldValue] of Object.entries(schoolValues(school))) {
+        onChange(field as DetailsFieldName, fieldValue);
+      }
     }
 
-    const school = schools.find((option) => option.id === value);
-    if (!school) return;
-    setOtherSelected(false);
-    onChange("last_school_record_id", school.id);
-    for (const [field, fieldValue] of Object.entries(schoolValues(school))) {
-      onChange(field as DetailsFieldName, fieldValue);
+    inputRef.current?.setCustomValidity("");
+    inputRef.current?.focus();
+    closeMenu();
+  }
+
+  function closeMenu() {
+    setOpen(false);
+    setSearch("");
+    setActiveValue(null);
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const current = open && activeOption ? optionValues.indexOf(activeOption) : -1;
+      const next = event.key === "ArrowDown"
+        ? (current + 1) % optionValues.length
+        : current <= 0 ? optionValues.length - 1 : current - 1;
+      setActiveValue(optionValues[next]);
+      setOpen(true);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (open) selectSchool(activeOption ?? optionValues[0]);
+      else setOpen(true);
+    } else if (event.key === "Escape" && open) {
+      event.preventDefault();
+      closeMenu();
     }
   }
 
@@ -109,65 +151,95 @@ export function LastSchoolStep({ form, onChange }: {
       <div>
         <h3 className="text-lg font-semibold text-gray-950">Previous school</h3>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-          Search for the school you last attended. If it is not listed, choose Other and enter its details.
+          Search for the school you last attended. If it is not listed, choose Other and enter its details. New school suggestions are reviewed before they appear in this list.
         </p>
       </div>
 
       <section className="min-w-0 space-y-4">
-        <div className="grid min-w-0 gap-4 md:grid-cols-2">
-          <Field id="last-school-search" label="Search saved schools" hint="Search by school name, School ID, or location.">
+        <div className="min-w-0" onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) closeMenu();
+        }}>
+          <Field id="last-school-search" label="Last school attended" required hint="Search by school name or location, or choose Other at the bottom of the list.">
             <div className="relative min-w-0">
               <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
+                ref={inputRef}
                 id="last-school-search"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="School name or location"
+                type="text"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                aria-controls={open ? listId : undefined}
+                aria-activedescendant={open && activeOption ? `${listId}-${activeOption}` : undefined}
+                aria-required="true"
+                required={!selectedValue}
+                value={open ? search : selectedLabel}
+                onFocus={() => setOpen(true)}
+                onClick={() => setOpen(true)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setActiveValue(null);
+                  setOpen(true);
+                  event.currentTarget.setCustomValidity(selectedValue ? "" : "Select a saved school or choose Other.");
+                }}
+                onKeyDown={handleKeyDown}
+                onInvalid={(event) => event.currentTarget.setCustomValidity("Select a saved school or choose Other.")}
+                placeholder="Search school name or location"
                 autoComplete="off"
-                className={`${inputClass} pl-9`}
+                className={`${inputClass} pl-9 pr-10`}
                 aria-describedby="last-school-search-hint"
               />
+              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+              {open && (
+                <div id={listId} role="listbox" aria-label="Saved schools" className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <div className="max-h-56 overflow-y-auto overscroll-contain">
+                    {status === "loading" ? (
+                      <p className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500" role="status">
+                        <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin" /> Loading saved schools…
+                      </p>
+                    ) : status === "error" ? (
+                      <p className="px-4 py-3 text-sm leading-6 text-gray-600" role="status">Saved schools are unavailable. Choose Other to enter your school.</p>
+                    ) : filteredSchools.length === 0 ? (
+                      <p className="px-4 py-3 text-sm leading-6 text-gray-600" role="status">{query ? "No saved schools match your search." : "No schools have been saved yet."}</p>
+                    ) : filteredSchools.map((school) => (
+                      <button key={school.id} id={`${listId}-${school.id}`} type="button" role="option" tabIndex={-1}
+                        ref={activeOption === school.id ? activeOptionRef : undefined}
+                        aria-selected={recordId === school.id}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectSchool(school.id)}
+                        className={`flex min-h-12 w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 ${activeOption === school.id ? "bg-blue-50 outline-none" : ""}`}>
+                        <span className="min-w-0 flex-1"><span className="block break-words text-sm font-semibold text-gray-900">{school.schoolName}</span>{school.formattedAddress && <span className="mt-1 block break-words text-xs leading-5 text-gray-500">{school.formattedAddress}</span>}</span>
+                        {recordId === school.id && <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />}
+                      </button>
+                    ))}
+                  </div>
+                  <button id={`${listId}-${OTHER_SCHOOL}`} type="button" role="option" tabIndex={-1}
+                    ref={activeOption === OTHER_SCHOOL ? activeOptionRef : undefined}
+                    aria-selected={otherSelected && !recordId}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectSchool(OTHER_SCHOOL)}
+                    className={`flex min-h-12 w-full items-center justify-between gap-3 border-t border-gray-200 px-4 py-3 text-left text-sm font-semibold text-primary hover:bg-gray-50 ${activeOption === OTHER_SCHOOL ? "bg-blue-50 outline-none" : "bg-white"}`}>
+                    <span>Other — school not listed</span>
+                    {otherSelected && !recordId && <Check aria-hidden="true" className="size-4 shrink-0" />}
+                  </button>
+                </div>
+              )}
             </div>
           </Field>
-          <SelectField
-            id="last-school-selection"
-            label="Last school attended"
-            value={selectedValue}
-            onChange={(_field, value) => selectSchool(value)}
-            placeholder="Select a school or choose Other"
-            required
-            hint="Choose the correct campus or school location."
-          >
-            {recordId && !selectionInOptions && (
-              <option value={recordId}>{selectedSchool ? schoolOptionLabel(selectedSchool) : form.last_school_name || "Selected school"}</option>
-            )}
-            {filteredSchools.map((school) => (
-              <option key={school.id} value={school.id}>{schoolOptionLabel(school)}</option>
-            ))}
-            <option value={OTHER_SCHOOL}>Other — school not listed</option>
-          </SelectField>
         </div>
 
-        {status === "loading" ? (
-          <p className="flex items-center gap-2 text-sm text-gray-500" role="status">
-            <LoaderCircle aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" /> Loading saved schools…
-          </p>
-        ) : status === "error" ? (
+        {status === "error" && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
             <p className="flex min-w-0 flex-1 items-start gap-2 leading-6">
               <AlertCircle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" />
               Saved schools are unavailable. Choose Other to enter your school details.
             </p>
-            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className="min-h-11 rounded px-2 font-semibold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <button type="button" onClick={() => { setLoadAttempt((attempt) => attempt + 1); setOpen(true); }} className="min-h-11 rounded px-2 font-semibold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Try again
             </button>
           </div>
-        ) : filteredSchools.length === 0 ? (
-          <p className="text-sm leading-6 text-gray-600" role="status">
-            {query ? "No saved schools match your search." : "No schools have been saved yet."} Choose Other if your school is not listed.
-          </p>
-        ) : null}
+        )}
 
         {recordId && (
           <p className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm leading-6 text-emerald-900">
@@ -177,7 +249,7 @@ export function LastSchoolStep({ form, onChange }: {
         )}
       </section>
 
-      {(recordId || otherSelected) && schoolSections.map((section) => (
+      {(recordId || otherSelected) && visibleSchoolSections.map((section) => (
         <section key={section.title} className="min-w-0 space-y-4 sm:space-y-5">
           <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-700">{section.title}</h4>
           {recordId ? (

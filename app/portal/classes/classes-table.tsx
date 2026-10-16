@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { InteractivePortalTable, type InteractiveTableColumn } from "@/components/portal/interactive-table";
-import { formatAcademicLevel } from "@/lib/academic-levels";
-import type { AcademicLevel } from "@/lib/generated/prisma/enums";
+import { formatAcademicLevel, formatSemester } from "@/lib/academic-levels";
+import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
 
 export type ClassTableRow = {
   id: string;
   schoolYear: string;
+  semester?: Semester | null;
   branchTitle: string | null;
   programLabel?: string | null;
   sectionName: string;
@@ -24,6 +25,7 @@ const columns: InteractiveTableColumn<ClassTableRow>[] = [
   { header: "Branch", sortValue: (classRecord) => classRecord.branchTitle ?? "", cell: (classRecord) => classRecord.branchTitle ?? <span className="text-muted-foreground">Not assigned</span> },
   { header: "Program", sortValue: (classRecord) => classRecord.programLabel ?? "", cell: (classRecord) => classRecord.programLabel ?? <span className="text-muted-foreground">Choose when editing</span> },
   { header: "School year", sortValue: (classRecord) => classRecord.schoolYear, cell: (classRecord) => classRecord.schoolYear },
+  { header: "Semester", sortValue: (classRecord) => formatSemester(classRecord.semester), cell: (classRecord) => formatSemester(classRecord.semester) },
   { header: "Section", sortValue: (classRecord) => classRecord.sectionName, cell: (classRecord) => <p className="font-semibold">{classRecord.sectionName}</p> },
   { header: "Year level", sortValue: (classRecord) => formatAcademicLevel(classRecord.yearLevel), cell: (classRecord) => formatAcademicLevel(classRecord.yearLevel) },
   { header: "Subject", sortValue: (classRecord) => classRecord.subjectName, cell: (classRecord) => classRecord.subjectName },
@@ -45,14 +47,14 @@ const columns: InteractiveTableColumn<ClassTableRow>[] = [
 ];
 
 function searchValue(classRecord: ClassTableRow) {
-  return [classRecord.branchTitle ?? "Not assigned", classRecord.programLabel ?? "", classRecord.schoolYear, classRecord.sectionName, formatAcademicLevel(classRecord.yearLevel), classRecord.subjectName, classRecord.teacherName, classRecord.teacherEmail, classRecord.spreadsheetLinked ? "Linked" : "Not linked"].join(" ");
+  return [classRecord.branchTitle ?? "Not assigned", classRecord.programLabel ?? "", classRecord.schoolYear, formatSemester(classRecord.semester), classRecord.sectionName, formatAcademicLevel(classRecord.yearLevel), classRecord.subjectName, classRecord.teacherName, classRecord.teacherEmail, classRecord.spreadsheetLinked ? "Linked" : "Not linked"].join(" ");
 }
 
 export function ClassesTable({ classes }: { classes: ClassTableRow[] }) {
   return (
     <InteractivePortalTable
       rows={classes} columns={columns} rowKey={(classRecord) => classRecord.id} searchValue={searchValue}
-      searchLabel="Search classes" searchPlaceholder="Search branch, program, school year, section, subject, or teacher..."
+      searchLabel="Search classes" searchPlaceholder="Search branch, program, school year, semester, section, subject, or teacher..."
       initialSort={{ column: "School year", direction: "desc" }} rowLabel="classes" emptyTitle="No class assignments yet"
       className="min-w-275"
     />

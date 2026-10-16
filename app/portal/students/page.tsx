@@ -21,7 +21,7 @@ export default async function StudentsPage() {
       student: {
         select: {
           email: true, firstName: true, lastName: true, middleName: true,
-          phone: true, studentNumber: true, suffix: true,
+          phone: true, studentNumber: true, suffix: true, userImage: true,
         },
       },
     },

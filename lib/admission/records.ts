@@ -15,6 +15,7 @@ export const addressSelect = {
 } as const satisfies Prisma.AddressSelect;
 
 const lastSchoolSelect = {
+  verificationStatus: true,
   schoolName: true,
   schoolId: true,
   shortName: true,
@@ -63,7 +64,7 @@ export const admittedStudentInclude = {
   branch: { select: { slug: true, title: true } },
   program: { select: { code: true, label: true, programType: true } },
   lastSchool: { select: lastSchoolSelect },
-  student: { select: { ...studentProfileSelect, studentNumber: true } },
+  student: { select: { ...studentProfileSelect, studentNumber: true, userImage: true } },
 } as const satisfies Prisma.AdmissionApplicationInclude;
 
 export type AdmittedStudentQueryResult = Prisma.AdmissionApplicationGetPayload<{
@@ -114,7 +115,7 @@ function dateInputValue(date: Date | null | undefined) {
   return date ? formatDateInput(date) : "";
 }
 
-type ProfileStudent = Omit<AdmittedStudentQueryResult["student"], "id" | "studentNumber">;
+type ProfileStudent = Omit<AdmittedStudentQueryResult["student"], "id" | "studentNumber" | "userImage">;
 type ProfileApplication = Pick<AdmittedStudentQueryResult,
   "lastSchool" | "LSSchoolYearEnd" | "LSGraduationDate" | "LSAttainedLevelText"
 >;
@@ -205,6 +206,7 @@ export function serializeAdmittedStudent(application: AdmittedStudentQueryResult
     programId: application.programId.toString(),
     academicLevel: application.academicLevel,
     studentNumber: application.student.studentNumber ?? "",
+    userImage: application.student.userImage ?? null,
     ...profile,
     reviewForm,
   };

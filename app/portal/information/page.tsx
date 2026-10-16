@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { BookOpen, BriefcaseBusiness, ContactRound, GraduationCap, UserRound, Users } from "lucide-react";
 import { formatAcademicLevel } from "@/lib/academic-levels";
 import { formatProgramType, formatRoleLabel } from "@/lib/utils";
@@ -83,7 +84,11 @@ export default async function MyInformationPage() {
               </>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">Contact the administrator if any saved information needs to be corrected.</p>
+          <p className="text-sm text-muted-foreground">
+            {profile.kind === "student" && profile.admission?.status === "reviewing" ? (
+              <Link href="/portal/admission-review" className="font-medium text-primary underline underline-offset-4">Review and edit your admission information</Link>
+            ) : "Contact the administrator if any saved information needs to be corrected."}
+          </p>
         </>
       )}
     </main>

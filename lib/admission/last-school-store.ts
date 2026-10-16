@@ -15,6 +15,7 @@ export class LastSchoolSelectionError extends Error {
 }
 
 const schoolIdentitySelect = {
+  verificationStatus: true,
   schoolName: true,
   schoolId: true,
   shortName: true,
@@ -54,13 +55,15 @@ const whitespacePattern = Prisma.raw("'[[:space:]\u00a0\u1680\u2000-\u200a\u2028
 export async function resolveLastSchool(
   tx: Prisma.TransactionClient,
   profile: UpdateStudentRecordInput,
-  selectedRecordId?: string
+  selectedRecordId?: string,
+  options: { allowIncomplete?: boolean } = {},
 ): Promise<{ id: bigint }> {
   const schoolData = lastSchoolDataFromProfile(profile);
   const addressData = addressDataFromProfile(profile, "lastSchool");
-  const identity = { ...schoolData, address: addressData };
+  const hasAddress = Object.values(addressData).some(Boolean);
+  const identity = { ...schoolData, address: hasAddress ? addressData : null };
 
-  if (!hasCompleteLastSchoolIdentity(identity)) {
+  if (!options.allowIncomplete && !hasCompleteLastSchoolIdentity(identity)) {
     throw new LastSchoolSelectionError();
   }
 
@@ -76,7 +79,8 @@ export async function resolveLastSchool(
 
     if (
       !selectedSchool ||
-      !hasCompleteLastSchoolIdentity(selectedSchool) ||
+      selectedSchool.verificationStatus !== "verified" ||
+      (!options.allowIncomplete && !hasCompleteLastSchoolIdentity(selectedSchool)) ||
       lastSchoolIdentityKey(selectedSchool) !== lastSchoolIdentityKey(identity)
     ) {
       throw new LastSchoolSelectionError();
@@ -85,29 +89,50 @@ export async function resolveLastSchool(
     return { id };
   }
 
-  const values = lastSchoolIdentityParts(identity);
+  const existing = await findMatchingLastSchool(tx, profile);
+  if (existing) {
+    if (existing.verificationStatus === "rejected") {
+      // An explicit resubmission requests another review; students never verify a school.
+      await tx.lastSchool.update({
+        where: { id: existing.id },
+        data: { verificationStatus: "pending", reviewedAt: null },
+        select: { id: true },
+      });
+    }
+    return { id: existing.id };
+  }
+
+  const address = hasAddress ? await tx.address.create({ data: addressData, select: { id: true } }) : null;
+  return tx.lastSchool.create({
+    data: { ...schoolData, addressId: address?.id ?? null, verificationStatus: "pending" },
+    select: { id: true },
+  });
+}
+
+/** The same normalized identity is used for student suggestions and administrator duplicate checks. */
+export async function findMatchingLastSchool(tx: Prisma.TransactionClient, profile: UpdateStudentRecordInput, excludeId?: bigint) {
+  const addressData = addressDataFromProfile(profile, "lastSchool");
+  const hasAddress = Object.values(addressData).some(Boolean);
+  const values = lastSchoolIdentityParts({ ...lastSchoolDataFromProfile(profile), address: hasAddress ? addressData : null });
   const conditions = identityColumns.map((column, index) => {
     const normalized = Prisma.sql`BTRIM(REGEXP_REPLACE(COALESCE(${Prisma.raw(column.name)}, ''), ${whitespacePattern}, ' ', 'g'))`;
     return column.preserveCase
       ? Prisma.sql`${normalized} = ${values[index]}`
       : Prisma.sql`LOWER(${normalized}) = ${values[index]}`;
   });
-  const existing = await tx.$queryRaw<{ id: bigint }[]>(Prisma.sql`
-    SELECT school."id"
+  const existing = await tx.$queryRaw<{ id: bigint; verificationStatus: string }[]>(Prisma.sql`
+    SELECT school."id", school."verification_status" AS "verificationStatus"
     FROM "last_schools" school
-    INNER JOIN "addresses" address ON address."id" = school."address_id"
-    WHERE ${Prisma.join(conditions, " AND ")}
-    ORDER BY school."id" ASC
+    LEFT JOIN "addresses" address ON address."id" = school."address_id"
+    WHERE ${hasAddress ? Prisma.sql`school."address_id" IS NOT NULL` : Prisma.sql`school."address_id" IS NULL`}
+      AND ${Prisma.join(conditions, " AND ")}
+      AND ${excludeId === undefined ? Prisma.sql`TRUE` : Prisma.sql`school."id" <> ${excludeId}`}
+    ORDER BY CASE school."verification_status"
+      WHEN 'verified' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, school."id" ASC
     LIMIT 1
   `);
 
-  if (existing[0]) return existing[0];
-
-  const address = await tx.address.create({ data: addressData, select: { id: true } });
-  return tx.lastSchool.create({
-    data: { ...schoolData, addressId: address.id },
-    select: { id: true },
-  });
+  return existing[0] ?? null;
 }
 
 /** Retry a rolled-back concurrent admission save without repeating external side effects. */

@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth";
 
 import { getPortalAdmissionOptions } from "@/lib/portal/admission-options";
 import { prisma } from "@/lib/prisma";
+import { getStudentProfileImage } from "@/lib/admission/student-profile-image";
 
 type EditAdmittedStudentPageProps = {
   params: Promise<{ applicationId: string }>;
@@ -27,6 +28,7 @@ export default async function EditAdmittedStudentPage({ params }: EditAdmittedSt
   ]);
 
   if (!application) notFound();
+  const student = { ...serializeAdmittedStudent(application), userImage: await getStudentProfileImage(application.student) };
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
@@ -37,7 +39,7 @@ export default async function EditAdmittedStudentPage({ params }: EditAdmittedSt
           Update student, address, guardian, and previous school information.
         </p>
       </section>
-      <EditAdmittedStudentForm student={serializeAdmittedStudent(application)} options={options} />
+      <EditAdmittedStudentForm student={student} options={options} allowIncomplete />
     </main>
   );
 }

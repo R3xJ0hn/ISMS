@@ -1,10 +1,7 @@
-import { parseId,formatDate} from "@/lib/utils";
+import { parseRecordId, formatDate } from "@/lib/utils";
 import { AddAdmittedStudentModal, BulkAdmitStudentsModal } from "@/app/portal/admission/admitted-student-form";
-import { AdmittedStudentActions } from "@/app/portal/admission/admitted-student-actions";
-import { AdmissionBranchFilter, ApplicationStatusSelect } from "@/app/portal/admission/admission-controls";
-import { PortalTable } from "@/components/portal/data-table";
-import { PortalCount, PortalEmptyState, PortalPageHeader } from "@/components/portal/page-header";
-import { studentColumns } from "@/components/portal/student-columns";
+import { AdmissionsTable } from "./admissions-table";
+import { PortalCount, PortalPageHeader } from "@/components/portal/page-header";
 import { requireAdmin } from "@/lib/auth";
 
 import { ApplicationStatus } from "@/lib/generated/prisma/enums";
@@ -15,13 +12,11 @@ type AdmissionPageProps = {
   searchParams?: Promise<{ branchId?: string | string[] }>;
 };
 
-const applicationStatuses = [ApplicationStatus.reviewing, ApplicationStatus.approved, ApplicationStatus.rejected];
-
 export default async function AdmissionPage({ searchParams }: AdmissionPageProps) {
   await requireAdmin();
 
   const branchId = (await searchParams)?.branchId;
-  const selectedBranchId = parseId((Array.isArray(branchId) ? branchId[0] : branchId) ?? "");
+  const selectedBranchId = parseRecordId((Array.isArray(branchId) ? branchId[0] : branchId) ?? "");
   const [admittedStudents, options] = await Promise.all([
     prisma.admissionApplication.findMany({
       where: {
@@ -62,43 +57,16 @@ export default async function AdmissionPage({ searchParams }: AdmissionPageProps
       </PortalPageHeader>
 
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="border-b border-border px-4 py-4">
-          <AdmissionBranchFilter branches={options.branches} selectedBranchId={selectedBranchId?.toString() ?? ""} />
-        </div>
-        {admittedStudents.length > 0 ? (
-          <PortalTable<(typeof admittedStudents)[number]>
-            rows={admittedStudents}
-            rowKey={(application) => application.id.toString()}
-            className="min-w-225 border-collapse"
-            columns={[
-              studentColumns.student,
-              studentColumns.studentNumber,
-              studentColumns.program,
-              studentColumns.contact,
-              {
-                header: "Status",
-                cell: (application) => application.applicationStatus === ApplicationStatus.draft ? (
-                  <span className="inline-flex rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                    {application.applicationStatus.charAt(0).toUpperCase() + application.applicationStatus.slice(1)}
-                  </span>
-                ) : (
-                  <ApplicationStatusSelect applicationId={application.id.toString()} status={application.applicationStatus} statuses={applicationStatuses} />
-                ),
-              },
-              { header: "Submitted", className: "text-muted-foreground", cell: (application) => formatDate(application.submittedAt) },
-              {
-                header: "Actions",
-                cell: (application) => <AdmittedStudentActions student={{
-                  applicationId: application.id.toString(),
-                  firstName: application.student.firstName,
-                  lastName: application.student.lastName,
-                }} />,
-              },
-            ]}
-          />
-        ) : (
-          <PortalEmptyState title="No admission applications yet" description="Admission applications will appear here." />
-        )}
+        <AdmissionsTable
+          applications={admittedStudents.map((application) => ({
+            ...application,
+            id: application.id.toString(),
+            submittedAt: application.submittedAt?.toISOString() ?? null,
+            submittedDate: formatDate(application.submittedAt),
+          }))}
+          branches={options.branches}
+          selectedBranchId={selectedBranchId?.toString() ?? ""}
+        />
       </section>
     </main>
   );

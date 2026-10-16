@@ -6,6 +6,7 @@ import { Save, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePortalFormFeedback } from "@/components/portal/toasts";
+import { ProfileImageField } from "@/components/portal/profile-image-field";
 import { CivilStatus, EmployeeStatus, Gender } from "@/lib/generated/prisma/enums";
 import { employeeRoleOptions } from "@/lib/employees/roles";
 import { employeeTextLimits, emptyEmployeeFormValues, type EmployeeFormState, type EmployeeFormValues } from "@/lib/employees/validation";
@@ -16,6 +17,7 @@ type EmployeeFormProps = { mode: "create" } | {
   mode: "edit";
   employeeRecordId: string;
   values: EmployeeFormValues;
+  userImage?: string | null;
 };
 
 type EmployeeField = {
@@ -116,19 +118,23 @@ function EmployeeFields({ initialValues, errors, disabled }: {
 export function EmployeeForm(props: EmployeeFormProps) {
   const creating = props.mode === "create";
   const [state, formAction, pending] = useActionState(creating ? createEmployeeAction : updateEmployeeAction, initialState);
+  const [photoValid, setPhotoValid] = useState(true);
   const disabled = pending || state.success;
   const formRef = usePortalFormFeedback(state, { returnTo: "/portal/employees", refresh: true });
 
   return (
     <form ref={formRef} action={formAction} aria-busy={pending} className="w-full max-w-4xl space-y-6">
       {props.mode === "edit" && <input type="hidden" name="employeeRecordId" value={props.employeeRecordId} />}
+      <ProfileImageField imageUrl={props.mode === "edit" ? props.userImage : null}
+        displayName={props.mode === "edit" ? `${props.values.firstName} ${props.values.lastName}`.trim() : "Employee"}
+        disabled={disabled} error={state.fieldErrors?.image} onValidityChange={setPhotoValid} />
       <EmployeeFields key={props.mode === "edit" ? JSON.stringify(props.values) : "new"}
         initialValues={props.mode === "edit" ? props.values : emptyEmployeeFormValues} errors={state.fieldErrors} disabled={disabled}
       />
       {state.fieldErrors?.employeeRecordId && <p id="employee-record-error" role="alert" className="text-sm text-destructive">{state.fieldErrors.employeeRecordId}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <Button asChild variant="outline"><Link href="/portal/employees">Cancel</Link></Button>
-        <Button type="submit" disabled={disabled}>
+        <Button type="submit" disabled={disabled || !photoValid}>
           {creating ? <UserPlus aria-hidden="true" /> : <Save aria-hidden="true" />}
           {pending ? creating ? "Adding employee..." : "Saving..." : creating ? "Add employee" : "Save changes"}
         </Button>

@@ -1,4 +1,17 @@
-import { AcademicLevel, ProgramType } from "@/lib/generated/prisma/enums";
+import { AcademicLevel, ProgramType, Semester } from "@/lib/generated/prisma/enums";
+
+export const semesterOptions: readonly { value: Semester; label: string }[] = [
+  { value: Semester.FirstSemester, label: "1st Semester" },
+  { value: Semester.SecondSemester, label: "2nd Semester" },
+];
+
+export function getSemesterOption(value: unknown) {
+  return semesterOptions.find((option) => option.value === value);
+}
+
+export function formatSemester(value: Semester | null | undefined) {
+  return getSemesterOption(value)?.label ?? "Semester not assigned";
+}
 
 export type AcademicLevelOption = { value: AcademicLevel; label: string; slug: string };
 
