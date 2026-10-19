@@ -2,6 +2,7 @@ import { studentProfileFromRecord, studentUpdateSelect, type StudentUpdateQueryR
 import { parseDateInput, validateEmail } from "@/lib/validation";
 import { addressDataFromProfile, firstInvalidStudentUpdateField, guardianDataFromProfile, normalizeStudentUpdateInput, studentDataFromProfile, type UpdateStudentRecordInput } from "./student-fields";
 import { resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
+import { saveStudentAddress, saveStudentGuardian } from "./student-relations";
 import { formatAcademicLevel } from "@/lib/academic-levels";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { normalizeEmail, parseId } from "@/lib/utils";
@@ -13,6 +14,8 @@ import {
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createAdmissionUpdatedNotification } from "@/lib/notifications";
+import { revalidatePath } from "next/cache";
 
 export { studentUpdateFields, type UpdateStudentRecordInput } from "./student-fields";
 
@@ -331,108 +334,26 @@ export async function updateStudentRecordFromToken(
       });
       if (updatedAccount.count !== 1) throw new Error("The student account changed.");
 
-      const addressData = addressDataFromProfile(normalizedInput, "address");
-
-      let addressId = student.addressId;
-
-      if (addressId) {
-        const [addressStudentCount, addressSchoolCount] = await Promise.all([
-          tx.student.count({ where: { addressId } }),
-          tx.lastSchool.count({ where: { addressId } }),
-        ]);
-
-        if (addressStudentCount > 1 || addressSchoolCount > 0) {
-          const address = await tx.address.create({
-            data: addressData,
-          });
-          addressId = address.id;
-        } else {
-          await tx.address.update({
-            where: {
-              id: addressId,
-            },
-            data: addressData,
-          });
-        }
-      } else {
-        const address = await tx.address.create({
-          data: addressData,
-        });
-        addressId = address.id;
-      }
-
-      const primaryGuardianLink = student.guardians[0];
-      const guardianData = guardianDataFromProfile(normalizedInput);
-
-      if (primaryGuardianLink) {
-        const guardianLinkCount = await tx.studentGuardian.count({
-          where: {
-            guardianId: primaryGuardianLink.guardianId,
-          },
-        });
-
-        const guardian =
-          guardianLinkCount > 1
-            ? await tx.guardian.create({
-                data: {
-                  ...guardianData,
-                  email: null,
-                  addressId: null,
-                  facebookAccount: null,
-                },
-              })
-            : await tx.guardian.update({
-                where: {
-                  id: primaryGuardianLink.guardianId,
-                },
-                data: guardianData,
-              });
-
-        await tx.studentGuardian.update({
-          where: {
-            id: primaryGuardianLink.id,
-          },
-          data: {
-            guardianId: guardian.id,
-            relationship: normalizedInput.guardianRelationship,
-            isPrimary: true,
-          },
-        });
-      } else {
-        const guardian = await tx.guardian.create({
-          data: {
-            ...guardianData,
-            email: null,
-            addressId: null,
-            facebookAccount: null,
-          },
-        });
-
-        await tx.studentGuardian.create({
-          data: {
-            studentId: student.id,
-            guardianId: guardian.id,
-            relationship: normalizedInput.guardianRelationship,
-            isPrimary: true,
-          },
-        });
-      }
+      const addressId = await saveStudentAddress(tx, student.addressId, addressDataFromProfile(normalizedInput, "address"));
+      await saveStudentGuardian(tx, student.id, student.guardians[0], guardianDataFromProfile(normalizedInput), normalizedInput.guardianRelationship);
 
       const lastSchool = await resolveLastSchool(tx, normalizedInput);
 
-      const shouldMarkReviewing =
+      const wasDraft =
         latestApplication.applicationStatus === ApplicationStatus.draft;
-      await tx.admissionApplication.update({
+      const savedApplication = await tx.admissionApplication.updateMany({
         where: {
           id: latestApplication.id,
+          studentId: student.id,
+          applicationStatus: latestApplication.applicationStatus,
         },
         data: {
+          applicationStatus: latestApplication.applicationStatus === ApplicationStatus.approved ? ApplicationStatus.approved : ApplicationStatus.updated,
           lastSchoolId: lastSchool.id,
           LSSchoolYearEnd: normalizedInput.lastSchoolYear,
           LSAttainedLevelText: normalizedInput.lastSchoolYearLevel,
-          ...(shouldMarkReviewing
+          ...(wasDraft
             ? {
-                applicationStatus: ApplicationStatus.reviewing,
                 submittedAt: latestApplication.submittedAt ?? new Date(),
               }
             : {}),
@@ -441,6 +362,7 @@ export async function updateStudentRecordFromToken(
             : null,
         },
       });
+      if (savedApplication.count !== 1) throw new Error("The student admission changed. Reload the page before saving.");
 
       await tx.student.update({
         where: {
@@ -451,8 +373,10 @@ export async function updateStudentRecordFromToken(
           addressId,
         },
       });
+      await createAdmissionUpdatedNotification(tx, { applicationId: latestApplication.id, actorUserId: tokenRecord.userId });
     });
 
+    for (const path of ["/portal/dashboard", "/portal/admission", "/portal/students"]) revalidatePath(path);
     return {
       success: true,
       message: "Your student information has been updated.",

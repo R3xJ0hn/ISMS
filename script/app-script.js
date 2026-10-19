@@ -6,6 +6,7 @@
  * 1. student
  * 2. all_students
  * 3. all_classworks
+ * 4. class_roster (INPUT identities only; REPORT is not required)
  *
  * Required sheets:
  * INPUT, REPORT, Prelim, Midterm, Pre-Finals, Finals
@@ -177,6 +178,30 @@ function getStudents(input) {
       student_name: clean(row[1]),
       note: clean(row[7]) || null
     }));
+}
+
+// Roster review must retain incomplete and duplicated identities so the portal
+// can explain them. Read only student names (B) and numbers (F), never notes.
+function getClassRoster(input) {
+  const start = CONFIG.input.studentStartRow;
+  const lastRow = input.getLastRow();
+  if (lastRow < start) return { total_students: 0, students: [] };
+  const height = lastRow - start + 1;
+  const names = readRows(input, start, 2, height, 1);
+  const numbers = readRows(input, start, 6, height, 1);
+  const students = [];
+  for (let index = 0; index < height; index++) {
+    const studentName = clean(names[index][0]);
+    const studentNumber = clean(numbers[index][0]);
+    if (studentName || studentNumber) {
+      students.push({
+        row_number: start + index,
+        student_num: studentNumber,
+        student_name: studentName
+      });
+    }
+  }
+  return { total_students: students.length, students };
 }
 
 function buildStudentIndex(students) {
@@ -693,11 +718,12 @@ function doPost(e) {
     const supportedActions = [
       "student",
       "all_students",
-      "all_classworks"
+      "all_classworks",
+      "class_roster"
     ];
 
     if (!supportedActions.includes(action)) {
-      throw new Error("Unsupported action");
+      return json({ success: false, error: "Unsupported action", code: "UNSUPPORTED_ACTION" });
     }
 
     if (
@@ -721,6 +747,10 @@ function doPost(e) {
     let data;
 
     switch (action) {
+      case "class_roster":
+        data = getClassRoster(input);
+        break;
+
       case "all_classworks":
         data = getAllClassworks(
           book,

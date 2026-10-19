@@ -11,17 +11,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
-    "test:class-relations": "node script/test-class-relations.mjs",
-    "test:account-roles": "node script/test-account-roles.mjs",
-    "test:teacher-setup-tokens": "node script/test-teacher-setup-tokens.mjs",
-    "test:employee-names-class-branch": "node script/test-employee-names-class-branch.mjs",
-    "test:remove-employee-legacy-name": "node script/test-remove-employee-legacy-name.mjs",
-    "test:branch-program-migration": "node script/test-branch-program-migration.mjs",
-    "test:subjects-programs": "node script/test-subject-program-migration.mjs",
-    "test:site-settings": "node script/test-site-settings-migration.mjs",
-    "test:class-period-visibility": "node script/test-class-period-visibility-migration.mjs",
-    "test:class-semester": "node script/test-class-semester-migration.mjs"
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

@@ -1,10 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
-import { CloudinaryUploadError, uploadProfileImage } from "@/lib/cloudinary";
 import type { UserRole } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { getProfileForUser, getProfilesForUsers, ProfileIdentityError, type Profile, type UserIdentity } from "./profiles";
-import { cleanupProfileImage, parseProfileImageInput } from "./profile-image";
+import { cleanupProfileImage, parseProfileImageInput, prepareProfileImage } from "./profile-image";
 import { parseRecordId } from "@/lib/utils";
 
 export type ManagedUser = {
@@ -71,10 +70,6 @@ const unavailable: UserImageFormState = {
   fieldErrors: { userId: "Choose an existing user account." },
 };
 
-async function discardUpload(upload: { publicId: string; secureUrl: string }, userId: string) {
-  await cleanupProfileImage({ value: upload.secureUrl, upload: { ...upload, scope: userId } });
-}
-
 export async function updateUserImage(_previousState: UserImageFormState, formData: FormData): Promise<UserImageFormState> {
   await requireAdmin();
   const ids = formData.getAll("userId");
@@ -100,15 +95,10 @@ export async function updateUserImage(_previousState: UserImageFormState, formDa
   }
   if (remove && (profile?.userImage ?? user.userImage) === null) return imageError("This account does not have a profile photo to remove.");
 
-  let upload: { secureUrl: string; publicId: string } | undefined;
-  if (file) {
-    try { upload = await uploadProfileImage(file, id.toString()); }
-    catch (error) {
-      return imageError(error instanceof CloudinaryUploadError ? error.message : "Unable to upload this photo. Please try again.");
-    }
-  }
-
-  const nextImage = upload?.secureUrl ?? null;
+  const prepared = await prepareProfileImage(formData, id.toString());
+  if (!prepared.success) return prepared;
+  const imageChange = prepared.change;
+  const nextImage = imageChange?.value ?? null;
   try {
     await prisma.$transaction(async (transaction) => {
       const current = await transaction.user.findFirst({
@@ -139,10 +129,10 @@ export async function updateUserImage(_previousState: UserImageFormState, formDa
     }, { isolationLevel: "Serializable" });
   } catch (error) {
     // A dropped connection can conceal a committed write. Keep an asset if its save is uncertain.
-    if (upload) {
+    if (imageChange?.upload) {
       try {
         const current = await prisma.user.findUnique({ where: { id }, select: { userImage: true } });
-        if (current?.userImage !== upload.secureUrl) await discardUpload(upload, id.toString());
+        if (current?.userImage !== imageChange.value) await cleanupProfileImage(imageChange);
       } catch { /* Preserve the uploaded asset when the database cannot confirm its use. */ }
     }
     return imageError(error instanceof ProfileIdentityError ? error.message : "Unable to save this profile photo. Please reload the page and try again.");

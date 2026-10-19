@@ -1,4 +1,4 @@
-import { admittedStudentInclude, serializeAdmittedStudent } from "./records";
+import { addressSelect, admittedStudentInclude, serializeAdmittedStudent } from "./records";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -17,7 +17,9 @@ import {
 } from "@/lib/generated/prisma/enums";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { parseDateInput, validateEmail, validatePhone, validateSchoolYear } from "@/lib/validation";
-import { addressDataFromProfile, guardianDataFromProfile, normalizeStudentUpdateInput, studentDataFromProfile, studentUpdateFields } from "./student-fields";
+import { addressDataFromProfile, guardianDataFromProfile, lastSchoolFieldsFromRecord, normalizeStudentUpdateInput, studentDataFromProfile, studentUpdateFields } from "./student-fields";
+import { saveStudentAddress, saveStudentGuardian } from "./student-relations";
+import { hasCompleteLastSchoolIdentity } from "./last-school-identity";
 import { resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
 import { prisma } from "@/lib/prisma";
 import { cleanupProfileImage, prepareProfileImage } from "@/lib/users/profile-image";
@@ -209,6 +211,20 @@ function findColumn(headers: string[], aliases: string[]) {
   return headers.findIndex((header) => aliases.includes(header));
 }
 
+async function requireVerifiedAdmissionSchool(client: Pick<Prisma.TransactionClient, "lastSchool">, id: bigint) {
+  const school = await client.lastSchool.findUnique({
+    where: { id },
+    select: {
+      id: true, schoolName: true, schoolId: true, shortName: true, schoolType: true, verificationStatus: true,
+      address: { select: addressSelect },
+    },
+  });
+  if (!school || school.verificationStatus !== "verified" || !hasCompleteLastSchoolIdentity(school)) {
+    throw new StudentAccountEditError("This saved school is unavailable. Select a verified school and try again.");
+  }
+  return school.id;
+}
+
 export async function addAdmittedStudentAction(
   previousState: AddAdmittedStudentState = initialState,
   formData: FormData
@@ -229,6 +245,9 @@ export async function addAdmittedStudentAction(
   const branchId = parseId(readFormText(formData, "branchId"));
   const programId = parseId(readFormText(formData, "programId"));
   const academicLevel = getAcademicLevelOption(readFormText(formData, "academicLevel"));
+  const selectedSchoolInput = readFormText(formData, "lastSchoolRecordId");
+  const selectedSchoolId = selectedSchoolInput ? parseRecordId(selectedSchoolInput, { canonical: true, maxDigits: 19 }) : null;
+  if (selectedSchoolInput && selectedSchoolId === null) return { success: false, message: "Select a valid saved school." };
 
   if (
     !studentNumber ||
@@ -279,11 +298,20 @@ export async function addAdmittedStudentAction(
     };
   }
 
+  if (selectedSchoolId !== null) {
+    try {
+      await requireVerifiedAdmissionSchool(prisma, selectedSchoolId);
+    } catch (error) {
+      return { success: false, message: error instanceof StudentAccountEditError ? error.message : "Unable to load the saved school. Please try again." };
+    }
+  }
+
   const image = await prepareProfileImage(formData, `student:${randomUUID()}`);
   if (!image.success) return image;
 
   try {
-    await prisma.$transaction(async (transaction) => {
+    await runLastSchoolTransaction(async (transaction) => {
+      const lastSchoolId = selectedSchoolId === null ? null : await requireVerifiedAdmissionSchool(transaction, selectedSchoolId);
       const student = await transaction.student.create({
         data: {
           studentNumber,
@@ -323,6 +351,7 @@ export async function addAdmittedStudentAction(
           programType: program.programType,
           programId: program.id,
           academicLevel: academicLevel.value,
+          ...(lastSchoolId !== null ? { lastSchoolId } : {}),
           remarks: "Manually admitted by admin.",
           submittedAt: null,
         },
@@ -350,6 +379,10 @@ export async function addAdmittedStudentAction(
 
   revalidatePath("/portal/admission");
   revalidatePath("/portal/users");
+  if (selectedSchoolId !== null) {
+    revalidatePath("/portal/last-schools");
+    revalidatePath("/portal/last-schools/[schoolId]/students", "page");
+  }
   if (image.change) revalidatePath("/portal", "layout");
 
   return {
@@ -770,6 +803,14 @@ async function saveStudentDetails(
 
   await requireAdmin();
 
+  const intents = formData.getAll("intent");
+  const intent = intents.length === 0 ? "save" : intents[0];
+  if (intents.length > 1 || typeof intent !== "string" || (intent !== "save" && intent !== "saveAndApprove")) {
+    return { success: false, message: "Choose Save Changes or Save and approve." };
+  }
+  const approveAdmission = intent === "saveAndApprove";
+  if (approvedOnly && approveAdmission) return { success: false, message: "Approve admissions from the Admissions edit page." };
+
   const studentId = parseRecordId(readFormText(formData, "studentId"));
   const applicationId = parseRecordId(readFormText(formData, "applicationId"));
   const applicantType = readFormText(formData, "applicantType");
@@ -780,7 +821,25 @@ async function saveStudentDetails(
   const programId = parseRecordId(programInput);
   const academicLevel = getAcademicLevelOption(academicLevelInput);
   const studentNumber = sanitizeInputText(readFormText(formData, "studentNumber"));
-  const profile = normalizeStudentUpdateInput(readFormFields(formData, studentUpdateFields));
+  let profile = normalizeStudentUpdateInput(readFormFields(formData, studentUpdateFields));
+  const selectedSchoolInput = readFormText(formData, "lastSchoolRecordId");
+  const selectedSchoolId = selectedSchoolInput ? parseRecordId(selectedSchoolInput, { canonical: true, maxDigits: 19 }) : null;
+  if (selectedSchoolInput && selectedSchoolId === null) return { success: false, message: "Select a valid saved school." };
+  if (selectedSchoolId !== null) {
+    if (!studentId || !applicationId) return { success: false, message: "Student admission record not found. Reload the page and try again." };
+    try {
+      const school = await prisma.lastSchool.findUnique({
+        where: { id: selectedSchoolId },
+        select: { schoolName: true, schoolId: true, shortName: true, schoolType: true, verificationStatus: true, address: { select: addressSelect } },
+      });
+      if (!school || school.verificationStatus !== "verified" || !hasCompleteLastSchoolIdentity(school)) {
+        return { success: false, message: "This saved school is unavailable. Reload the page and select a verified school." };
+      }
+      profile = { ...profile, ...lastSchoolFieldsFromRecord(school) };
+    } catch {
+      return { success: false, message: "Unable to load the saved school. Please try again." };
+    }
+  }
   const {
     firstName, lastName, gender, civilStatus, birthplace, email, phone,
     addressBarangay, addressCity, addressProvince,
@@ -928,6 +987,8 @@ async function saveStudentDetails(
           branchId: true,
           programId: true,
           academicLevel: true,
+          applicationStatus: true,
+          submittedAt: true,
           lastSchoolId: true,
           lastSchool: { select: { schoolName: true, schoolType: true } },
         },
@@ -935,6 +996,9 @@ async function saveStudentDetails(
 
       if (!student || !application) {
         throw new Error("Student admission record not found.");
+      }
+      if (approveAdmission && application.applicationStatus === ApplicationStatus.draft) {
+        throw new StudentAccountEditError("Draft applications cannot be approved. The admission application must be submitted first.");
       }
 
       // Admissions can save an incomplete record; non-null identity and admission
@@ -980,80 +1044,14 @@ async function saveStudentDetails(
       let addressId = student.addressId;
 
       if (approvedOnly || Object.values(addressData).some(Boolean)) {
-        if (student.addressId) {
-          const [addressStudentCount, addressSchoolCount] = await Promise.all([
-            transaction.student.count({ where: { addressId: student.addressId } }),
-            transaction.lastSchool.count({ where: { addressId: student.addressId } }),
-          ]);
-
-          if (addressStudentCount > 1 || addressSchoolCount > 0) {
-            const address = await transaction.address.create({
-              data: addressData,
-            });
-            addressId = address.id;
-          } else {
-            const address = await transaction.address.update({
-              where: {
-                id: student.addressId,
-              },
-              data: addressData,
-            });
-            addressId = address.id;
-          }
-        } else {
-          const address = await transaction.address.create({
-            data: addressData,
-          });
-          addressId = address.id;
-        }
+        addressId = await saveStudentAddress(transaction, student.addressId, addressData);
       }
 
       const primaryGuardianLink = student.guardians[0];
       const guardianData = guardianDataFromProfile(profile);
 
       if (approvedOnly || guardianRelationship || Object.values(guardianData).some(Boolean)) {
-        if (primaryGuardianLink) {
-          const guardianLinkCount = await transaction.studentGuardian.count({
-            where: {
-              guardianId: primaryGuardianLink.guardianId,
-            },
-          });
-
-          const guardian =
-            guardianLinkCount > 1
-              ? await transaction.guardian.create({
-                  data: guardianData,
-                })
-              : await transaction.guardian.update({
-                  where: {
-                    id: primaryGuardianLink.guardianId,
-                  },
-                  data: guardianData,
-                });
-
-          await transaction.studentGuardian.update({
-            where: {
-              id: primaryGuardianLink.id,
-            },
-            data: {
-              guardianId: guardian.id,
-              relationship: guardianRelationship,
-              isPrimary: true,
-            },
-          });
-        } else {
-          const guardian = await transaction.guardian.create({
-            data: guardianData,
-          });
-          await transaction.studentGuardian.create({
-            data: {
-              studentId,
-              guardianId: guardian.id,
-              relationship: guardianRelationship,
-              isPrimary: true,
-            },
-          });
-        }
+        await saveStudentGuardian(transaction, studentId, primaryGuardianLink, guardianData, guardianRelationship);
       }
 
       const hasSchoolDetails = studentUpdateFields.some((field) =>
@@ -1066,7 +1064,7 @@ async function saveStudentDetails(
             ...profile,
             lastSchoolName: lastSchoolName || application.lastSchool?.schoolName || "",
             lastSchoolType: lastSchoolType || application.lastSchool?.schoolType || SchoolType.Other,
-          }, undefined, { allowIncomplete: !approvedOnly })
+          }, selectedSchoolInput || undefined, { allowIncomplete: !approvedOnly })
         : null;
 
       await transaction.admissionApplication.update({
@@ -1079,6 +1077,10 @@ async function saveStudentDetails(
           programType: savedProgram.programType,
           programId: savedProgram.id,
           academicLevel: savedAcademicLevel.value,
+          ...(approveAdmission ? {
+            applicationStatus: ApplicationStatus.approved,
+            submittedAt: application.submittedAt ?? new Date(),
+          } : {}),
           ...(lastSchool ? { lastSchoolId: lastSchool.id } : {}),
           LSSchoolYearEnd: lastSchoolYear || null,
           LSAttainedLevelText: lastSchoolYearLevel || null,
@@ -1101,6 +1103,7 @@ async function saveStudentDetails(
     });
   } catch (error) {
     await cleanupProfileImage(image.change);
+    if (selectedSchoolInput && error instanceof Error && error.name === "LastSchoolSelectionError") return { success: false, message: "The selected school changed. Reload the page and select it again." };
     if (error instanceof StudentAccountEditError || error instanceof ProfileIdentityError) return { success: false, message: error.message };
     const message = getStudentUniqueConstraintMessage(error);
 
@@ -1120,19 +1123,23 @@ async function saveStudentDetails(
   }
 
   revalidatePath("/portal/admission");
+  revalidatePath("/portal/dashboard");
   revalidatePath(`/portal/admission/${applicationId.toString()}/edit`);
   revalidatePath("/portal/students");
   revalidatePath(`/portal/students/${applicationId.toString()}`);
   revalidatePath(`/portal/students/${applicationId.toString()}/edit`);
   revalidatePath("/portal/information");
   revalidatePath("/portal/users");
+  revalidatePath("/portal/last-schools");
+  revalidatePath("/portal/last-schools/[schoolId]/students", "page");
   if (image.change) revalidatePath("/portal", "layout");
 
+  const savedMessage = approveAdmission ? "Student details updated and admission approved." : "Student details updated.";
   return {
     success: true,
     message: accountEmailChanged
-      ? "Student details updated. The student must sign in with the new email and verify it before using the portal."
-      : "Student details updated.",
+      ? `${savedMessage} The student must sign in with the new email and verify it before using the portal.`
+      : savedMessage,
   };
 }
 

@@ -16,6 +16,16 @@ export type ClassSummaryResult =
   | { success: true; students: ClassSummaryStudent[] }
   | { success: false; message: string };
 
+export type ClassRosterStudent = {
+  rowNumber: number;
+  studentNumber: string;
+  studentName: string;
+};
+
+export type ClassRosterResult =
+  | { success: true; students: ClassRosterStudent[] }
+  | { success: false; message: string };
+
 export type ClassworkActivity = {
   name: string;
   maxScore: number;
@@ -48,10 +58,13 @@ const unavailableMessage = "Unable to load this class summary. Please try again 
 const malformedMessage = "The spreadsheet returned an incomplete class summary. Ask an administrator to check the spreadsheet connection.";
 const classworkUnavailableMessage = "Unable to load classwork from this class spreadsheet. Please try again later.";
 const classworkMalformedMessage = "The spreadsheet returned incomplete classwork. Ask an administrator to check the spreadsheet connection.";
+const rosterUnavailableMessage = "Unable to load the class roster from this spreadsheet. Please try again later.";
+const rosterMalformedMessage = "The spreadsheet returned an incomplete class roster. Check the spreadsheet connection and its Apps Script deployment.";
+const rosterUpgradeMessage = "This spreadsheet service does not support class rosters yet. Update and redeploy the Apps Script service, then try again.";
 const recordsHiddenMessage = "This class has not enabled spreadsheet records in the portal.";
 
 type Failure = { success: false; message: string; code?: StudentRecordErrorCode };
-type ScriptAction = "all_students" | "all_classworks" | "student";
+type ScriptAction = "all_students" | "all_classworks" | "student" | "class_roster";
 type SpreadsheetSettings = {
   viewRecords: boolean;
   viewExcluded: boolean;
@@ -193,12 +206,16 @@ async function requestSpreadsheet(
   studentNumber?: string,
 ): Promise<{ success: true; payload: unknown } | Failure> {
   const classwork = action !== "all_students";
+  const roster = action === "class_roster";
+  const requestUnavailableMessage = roster ? rosterUnavailableMessage : classwork ? classworkUnavailableMessage : unavailableMessage;
   const spreadsheetId = getSpreadsheetId(spreadsheetUrl);
   if (!spreadsheetId) return failure("This class does not have a valid Google Sheets link. Ask an administrator to check it.");
   const endpoint = scriptEndpoint(process.env.GOOGLE_SCRIPT_URL);
   const secret = process.env.GOOGLE_SCRIPT_SECRET;
   if (!endpoint || !secret) {
-    return failure(classwork
+    return failure(roster
+      ? "Class rosters are not configured. Ask an administrator to set up the spreadsheet connection."
+      : classwork
       ? "Classwork is not configured. Ask an administrator to set up the spreadsheet connection."
       : "Class summaries are not configured. Ask an administrator to set up the spreadsheet connection.");
   }
@@ -211,14 +228,58 @@ async function requestSpreadsheet(
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) return failure(classwork ? classworkUnavailableMessage : unavailableMessage);
+    if (!response.ok) return failure(requestUnavailableMessage);
     return { success: true, payload: await response.json() };
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
       return failure("The class spreadsheet took too long to respond. Please try again.");
     }
-    return failure(classwork ? classworkUnavailableMessage : unavailableMessage);
+    return failure(requestUnavailableMessage);
   }
+}
+
+function rosterResponse(payload: unknown): ClassRosterResult {
+  if (!isObject(payload)) return failure(rosterMalformedMessage);
+  if (payload.success === false) {
+    if (payload.code === "UNSUPPORTED_ACTION" || payload.error === "Unsupported action" || payload.error === "Invalid request") {
+      return failure(rosterUpgradeMessage);
+    }
+    if (payload.error === "Unauthorized") return failure("Unable to access this class spreadsheet. Ask an administrator to check the connection.");
+    if (payload.error === "INPUT sheet not found") return failure("The spreadsheet is missing its INPUT sheet.");
+    if (payload.error === "Request could not be completed") {
+      return failure("Unable to load the class roster. Check the spreadsheet connection, or update and redeploy the Apps Script service if it uses an older deployment.");
+    }
+    return failure(rosterUnavailableMessage);
+  }
+  if (payload.success !== true || payload.action !== "class_roster" || !isObject(payload.settings) ||
+    typeof payload.settings.view_records_in_web_portal !== "boolean" ||
+    typeof payload.settings.view_excluded_columns_in_web_portal !== "boolean" ||
+    !isObject(payload.data) || !Array.isArray(payload.data.students) ||
+    !Number.isSafeInteger(payload.data.total_students) || payload.data.total_students !== payload.data.students.length) {
+    return failure(rosterMalformedMessage);
+  }
+  if (!payload.settings.view_records_in_web_portal) return failure(recordsHiddenMessage);
+  const students: ClassRosterStudent[] = [];
+  let previousRow = 10;
+  for (const student of payload.data.students) {
+    if (!isObject(student) || typeof student.row_number !== "number" ||
+      !Number.isSafeInteger(student.row_number) || student.row_number <= previousRow ||
+      typeof student.student_num !== "string" || typeof student.student_name !== "string") {
+      return failure(rosterMalformedMessage);
+    }
+    const studentNumber = student.student_num.trim();
+    const studentName = student.student_name.trim();
+    if (!studentNumber && !studentName) return failure(rosterMalformedMessage);
+    previousRow = student.row_number;
+    students.push({ rowNumber: student.row_number, studentNumber, studentName });
+  }
+  return { success: true, students };
+}
+
+/** Read INPUT identities directly; grade-report matching must not hide roster problems. */
+export async function getClassRoster(spreadsheetUrl: string): Promise<ClassRosterResult> {
+  const response = await requestSpreadsheet(spreadsheetUrl, "class_roster");
+  return response.success ? rosterResponse(response.payload) : response;
 }
 
 export async function getClassSummary(spreadsheetUrl: string): Promise<ClassSummaryResult> {

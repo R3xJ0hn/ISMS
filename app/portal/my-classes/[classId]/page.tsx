@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BookOpen, ExternalLink, RefreshCw, Users } from "lucide-react";
-import { PortalCount } from "@/components/portal/page-header";
+import { RosterCrossMatchView } from "@/components/portal/roster-cross-match-view";
 import { Button } from "@/components/ui/button";
 import { ClassBanner } from "@/components/classroom/class-banner";
 import { ClassworkView } from "@/components/classroom/classwork-view";
 import { WorkspaceTabs } from "@/components/classroom/workspace-tabs";
 import { getAssignedClass } from "@/lib/classes/teacher";
 import { getClassPeriodVisibility } from "@/lib/classes/period-visibility";
+import { getClassRosterComparison } from "@/lib/classes/roster-comparison";
 import { getClassSummary, getClassworkCatalog } from "@/lib/classes/spreadsheet";
 import { normalizeSpreadsheetUrl } from "@/lib/classes/validation";
 import { formatDateTime, formatStudentName } from "@/lib/utils";
 import { StudentSummaryTable } from "../student-summary-table";
 import { SpreadsheetConnectionCard } from "../spreadsheet-connection-card";
-import { ClassRosterTable } from "../class-roster-table";
 import { PeriodVisibilityCard } from "../period-visibility-card";
 
 export default async function ClassSummaryPage({ params, searchParams }: {
@@ -22,13 +22,22 @@ export default async function ClassSummaryPage({ params, searchParams }: {
 }) {
   const assignedClass = await getAssignedClass((await params).classId);
   if (!assignedClass) notFound();
-  const [summary, classwork] = assignedClass.spreadsheetUrl ? await Promise.all([
-    getClassSummary(assignedClass.spreadsheetUrl),
-    getClassworkCatalog(assignedClass.spreadsheetUrl),
-  ]) : [null, null];
-  const spreadsheetUrl = assignedClass.spreadsheetUrl ? normalizeSpreadsheetUrl(assignedClass.spreadsheetUrl) : null;
   const selectedTab = (await searchParams)?.tab;
+  const [summary, classwork, crossMatch] = await Promise.all([
+    assignedClass.spreadsheetUrl ? getClassSummary(assignedClass.spreadsheetUrl) : null,
+    assignedClass.spreadsheetUrl ? getClassworkCatalog(assignedClass.spreadsheetUrl) : null,
+    getClassRosterComparison(assignedClass.spreadsheetUrl, assignedClass.students.map(({ student }) => ({
+      id: student.id, studentNumber: student.studentNumber, firstName: student.firstName,
+      middleName: student.middleName, lastName: student.lastName, suffix: student.suffix,
+    }))),
+  ]);
+  const spreadsheetUrl = assignedClass.spreadsheetUrl ? normalizeSpreadsheetUrl(assignedClass.spreadsheetUrl) : null;
+  const studentsHref = `/portal/my-classes/${assignedClass.id}?tab=students`;
   const visibility = getClassPeriodVisibility(assignedClass);
+  const roster = assignedClass.students.map(({ student }) => ({
+    id: student.id.toString(), name: formatStudentName(student), studentNumber: student.studentNumber,
+    imageUrl: student.userImage ?? null,
+  }));
 
   const grades = (
     <>
@@ -54,7 +63,7 @@ export default async function ClassSummaryPage({ params, searchParams }: {
         </section>
       ) : summary.success ? (
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-label="Student summary records">
-          <StudentSummaryTable students={summary.students} />
+          <StudentSummaryTable students={summary.students} roster={roster} />
         </section>
       ) : (
         <div role="alert" className="rounded-2xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive">
@@ -75,7 +84,7 @@ export default async function ClassSummaryPage({ params, searchParams }: {
         defaultTab={selectedTab === "grades" || selectedTab === "students" || selectedTab === "classwork" ? selectedTab : "overview"}
         overview={(
           <>
-            <ClassBanner classId={assignedClass.id.toString()} subjectName={assignedClass.subjectName} sectionName={assignedClass.sectionName} schoolYear={assignedClass.schoolYear} semester={assignedClass.semester} yearLevel={assignedClass.yearLevel} branchTitle={assignedClass.branch?.title ?? null} />
+            <ClassBanner classId={assignedClass.id.toString()} classCode={assignedClass.classCode} subjectName={assignedClass.subjectName} sectionName={assignedClass.sectionName} schoolYear={assignedClass.schoolYear} semester={assignedClass.semester} yearLevel={assignedClass.yearLevel} branchTitle={assignedClass.branch?.title ?? null} />
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
                 <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Users aria-hidden="true" className="size-5" /></div>
@@ -87,15 +96,8 @@ export default async function ClassSummaryPage({ params, searchParams }: {
           </>
         )}
         classwork={<ClassworkView result={classwork} role="teacher" refreshHref={`/portal/my-classes/${assignedClass.id}?tab=classwork`} />}
-        students={(
-          <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-label="Saved class roster">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-              <h2 className="font-semibold">Class roster</h2>
-              <PortalCount count={assignedClass.students.length} label={assignedClass.students.length === 1 ? "student" : "students"} />
-            </div>
-            <ClassRosterTable students={assignedClass.students.map(({ student }) => ({ id: student.id.toString(), name: formatStudentName(student), studentNumber: student.studentNumber }))} />
-          </section>
-        )}
+        students={<RosterCrossMatchView result={crossMatch} enrolledCount={assignedClass.students.length}
+          connected={Boolean(assignedClass.spreadsheetUrl)} spreadsheetUrl={spreadsheetUrl} refreshHref={studentsHref} />}
         grades={grades}
       />
     </main>

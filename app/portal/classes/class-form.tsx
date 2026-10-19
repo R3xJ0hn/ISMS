@@ -12,6 +12,7 @@ import { createClassAction, updateClassAction } from "./actions";
 import { ClassRosterImportDialog } from "./class-roster-import-dialog";
 import { ClassStudentPicker, type ClassStudentOption } from "./class-student-picker";
 import { academicLevelOptions, getSemesterOption, isAcademicLevelAllowedForProgram, semesterOptions } from "@/lib/academic-levels";
+import { classStatusOptions, getClassStatusOption } from "@/lib/classes/presentation";
 
 type ClassFormProps = {
   teachers: Array<{ id: string; email: string; name?: string }>;
@@ -19,10 +20,10 @@ type ClassFormProps = {
   programs: Array<{ id: string; code: string; label: string; programType: string; branchIds: string[]; subjectIds: string[] }>;
   subjects: Array<{ id: string; name: string; code: string | null }>;
   students?: ClassStudentOption[];
-} & ({ mode: "create" } | { mode: "edit"; classId: string; values: ClassFormValues });
+} & ({ mode: "create" } | { mode: "edit"; classId: string; classCode?: string; values: ClassFormValues });
 
 type ClassField = {
-  name: Exclude<keyof ClassFormValues, "teacherId" | "studentIds" | "branchId" | "programId" | "subjectId">;
+  name: Exclude<keyof ClassFormValues, "teacherId" | "studentIds" | "branchId" | "programId" | "subjectId" | "status">;
   label: string;
   placeholder?: string;
   help?: string;
@@ -31,7 +32,7 @@ type ClassField = {
 
 const initialState: ClassFormState = { success: false, message: "" };
 const emptyValues: ClassFormValues = {
-  teacherId: "", branchId: "", programId: "", subjectId: "", schoolYear: "", semester: "", sectionName: "", yearLevel: "", studentIds: [],
+  teacherId: "", branchId: "", programId: "", subjectId: "", schoolYear: "", semester: "", sectionName: "", yearLevel: "", status: "ongoing", studentIds: [],
 };
 const fields: ClassField[] = [
   { name: "schoolYear", label: "School year", placeholder: "Select school year", maxLength: 20, help: "Select the school year for this class." },
@@ -52,6 +53,7 @@ export function ClassForm(props: ClassFormProps) {
       teacherId: props.teachers.some((teacher) => teacher.id === props.values.teacherId) ? props.values.teacherId : "",
       branchId, programId: program?.id ?? "", subjectId,
       semester: getSemesterOption(props.values.semester)?.value ?? "",
+      status: getClassStatusOption(props.values.status)?.value ?? "ongoing",
       yearLevel: program && isAcademicLevelAllowedForProgram(program.programType, props.values.yearLevel as Parameters<typeof isAcademicLevelAllowedForProgram>[1]) ? props.values.yearLevel : "",
     };
   });
@@ -75,6 +77,11 @@ export function ClassForm(props: ClassFormProps) {
       <fieldset disabled={pending || state.success} className="min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm">
         <legend className="px-2 text-base font-semibold">Class assignment</legend>
         <p className="mb-5 text-sm text-muted-foreground">Choose a branch, one of its programs, and an assigned subject. The teacher adds their Google Sheets link in My Classes.</p>
+        {props.mode === "edit" && props.classCode && <div className="mb-5 space-y-2">
+          <label htmlFor="class-code" className="block text-sm font-medium">Class code</label>
+          <Input id="class-code" value={props.classCode} readOnly className="font-mono" />
+          <p className="text-xs text-muted-foreground">Use this reference code to identify the class.</p>
+        </div>}
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
             <label htmlFor="class-teacherId" className="block text-sm font-medium">Teacher <span className="text-destructive">*</span></label>
@@ -173,6 +180,15 @@ export function ClassForm(props: ClassFormProps) {
               </div>
             );
           })}
+          <div className="space-y-2 md:col-span-2">
+            <label htmlFor="class-status" className="block text-sm font-medium">Class status <span className="text-destructive">*</span></label>
+            <select id="class-status" name="status" value={values.status} onChange={changeValue} required
+              aria-invalid={Boolean(errors?.status)} aria-describedby={errors?.status ? "class-status-error" : undefined}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive">
+              {classStatusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+            </select>
+            {errors?.status && <p id="class-status-error" role="alert" className="text-sm text-destructive">{errors.status}</p>}
+          </div>
         </div>
       </fieldset>
       <fieldset disabled={pending || state.success} className="min-w-0 space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">

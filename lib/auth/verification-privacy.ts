@@ -8,6 +8,7 @@ export function isVerificationPath(pathname: string) {
 
 export function isAnalyticsExcludedPath(pathname: string) {
   return isVerificationPath(pathname) || pathname === "/portal/employees" || pathname.startsWith("/portal/employees/") ||
+    pathname === "/portal/dashboard" || pathname.startsWith("/portal/dashboard/") ||
     pathname === "/portal/users" || pathname.startsWith("/portal/users/") ||
     pathname === "/portal/students" || pathname.startsWith("/portal/students/") ||
     pathname === "/portal/teachers" || pathname.startsWith("/portal/teachers/") ||

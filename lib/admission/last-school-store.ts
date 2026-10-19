@@ -5,6 +5,7 @@ import {
   hasCompleteLastSchoolIdentity,
   lastSchoolIdentityKey,
   lastSchoolIdentityParts,
+  type LastSchoolIdentity,
 } from "./last-school-identity";
 
 export class LastSchoolSelectionError extends Error {
@@ -56,7 +57,7 @@ export async function resolveLastSchool(
   tx: Prisma.TransactionClient,
   profile: UpdateStudentRecordInput,
   selectedRecordId?: string,
-  options: { allowIncomplete?: boolean } = {},
+  options: { allowIncomplete?: boolean; matchSuggestion?: boolean } = {},
 ): Promise<{ id: bigint }> {
   const schoolData = lastSchoolDataFromProfile(profile);
   const addressData = addressDataFromProfile(profile, "lastSchool");
@@ -89,7 +90,11 @@ export async function resolveLastSchool(
     return { id };
   }
 
-  const existing = await findMatchingLastSchool(tx, profile);
+  const existing = await findMatchingLastSchool(tx, profile) ?? (
+    !options.allowIncomplete && options.matchSuggestion !== false
+      ? await findUnambiguousSchoolSuggestion(tx, identity)
+      : null
+  );
   if (existing) {
     if (existing.verificationStatus === "rejected") {
       // An explicit resubmission requests another review; students never verify a school.
@@ -109,7 +114,7 @@ export async function resolveLastSchool(
   });
 }
 
-/** The same normalized identity is used for student suggestions and administrator duplicate checks. */
+/** Administrator duplicate checks and exact suggestions compare every saved identity field. */
 export async function findMatchingLastSchool(tx: Prisma.TransactionClient, profile: UpdateStudentRecordInput, excludeId?: bigint) {
   const addressData = addressDataFromProfile(profile, "lastSchool");
   const hasAddress = Object.values(addressData).some(Boolean);
@@ -132,6 +137,38 @@ export async function findMatchingLastSchool(tx: Prisma.TransactionClient, profi
     LIMIT 1
   `);
 
+  return existing[0] ?? null;
+}
+
+/** Omitted optional details may reuse one known identity, never choose between distinct campuses. */
+async function findUnambiguousSchoolSuggestion(tx: Prisma.TransactionClient, identity: LastSchoolIdentity) {
+  if (!hasCompleteLastSchoolIdentity(identity)) return null;
+  const values = lastSchoolIdentityParts(identity);
+  const optionalIndexes = new Set([1, 2, 4, 5, 6, 10]);
+  if (![...optionalIndexes].some((index) => !values[index])) return null;
+  const normalizedColumns = identityColumns.map((column) => {
+    const normalized = Prisma.sql`BTRIM(REGEXP_REPLACE(COALESCE(${Prisma.raw(column.name)}, ''), ${whitespacePattern}, ' ', 'g'))`;
+    return column.preserveCase ? normalized : Prisma.sql`LOWER(${normalized})`;
+  });
+  const conditions = normalizedColumns.flatMap((column, index) =>
+    optionalIndexes.has(index) && !values[index] ? [] : [Prisma.sql`${column} = ${values[index]}`],
+  );
+  const existing = await tx.$queryRaw<{ id: bigint; verificationStatus: string }[]>(Prisma.sql`
+    WITH matching_schools AS (
+      SELECT school."id", school."verification_status" AS "verificationStatus",
+        JSONB_BUILD_ARRAY(${Prisma.join(normalizedColumns)}) AS identity
+      FROM "last_schools" school
+      LEFT JOIN "addresses" address ON address."id" = school."address_id"
+      WHERE school."address_id" IS NOT NULL
+        AND ${Prisma.join(conditions, " AND ")}
+    )
+    SELECT "id", "verificationStatus"
+    FROM matching_schools
+    WHERE (SELECT COUNT(DISTINCT identity) FROM matching_schools) = 1
+    ORDER BY CASE "verificationStatus"
+      WHEN 'verified' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, "id" ASC
+    LIMIT 1
+  `);
   return existing[0] ?? null;
 }
 

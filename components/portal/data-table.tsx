@@ -10,6 +10,8 @@ export type PortalTableColumn<T> = {
   className?: string;
 };
 
+export type PortalTableRowGroup = { key: string; label: ReactNode; count: number };
+
 export function PortalTable<T>({
   rows,
   columns,
@@ -22,6 +24,8 @@ export function PortalTable<T>({
   scrollAreaLabel,
   stickyHeader = false,
   emptyState,
+  rowGroup,
+  rowLabel = "records",
 }: {
   rows: T[];
   columns: PortalTableColumn<T>[];
@@ -34,7 +38,24 @@ export function PortalTable<T>({
   scrollAreaLabel?: string;
   stickyHeader?: boolean;
   emptyState?: ReactNode;
+  rowGroup?: (row: T) => PortalTableRowGroup;
+  rowLabel?: string;
 }) {
+  const renderRow = (row: T, index: number) => (
+    <tr key={rowKey(row, index)} className={rowClassName}>
+      {columns.map(({ header, cell, className: columnClassName }) => (
+        <td key={header} className={cn(cellClassName, columnClassName)}>{cell(row, index)}</td>
+      ))}
+    </tr>
+  );
+  const groups = new Map<string, { metadata: PortalTableRowGroup; rows: Array<{ row: T; index: number }> }>();
+  if (rowGroup) rows.forEach((row, index) => {
+    const metadata = rowGroup(row);
+    const group = groups.get(metadata.key) ?? { metadata, rows: [] };
+    group.rows.push({ row, index });
+    groups.set(metadata.key, group);
+  });
+
   return (
     <div ref={scrollAreaRef} role={scrollAreaLabel ? "region" : undefined} aria-label={scrollAreaLabel} tabIndex={scrollAreaLabel ? 0 : undefined} className={cn("overflow-x-auto", scrollAreaClassName)}>
       <table className={cn("w-full text-left text-sm", className)}>
@@ -45,16 +66,22 @@ export function PortalTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
-          {rows.length === 0 && emptyState && <tr><td colSpan={columns.length}>{emptyState}</td></tr>}
-          {rows.map((row, index) => (
-            <tr key={rowKey(row, index)} className={rowClassName}>
-              {columns.map(({ header, cell, className: columnClassName }) => (
-                <td key={header} className={cn(cellClassName, columnClassName)}>{cell(row, index)}</td>
-              ))}
+        {rowGroup && rows.length ? Array.from(groups.values(), ({ metadata, rows: members }) => (
+          <tbody key={metadata.key} className="divide-y divide-border">
+            <tr className="border-y border-border bg-muted/60">
+              <th scope="rowgroup" colSpan={columns.length} className="px-4 py-3 text-left font-medium">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="break-words">{metadata.label}</span>
+                  <span className="shrink-0 text-xs font-normal text-muted-foreground"><span className="capitalize">{rowLabel}</span>: {metadata.count}</span>
+                </div>
+              </th>
             </tr>
-          ))}
-        </tbody>
+            {members.map(({ row, index }) => renderRow(row, index))}
+          </tbody>
+        )) : <tbody className="divide-y divide-border">
+          {rows.length === 0 && emptyState && <tr><td colSpan={columns.length}>{emptyState}</td></tr>}
+          {rows.map(renderRow)}
+        </tbody>}
       </table>
     </div>
   );

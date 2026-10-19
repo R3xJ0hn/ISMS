@@ -14,9 +14,16 @@ export type InteractiveTableColumn<T> = PortalTableColumn<T> & {
 
 type TableSort = { column: string; direction: TableSortDirection };
 
+export type TableGrouping<T> = {
+  key: (row: T) => string;
+  label: (row: T) => ReactNode;
+  compare: (left: T, right: T) => number;
+};
+
 export function InteractivePortalTable<T>({
   rows, columns, rowKey, searchValue, searchLabel = "Search table", searchPlaceholder = "Search...",
   initialSort, className, cellClassName, rowLabel = "records", emptyTitle = "No records found", toolbarControls,
+  toolbarLayout = "wrap", resetKey, grouping,
 }: {
   rows: T[];
   columns: InteractiveTableColumn<T>[];
@@ -30,6 +37,9 @@ export function InteractivePortalTable<T>({
   rowLabel?: string;
   emptyTitle?: string;
   toolbarControls?: ReactNode;
+  toolbarLayout?: "wrap" | "single-row";
+  resetKey?: string;
+  grouping?: TableGrouping<T>;
 }) {
   const inputId = useId();
   const pageSizeId = useId();
@@ -38,12 +48,32 @@ export function InteractivePortalTable<T>({
   const [sort, setSort] = useState<TableSort | undefined>(initialSort);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+  const [previousResetKey, setPreviousResetKey] = useState(resetKey);
+
+  // Reset the table view without remounting its toolbar or losing filter focus/scroll.
+  if (previousResetKey !== resetKey) {
+    setPreviousResetKey(resetKey);
+    setQuery("");
+    setSort(initialSort);
+    setPage(0);
+    setPageSize(10);
+  }
 
   const sortedRows = useMemo(() => {
     const filtered = filterTableRows(rows, query, searchValue);
     const column = columns.find((item) => item.header === sort?.column);
-    return column?.sortValue && sort ? sortTableRows(filtered, column.sortValue, sort.direction) : filtered;
-  }, [rows, query, searchValue, columns, sort]);
+    const sorted = column?.sortValue && sort ? sortTableRows(filtered, column.sortValue, sort.direction) : filtered;
+    // Keep the requested groups together while retaining the chosen sort within each group.
+    return grouping ? [...sorted].sort(grouping.compare) : sorted;
+  }, [rows, query, searchValue, columns, sort, grouping]);
+  const groupCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (grouping) for (const row of sortedRows) {
+      const key = grouping.key(row);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [sortedRows, grouping]);
   const pagination = paginateTableRows(sortedRows, page, pageSize);
 
   function changePage(nextPage: number) {
@@ -77,8 +107,8 @@ export function InteractivePortalTable<T>({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-        <div className={toolbarControls ? "relative w-full min-w-0 sm:w-auto sm:min-w-56 sm:max-w-md sm:flex-1" : "relative w-full sm:max-w-sm"}>
+      <div className={toolbarLayout === "single-row" ? "flex min-w-0 flex-col gap-3 border-b border-border p-4 md:flex-row md:items-start" : "flex flex-wrap items-center justify-between gap-3 border-b border-border p-4"}>
+        <div className={toolbarLayout === "single-row" ? "relative w-full min-w-0 md:w-56 md:shrink-0" : toolbarControls ? "relative w-full min-w-0 sm:w-auto sm:min-w-56 sm:max-w-md sm:flex-1" : "relative w-full sm:max-w-sm"}>
           <label htmlFor={inputId} className="sr-only">{searchLabel}</label>
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -92,6 +122,8 @@ export function InteractivePortalTable<T>({
       <PortalTable
         rows={pagination.rows} columns={sortableColumns} rowKey={rowKey} className={className} cellClassName={cellClassName}
         scrollAreaRef={scrollAreaRef} scrollAreaLabel={`${rowLabel} table`} scrollAreaClassName="max-h-[min(60vh,36rem)] overflow-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-ring" stickyHeader
+        rowGroup={grouping ? (row) => ({ key: grouping.key(row), label: grouping.label(row), count: groupCounts.get(grouping.key(row)) ?? 0 }) : undefined}
+        rowLabel={rowLabel}
         emptyState={<PortalEmptyState title={rows.length ? "No matches found" : emptyTitle} description={rows.length ? "Try another search or clear the search field." : "Records will appear here when they are available."} />}
       />
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border p-4">
