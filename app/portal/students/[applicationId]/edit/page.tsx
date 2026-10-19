@@ -7,11 +7,12 @@ import { getManagedStudentApplication } from "@/lib/admission/admin";
 import { getStudentProfileImage } from "@/lib/admission/student-profile-image";
 import { serializeAdmittedStudent } from "@/lib/admission/records";
 import { getPortalAdmissionOptions } from "@/lib/portal/admission-options";
+import { getAdmissionLastSchools } from "@/lib/admission/last-school-catalog";
 
 export default async function EditStudentPage({ params }: { params: Promise<{ applicationId: string }> }) {
   const application = await getManagedStudentApplication((await params).applicationId);
   if (!application) notFound();
-  const options = await getPortalAdmissionOptions(true);
+  const [options, lastSchools] = await Promise.all([getPortalAdmissionOptions(true), getAdmissionLastSchools()]);
   const student = { ...serializeAdmittedStudent(application), userImage: await getStudentProfileImage(application.student) };
 
   return (
@@ -23,6 +24,8 @@ export default async function EditStudentPage({ params }: { params: Promise<{ ap
       <EditAdmittedStudentForm
         student={student} options={options}
         returnTo="/portal/students" action={editManagedStudentAction}
+        currentSchoolVerified={application.lastSchool?.verificationStatus === "verified"}
+        lastSchools={lastSchools.schools} lastSchoolsError={lastSchools.error}
       />
     </PortalFormPage>
   );

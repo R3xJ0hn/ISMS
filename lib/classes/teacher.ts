@@ -5,9 +5,14 @@ import { redirect } from "next/navigation";
 import { parseClassId, parseTeacherSpreadsheetForm, type TeacherSpreadsheetFormState } from "./validation";
 import { parseClassPeriodVisibilityForm, type ClassPeriodVisibilityFormState } from "./period-visibility";
 import { classStudentPreviewSelection } from "./student-preview";
+import { classListOrderBy } from "./grouping";
 
 const classSelection = {
   id: true,
+  classCode: true,
+  status: true,
+  programId: true,
+  program: { select: { code: true, label: true } },
   schoolYear: true,
   semester: true,
   sectionName: true,
@@ -24,7 +29,7 @@ const classSelection = {
 const rosterSelection = {
   students: {
     orderBy: { student: { lastName: "asc" as const } },
-    select: { student: { select: { id: true, studentNumber: true, firstName: true, middleName: true, lastName: true, suffix: true } } },
+    select: { student: { select: { id: true, studentNumber: true, firstName: true, middleName: true, lastName: true, suffix: true, userImage: true } } },
   },
 } as const;
 
@@ -46,7 +51,7 @@ export async function getAssignedClasses() {
   return prisma.class.findMany({
     where: assignmentWhere(teacher),
     select: { ...classSelection, ...classStudentPreviewSelection },
-    orderBy: [{ schoolYear: "desc" }, { subjectName: "asc" }, { sectionName: "asc" }],
+    orderBy: classListOrderBy,
   });
 }
 
@@ -87,7 +92,7 @@ export async function updateClassSpreadsheet(
     };
   }
 
-  for (const path of ["/portal/my-classes", `/portal/my-classes/${parsed.id}`, "/portal/classes"]) {
+  for (const path of ["/portal/my-classes", `/portal/my-classes/${parsed.id}`, "/portal/classes", `/portal/classes/${parsed.id}`]) {
     revalidatePath(path);
   }
   return { success: true, message: "Spreadsheet link saved successfully." };

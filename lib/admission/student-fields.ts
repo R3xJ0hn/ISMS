@@ -1,6 +1,7 @@
 import { CivilStatus, Gender, SchoolType } from "@/lib/generated/prisma/enums";
 import { capitalizeInputText, normalizeEmail, nullableInputText, optionalText, sanitizeInputText, enumIncludes } from "@/lib/utils";
 import { parseDateInput, validateEmail, validatePhone } from "@/lib/validation";
+import type { LastSchoolIdentity } from "./last-school-identity";
 
 // The public application uses snake case; record edit forms use these camel case keys.
 export const studentSubmissionFields = {
@@ -50,6 +51,16 @@ export const studentSubmissionFields = {
 export type StudentUpdateField = keyof typeof studentSubmissionFields;
 export type StudentSubmissionProfile = Record<(typeof studentSubmissionFields)[StudentUpdateField], string>;
 export const studentUpdateFields = Object.keys(studentSubmissionFields) as readonly StudentUpdateField[];
+
+/** Copy the saved institution without changing this student's attendance history. */
+export function lastSchoolFieldsFromRecord(school: LastSchoolIdentity) {
+  return {
+    lastSchoolName: school.schoolName, lastSchoolId: school.schoolId ?? "", lastSchoolShortName: school.shortName ?? "", lastSchoolType: school.schoolType,
+    lastSchoolHouseNumber: school.address?.houseNumber ?? "", lastSchoolSubdivision: school.address?.subdivision ?? "",
+    lastSchoolStreet: school.address?.street ?? "", lastSchoolBarangay: school.address?.barangay ?? "", lastSchoolCity: school.address?.city ?? "",
+    lastSchoolProvince: school.address?.province ?? "", lastSchoolPostalCode: school.address?.postalCode ?? "",
+  };
+}
 const nullableFields = ["gender", "civilStatus", "citizenship", "birthplace", "phone"] as const;
 type NullableStudentUpdateField = (typeof nullableFields)[number];
 const nullableFieldSet: ReadonlySet<string> = new Set(nullableFields);

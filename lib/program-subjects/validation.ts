@@ -1,4 +1,4 @@
-import { parseRecordId, readFormText } from "@/lib/utils";
+import { parseRecordId, readFormRecordIds, readFormText } from "@/lib/utils";
 
 export type ProgramSubjectFormState = {
   success: boolean;
@@ -17,11 +17,9 @@ export function parseProgramSubjectForm(formData: FormData):
   if (programId === null) return {
     success: false, message: "Choose an existing program.", fieldErrors: { programId: "Choose a valid program." },
   };
-  const entries = formData.getAll("subjectIds");
-  const selections = entries.filter((entry) => entry !== "");
-  const subjectIds = selections.map((entry) => typeof entry === "string" ? parseProgramSubjectId(entry) : null);
-  if (!entries.length || entries.length > 1001 || entries.length - selections.length > 1 || subjectIds.some((id) => id === null)) return {
+  const subjectIds = readFormRecordIds(formData, "subjectIds");
+  if (subjectIds === null) return {
     success: false, message: "Check the selected subjects.", fieldErrors: { subjectIds: "Select existing subjects, or clear the unused selections." },
   };
-  return { success: true, programId, subjectIds: [...new Set(subjectIds as bigint[])] };
+  return { success: true, programId, subjectIds };
 }

@@ -6,6 +6,7 @@ import { AdmissionBranchFilter, ApplicationStatusSelect } from "./admission-cont
 import { InteractivePortalTable, type InteractiveTableColumn } from "@/components/portal/interactive-table";
 import { studentColumns } from "@/components/portal/student-columns";
 import { formatAcademicLevel } from "@/lib/academic-levels";
+import { getApplicationStatusLabel, getApplicationStatusRank } from "@/lib/admission/status";
 import { ApplicationStatus, type AcademicLevel, type ApplicantType } from "@/lib/generated/prisma/enums";
 import { formatStudentName } from "@/lib/utils";
 
@@ -24,9 +25,9 @@ export type AdmissionTableRow = {
   };
 };
 
-const applicationStatuses = [ApplicationStatus.reviewing, ApplicationStatus.approved, ApplicationStatus.rejected];
-const filterStatuses = [ApplicationStatus.draft, ApplicationStatus.reviewing, ApplicationStatus.rejected];
-const statusLabel = (status: ApplicationStatus) => status === ApplicationStatus.reviewing ? "Review" : status.charAt(0).toUpperCase() + status.slice(1);
+const applicationStatuses = [ApplicationStatus.updated, ApplicationStatus.reviewing, ApplicationStatus.approved, ApplicationStatus.rejected];
+const filterStatuses = [ApplicationStatus.updated, ApplicationStatus.reviewing, ApplicationStatus.draft, ApplicationStatus.rejected];
+const tableStatus = (status: ApplicationStatus) => status === ApplicationStatus.submitted ? ApplicationStatus.reviewing : status;
 const filterSelectClassName = "h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-none";
 
 const columns: InteractiveTableColumn<AdmissionTableRow>[] = [
@@ -36,11 +37,11 @@ const columns: InteractiveTableColumn<AdmissionTableRow>[] = [
   { ...studentColumns.contact, className: "max-w-64 break-all", sortValue: (row) => row.student.email },
   {
     header: "Status",
-    sortValue: (row) => statusLabel(row.applicationStatus),
+    sortValue: (row) => getApplicationStatusRank(row.applicationStatus),
     cell: (row) => row.applicationStatus === ApplicationStatus.draft ? (
       <span className="inline-flex rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Draft</span>
     ) : (
-      <ApplicationStatusSelect applicationId={row.id} status={row.applicationStatus} statuses={applicationStatuses} />
+      <ApplicationStatusSelect applicationId={row.id} status={tableStatus(row.applicationStatus)} statuses={applicationStatuses} />
     ),
   },
   { header: "Submitted", className: "whitespace-nowrap text-muted-foreground", sortValue: (row) => row.submittedAt ? Date.parse(row.submittedAt) : null, cell: (row) => row.submittedDate },
@@ -53,7 +54,7 @@ const columns: InteractiveTableColumn<AdmissionTableRow>[] = [
 function searchValue(row: AdmissionTableRow) {
   return [formatStudentName(row.student), row.student.studentNumber ?? "Pending", row.applicantType,
     row.program.label, formatAcademicLevel(row.academicLevel), row.student.phone ?? "Pending",
-    row.student.email, statusLabel(row.applicationStatus), row.submittedDate].join(" ");
+    row.student.email, getApplicationStatusLabel(tableStatus(row.applicationStatus)), row.submittedDate].join(" ");
 }
 
 export function AdmissionsTable({ applications, branches, selectedBranchId }: {
@@ -66,14 +67,16 @@ export function AdmissionsTable({ applications, branches, selectedBranchId }: {
   const [status, setStatus] = useState("");
   const [applicantType, setApplicantType] = useState("");
   const rows = useMemo(() => applications.filter((application) =>
-    (!status || application.applicationStatus === status) && (!applicantType || application.applicantType === applicantType)
+    (!status || tableStatus(application.applicationStatus) === status) && (!applicantType || application.applicantType === applicantType)
+  ).sort((left, right) => getApplicationStatusRank(left.applicationStatus) - getApplicationStatusRank(right.applicationStatus) ||
+    (right.submittedAt ? Date.parse(right.submittedAt) : 0) - (left.submittedAt ? Date.parse(left.submittedAt) : 0)
   ), [applications, status, applicantType]);
 
   return (
     <InteractivePortalTable
       key={`${selectedBranchId}:${status}:${applicantType}`} rows={rows} columns={columns} rowKey={(row) => row.id} searchValue={searchValue}
       searchLabel="Search admissions" searchPlaceholder="Search student number, name, program, or contact..."
-      initialSort={{ column: "Submitted", direction: "desc" }} rowLabel="applications"
+      initialSort={{ column: "Status", direction: "asc" }} rowLabel="applications"
       emptyTitle={status || applicantType ? "No applications match these filters" : "No admission applications yet"}
       className="min-w-225" cellClassName="px-4 py-3 align-middle"
       toolbarControls={<div role="group" aria-label="Admission filters" className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
@@ -90,7 +93,7 @@ export function AdmissionsTable({ applications, branches, selectedBranchId }: {
           <label htmlFor={statusId} className="shrink-0 text-sm font-medium">Status</label>
           <select id={statusId} value={status} onChange={(event) => setStatus(event.target.value)} className={filterSelectClassName}>
             <option value="">All statuses</option>
-            {filterStatuses.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
+            {filterStatuses.map((value) => <option key={value} value={value}>{getApplicationStatusLabel(value)}</option>)}
           </select>
         </div>
       </div>}

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FileSpreadsheet, Plus, UploadCloud } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { BadgeCheck, FileSpreadsheet, Plus, UploadCloud } from "lucide-react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import {
   addAdmittedStudentAction,
@@ -18,13 +18,14 @@ import {
   type AdmissionOptions,
 } from "@/app/portal/admission/admission-ui";
 import type { AdmittedStudentPayload } from "@/lib/admission/records";
-import { isCapitalizedStudentField, normalizeStudentField, studentUpdateFields, type StudentUpdateField } from "@/lib/admission/student-fields";
+import { isCapitalizedStudentField, lastSchoolFieldsFromRecord, normalizeStudentField, studentUpdateFields, type StudentUpdateField } from "@/lib/admission/student-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useActionToast, usePortalFormFeedback } from "@/components/portal/toasts";
+import { useActionToast, usePortalFormFeedback, usePreservedFormDraft } from "@/components/portal/toasts";
 import { ProfileImageField } from "@/components/portal/profile-image-field";
 import { isAcademicLevelAllowedForProgram } from "@/lib/academic-levels";
 import type { AdmissionEditOptions } from "@/lib/portal/admission-options";
+import type { AdmissionLastSchool } from "@/lib/types/last-schools";
 import { generateSchoolYears, normalizeEmail, sanitizeInputText } from "@/lib/utils";
 
 export type AdmittedStudentEditRecord = Omit<AdmittedStudentPayload, "reviewForm">;
@@ -183,7 +184,7 @@ function normalizeStudentFormField(name: StudentField["name"], value: string) {
   return profileFieldNames.has(name) ? normalizeStudentField(name as StudentUpdateField, value) : sanitizeInputText(value);
 }
 
-function StudentFields({ fields, student, requiredFields = true }: { fields: StudentField[]; student?: AdmittedStudentEditRecord; requiredFields?: boolean }) {
+function StudentFields({ fields, student, requiredFields = true, readOnly = false }: { fields: StudentField[]; student?: AdmittedStudentEditRecord; requiredFields?: boolean; readOnly?: boolean }) {
   const [values, setValues] = useState(() => Object.fromEntries(fields.map(({ name, choices }) => [name,
     choices || name === "lastSchoolYear" ? student?.[name] ?? "" : normalizeStudentFormField(name, student?.[name] ?? ""),
   ])));
@@ -202,13 +203,13 @@ function StudentFields({ fields, student, requiredFields = true }: { fields: Stu
         required={Boolean(student) && requiredFields && required}
         className={!student && (name === "birthDate" || name === "gender") ? "md:col-span-2" : undefined}
       >
-        {selectChoices ? (
+        {selectChoices && !readOnly ? (
           <AdmissionSelect name={name} value={values[name]} onChange={(event) => setValues((current) => ({ ...current, [name]: event.target.value }))} required={requiredFields && required} aria-describedby={schoolTypeHintId}>
             <option value="" disabled={Boolean(student) && requiredFields && required}>{selectPlaceholder}</option>
             {selectChoices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
           </AdmissionSelect>
         ) : (
-          <><Input name={name} type={type} value={values[name]} required={requiredFields && required} aria-describedby={emailHintId}
+          <><Input name={name} type={type} value={values[name]} readOnly={readOnly} required={requiredFields && required} aria-describedby={emailHintId}
             onChange={(event) => setValues((current) => ({ ...current, [name]: event.target.value }))}
             onBlur={(event) => {
               const value = normalizeStudentFormField(name, event.currentTarget.value);
@@ -227,28 +228,113 @@ function StudentFields({ fields, student, requiredFields = true }: { fields: Stu
   });
 }
 
-export function AddAdmittedStudentModal({ options }: { options: AdmissionOptions }) {
+function LastSchoolSearch({ schools, value, onChange, error, resetLabel = "Keep current school details" }: {
+  schools: AdmissionLastSchool[];
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  resetLabel?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeValue, setActiveValue] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const activeOptionRef = useRef<HTMLButtonElement>(null);
+  const inputId = useId();
+  const listId = `${inputId}-schools`;
+  const selectedSchool = schools.find((school) => school.id === value);
+  const query = search.normalize("NFC").trim().toLocaleLowerCase();
+  const matches = schools.filter((school) => !query || [school.schoolName, school.shortName, school.formattedAddress]
+    .some((text) => text?.normalize("NFC").toLocaleLowerCase().includes(query)));
+  const resetValue = "current";
+  const optionValues = error ? [] : [...matches.map((school) => school.id), ...(value ? [resetValue] : [])];
+  const activeOption = activeValue && optionValues.includes(activeValue) ? activeValue : null;
+  const expanded = open && !error;
+
+  useEffect(() => { activeOptionRef.current?.scrollIntoView({ block: "nearest" }); }, [activeOption]);
+
+  function closeMenu() {
+    setOpen(false);
+    setSearch("");
+    setActiveValue(null);
+  }
+
+  function selectSchool(id: string) {
+    if (!optionValues.includes(id)) return;
+    onChange(id === resetValue ? "" : id);
+    inputRef.current?.focus();
+    closeMenu();
+  }
+
+  return (
+    <div className="min-w-0 space-y-2" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu(); }}>
+      <input type="hidden" name="lastSchoolRecordId" value={value} />
+      <label htmlFor={inputId} className="block text-sm font-medium">Find a saved school</label>
+      <div className="relative min-w-0">
+        <Input ref={inputRef} id={inputId} type="search" role="combobox" value={expanded ? search : selectedSchool?.schoolName ?? ""}
+          disabled={Boolean(error)} autoComplete="off" placeholder="Search school name or location"
+          aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={Boolean(expanded)}
+          aria-controls={expanded ? listId : undefined} aria-activedescendant={expanded && activeOption ? `${listId}-${activeOption}` : undefined}
+          aria-describedby={error ? `${inputId}-error` : undefined}
+          onFocus={() => setOpen(true)} onClick={() => setOpen(true)}
+          onChange={(event) => { setSearch(event.target.value); setActiveValue(null); setOpen(true); }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              if (!optionValues.length) { setActiveValue(null); return; }
+              const index = expanded && activeOption ? optionValues.indexOf(activeOption) : -1;
+              const next = event.key === "ArrowDown" ? (index + 1) % optionValues.length : index <= 0 ? optionValues.length - 1 : index - 1;
+              setActiveValue(optionValues[next]);
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              const id = activeOption ?? matches[0]?.id;
+              if (expanded && id) selectSchool(id);
+              else setOpen(true);
+            } else if (event.key === "Escape" && expanded) {
+              event.preventDefault();
+              event.stopPropagation();
+              closeMenu();
+            }
+          }} />
+        {expanded && <div id={listId} role="listbox" aria-label="Saved schools" className="absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+          {matches.length ? matches.map((school) => <button type="button" key={school.id} id={`${listId}-${school.id}`} role="option" tabIndex={-1}
+            ref={activeOption === school.id ? activeOptionRef : undefined} aria-selected={value === school.id}
+            onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveValue(school.id)} onClick={() => selectSchool(school.id)}
+            className={`flex min-h-12 w-full min-w-0 flex-col gap-1 rounded-md px-3 py-2 text-left text-sm hover:bg-accent ${activeOption === school.id ? "bg-accent" : ""}`}>
+            <span className="break-words font-medium">{school.schoolName}</span>
+            <span className="break-words text-xs text-muted-foreground">{school.formattedAddress}</span>
+          </button>) : <p role="status" className="px-3 py-3 text-sm text-muted-foreground">{query ? "No verified schools match your search." : "No verified schools are available yet."}</p>}
+          {value && <button type="button" id={`${listId}-${resetValue}`} role="option" aria-selected={false} tabIndex={-1}
+            ref={activeOption === resetValue ? activeOptionRef : undefined} onMouseDown={(event) => event.preventDefault()}
+            onMouseEnter={() => setActiveValue(resetValue)} onClick={() => selectSchool(resetValue)}
+            className={`mt-1 min-h-11 w-full rounded-md border-t border-border px-3 py-2 text-left text-sm font-medium hover:bg-accent ${activeOption === resetValue ? "bg-accent" : ""}`}>{resetLabel}</button>}
+        </div>}
+      </div>
+      {error && <p id={`${inputId}-error`} role="status" className="text-sm text-destructive">Saved schools are unavailable. Reload the page to try again.</p>}
+    </div>
+  );
+}
+
+function VerifiedSchoolMark() {
+  return <span role="status" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"><BadgeCheck aria-hidden="true" className="size-3.5" />Verified school</span>;
+}
+
+export function AddAdmittedStudentModal({ options, lastSchools = [], lastSchoolsError }: { options: AdmissionOptions; lastSchools?: AdmissionLastSchool[]; lastSchoolsError?: string }) {
   const [open, setOpen] = useState(false);
   const [photoValid, setPhotoValid] = useState(true);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [lastSchoolId, setLastSchoolId] = useState("");
+  const formRef = usePreservedFormDraft();
   const [state, formAction, pending] = useActionState(
     async (previous: AddAdmittedStudentState, formData: FormData) => {
       const next = await addAdmittedStudentAction(previous, formData);
-      if (next.success) setOpen(false);
+      if (next.success) { setOpen(false); setLastSchoolId(""); }
       return next;
     },
     initialState
   );
 
   useActionToast(state);
-
-  useEffect(() => {
-    const form = formRef.current;
-    if (!form) return;
-    const keepDraft = (event: Event) => event.preventDefault();
-    form.addEventListener("reset", keepDraft);
-    return () => form.removeEventListener("reset", keepDraft);
-  }, [open]);
 
   return (
     <AdmissionModal
@@ -266,6 +352,14 @@ export function AddAdmittedStudentModal({ options }: { options: AdmissionOptions
           <div className="grid gap-4 md:grid-cols-2">
             <StudentFields fields={personalFields.filter((field) => addFieldNames.has(field.name))} />
           </div>
+          <section className="min-w-0 space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Last School Attended</h3>
+              {lastSchools.some((school) => school.id === lastSchoolId) && <VerifiedSchoolMark />}
+            </div>
+            <p className="text-sm text-muted-foreground">Optionally search and select a verified school for this admission.</p>
+            <LastSchoolSearch schools={lastSchools} value={lastSchoolId} onChange={setLastSchoolId} error={lastSchoolsError} resetLabel="Do not link a school" />
+          </section>
         </fieldset>
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -276,16 +370,29 @@ export function AddAdmittedStudentModal({ options }: { options: AdmissionOptions
   );
 }
 
-export function EditAdmittedStudentForm({ student, options, returnTo = "/portal/admission", action = editAdmittedStudentAction, allowIncomplete = false }: {
+export function EditAdmittedStudentForm({ student, options, returnTo = "/portal/admission", action = editAdmittedStudentAction, allowIncomplete = false, allowApproval = false, currentSchoolVerified = false, lastSchools = [], lastSchoolsError }: {
   student: AdmittedStudentEditRecord;
   options: AdmittedStudentEditOptions;
   returnTo?: "/portal/admission" | "/portal/students";
   action?: typeof editAdmittedStudentAction;
   allowIncomplete?: boolean;
+  allowApproval?: boolean;
+  currentSchoolVerified?: boolean;
+  lastSchools?: AdmissionLastSchool[];
+  lastSchoolsError?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [photoValid, setPhotoValid] = useState(true);
   const formRef = usePortalFormFeedback(state, { returnTo });
+  const [replacementSchoolId, setReplacementSchoolId] = useState("");
+  const [schoolEdits, setSchoolEdits] = useState<Record<string, string>>({});
+  const replacementSchool = lastSchools.find((school) => school.id === replacementSchoolId);
+  const schoolHistoryFields = new Set(["lastSchoolYear", "lastSchoolYearLevel", "lastSchoolGraduationDate"]);
+  const schoolInstitutionFields = detailSections.find(({ title }) => title === "Last School Attended")!.fields
+    .filter(({ name }) => !schoolHistoryFields.has(name)).map(({ name }) => name);
+  const schoolVerified = Boolean(replacementSchool) || (currentSchoolVerified && schoolInstitutionFields.every((name) =>
+    normalizeStudentFormField(name, schoolEdits[name] ?? student[name]) === normalizeStudentFormField(name, student[name])));
+  const showApproval = allowApproval && returnTo === "/portal/admission";
 
   return (
     <form ref={formRef} action={formAction} aria-busy={pending} className="space-y-8">
@@ -300,14 +407,35 @@ export function EditAdmittedStudentForm({ student, options, returnTo = "/portal/
           <div className="mt-4"><AdmissionProgramFields options={options} student={student} requiredFields={!allowIncomplete} /></div>
         </section>
         {detailSections.map(({ title, fields }) => (
-          <section key={title} className="rounded-lg border border-border bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2"><StudentFields fields={fields} student={student} requiredFields={!allowIncomplete} /></div>
+          <section key={title} className="rounded-lg border border-border bg-card p-5 shadow-sm" onChange={title === "Last School Attended" ? (event) => {
+            const { name, value } = event.target as HTMLInputElement | HTMLSelectElement;
+            if (schoolInstitutionFields.includes(name as StudentField["name"])) {
+              setSchoolEdits((current) => ({ ...current, [name]: value }));
+            }
+          } : undefined}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</h2>
+              {title === "Last School Attended" && schoolVerified && <VerifiedSchoolMark />}
+            </div>
+            {title === "Last School Attended" && <div className="mt-4 space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+              <p className="text-sm text-muted-foreground">If this student suggested a school that is already listed, select its verified record below. Saving changes only this admission&apos;s school link.</p>
+              <LastSchoolSearch schools={lastSchools} value={replacementSchoolId} onChange={(id) => { setReplacementSchoolId(id); setSchoolEdits({}); }} error={lastSchoolsError} />
+              {replacementSchool && <p role="status" className="text-sm text-emerald-700">The saved school details are filled below. The student&apos;s school year, completed year level, and graduation date stay editable.</p>}
+            </div>}
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {title === "Last School Attended" ? <>
+                <StudentFields key={replacementSchoolId || "current-school"} fields={fields.filter(({ name }) => !schoolHistoryFields.has(name))}
+                  student={replacementSchool ? { ...student, ...lastSchoolFieldsFromRecord(replacementSchool) } : student}
+                  readOnly={Boolean(replacementSchool)} requiredFields={!allowIncomplete} />
+                <StudentFields fields={fields.filter(({ name }) => schoolHistoryFields.has(name))} student={student} requiredFields={!allowIncomplete} />
+              </> : <StudentFields fields={fields} student={student} requiredFields={!allowIncomplete} />}
+            </div>
           </section>
         ))}
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background/95 py-4 backdrop-blur">
+        <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-border bg-background/95 py-4 backdrop-blur">
           <Button asChild type="button" variant="outline"><Link href={returnTo}>Back</Link></Button>
-          <Button type="submit" disabled={pending || state.success || !photoValid}>{pending ? "Saving..." : "Save Changes"}</Button>
+          <Button type="submit" name="intent" value="save" variant={showApproval ? "outline" : "default"} disabled={pending || state.success || !photoValid}>{pending ? "Saving..." : "Save Changes"}</Button>
+          {showApproval && <Button type="submit" name="intent" value="saveAndApprove" className="w-full sm:w-auto" disabled={pending || state.success || !photoValid}><BadgeCheck aria-hidden="true" />{pending ? "Saving..." : "Save changes and approve"}</Button>}
         </div>
       </fieldset>
     </form>

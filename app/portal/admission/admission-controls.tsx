@@ -8,20 +8,13 @@ import {
 } from "@/app/portal/admission/actions";
 import { AdmissionSelect } from "@/app/portal/admission/admission-ui";
 import { useActionToast } from "@/components/portal/toasts";
+import { getApplicationStatusLabel } from "@/lib/admission/status";
 
 type ApplicationStatusSelectProps = {
   applicationId: string;
   status: string;
   statuses: string[];
 };
-
-function formatStatusLabel(status: string) {
-  if (status === "reviewing") {
-    return "Review";
-  }
-
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
 
 export function ApplicationStatusSelect({
   applicationId,
@@ -66,7 +59,7 @@ export function ApplicationStatusSelect({
       >
         {statuses.map((option) => (
           <option key={option} value={option}>
-            {formatStatusLabel(option)}
+            {getApplicationStatusLabel(option)}
           </option>
         ))}
       </AdmissionSelect>

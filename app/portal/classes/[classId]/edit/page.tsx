@@ -17,19 +17,19 @@ export default async function EditClassPage({ params }: { params: Promise<{ clas
   const [classRecord, options] = await Promise.all([
     prisma.class.findUnique({
       where: { id },
-      select: { id: true, schoolYear: true, semester: true, sectionName: true, yearLevel: true, teacherId: true, branchId: true, programId: true, subjectId: true, subjectName: true, students: { select: { studentId: true } } },
+      select: { id: true, classCode: true, status: true, schoolYear: true, semester: true, sectionName: true, yearLevel: true, teacherId: true, branchId: true, programId: true, subjectId: true, subjectName: true, students: { select: { studentId: true } } },
     }),
     getClassFormOptions(),
   ]);
   if (!classRecord) notFound();
-  const { id: classId, teacherId, branchId, programId, subjectId, subjectName, students: roster, ...values } = classRecord;
+  const { id: classId, classCode, teacherId, branchId, programId, subjectId, subjectName, students: roster, ...values } = classRecord;
   const { teachers } = options;
 
   return (
     <PortalFormPage backHref="/portal/classes" backLabel="Back to classes"
       label="Classes" title="Edit class" description={`Update the teacher and details for ${subjectName}, ${classRecord.sectionName}. The teacher manages their Google Sheets link.`}>
       {teachers.length > 0 ? (
-        <ClassForm mode="edit" classId={classId.toString()} values={{ ...values, semester: values.semester ?? "", teacherId: teacherId.toString(), branchId: branchId?.toString() ?? "", programId: programId?.toString() ?? "", subjectId: subjectId?.toString() ?? "", studentIds: roster.map((entry) => entry.studentId.toString()) }} {...options} />
+        <ClassForm mode="edit" classId={classId.toString()} classCode={classCode} values={{ ...values, semester: values.semester ?? "", teacherId: teacherId.toString(), branchId: branchId?.toString() ?? "", programId: programId?.toString() ?? "", subjectId: subjectId?.toString() ?? "", studentIds: roster.map((entry) => entry.studentId.toString()) }} {...options} />
       ) : (
         <section className="max-w-3xl rounded-lg border border-border bg-card p-5 shadow-sm" aria-label="Add a teacher first">
           <h2 className="text-base font-semibold">Set up a teacher account to update this assignment</h2>

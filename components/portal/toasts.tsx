@@ -64,23 +64,25 @@ export function useActionToast(state: { success: boolean; message: string }) {
   }, [state, notify]);
 }
 
-/** Preserve the draft through action-form resets, then announce and leave a successful save. */
-export function usePortalFormFeedback(state: { success: boolean; message: string }, {
-  returnTo, refresh = false,
-}: { returnTo: string; refresh?: boolean }) {
-  const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
-  const completed = useRef<typeof state | null>(null);
-  useActionToast(state);
-
-  useEffect(() => {
-    const form = formRef.current;
+/** A callback ref also protects forms mounted later inside a dialog portal. */
+export function usePreservedFormDraft() {
+  return useCallback((form: HTMLFormElement | null) => {
     if (!form) return;
     // React resets action forms during commit, when delegated reset handlers are disabled.
     const keepDraft = (event: Event) => event.preventDefault();
     form.addEventListener("reset", keepDraft);
     return () => form.removeEventListener("reset", keepDraft);
   }, []);
+}
+
+/** Preserve the draft through action-form resets, then announce and leave a successful save. */
+export function usePortalFormFeedback(state: { success: boolean; message: string }, {
+  returnTo, refresh = false,
+}: { returnTo: string; refresh?: boolean }) {
+  const router = useRouter();
+  const formRef = usePreservedFormDraft();
+  const completed = useRef<typeof state | null>(null);
+  useActionToast(state);
 
   useEffect(() => {
     if (!state.success || completed.current === state) return;

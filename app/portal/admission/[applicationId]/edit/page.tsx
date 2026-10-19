@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 import { getPortalAdmissionOptions } from "@/lib/portal/admission-options";
 import { prisma } from "@/lib/prisma";
 import { getStudentProfileImage } from "@/lib/admission/student-profile-image";
+import { getAdmissionLastSchools } from "@/lib/admission/last-school-catalog";
 
 type EditAdmittedStudentPageProps = {
   params: Promise<{ applicationId: string }>;
@@ -28,6 +29,7 @@ export default async function EditAdmittedStudentPage({ params }: EditAdmittedSt
   ]);
 
   if (!application) notFound();
+  const lastSchools = await getAdmissionLastSchools();
   const student = { ...serializeAdmittedStudent(application), userImage: await getStudentProfileImage(application.student) };
 
   return (
@@ -39,7 +41,10 @@ export default async function EditAdmittedStudentPage({ params }: EditAdmittedSt
           Update student, address, guardian, and previous school information.
         </p>
       </section>
-      <EditAdmittedStudentForm student={student} options={options} allowIncomplete />
+      <EditAdmittedStudentForm student={student} options={options} allowIncomplete
+        allowApproval={["updated", "submitted", "reviewing", "rejected"].includes(application.applicationStatus)}
+        currentSchoolVerified={application.lastSchool?.verificationStatus === "verified"}
+        lastSchools={lastSchools.schools} lastSchoolsError={lastSchools.error} />
     </main>
   );
 }

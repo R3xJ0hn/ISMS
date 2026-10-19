@@ -16,8 +16,9 @@ export function ClassCoverDecoration() {
   );
 }
 
-export function ClassBanner({ classId, subjectName, sectionName, schoolYear, semester, yearLevel, branchTitle, teacherName }: {
+export function ClassBanner({ classId, classCode, subjectName, sectionName, schoolYear, semester, yearLevel, branchTitle, teacherName }: {
   classId: string;
+  classCode: string;
   subjectName: string;
   sectionName: string;
   schoolYear: string;
@@ -36,6 +37,9 @@ export function ClassBanner({ classId, subjectName, sectionName, schoolYear, sem
           {teacherName && <p className="mt-3 flex min-w-0 items-center gap-2 text-sm text-white/90"><UserRound aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{teacherName}</span></p>}
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/90">
+          <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-x-2 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-white">
+            <span>Class code</span><span className="min-w-0 font-mono font-semibold [overflow-wrap:anywhere]">{classCode}</span>
+          </span>
           <span className="inline-flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4" />{schoolYear}</span>
           <span>{formatSemester(semester)}</span>
           <span className="inline-flex min-w-0 max-w-full items-center gap-2"><Building2 aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{branchTitle ?? "Branch not assigned"}</span></span>

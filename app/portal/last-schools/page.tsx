@@ -21,6 +21,7 @@ export default async function LastSchoolsManagementPage() {
       <p className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
         Students can select verified schools. Suggestions stay pending until you check the school details and verify them.
         Reject an incorrect suggestion to keep it out of the school list.
+        {" "}Use View students to see linked admissions and correct a student&apos;s last school.
       </p>
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-label="Last school records">
         <LastSchoolsTable schools={schools} />

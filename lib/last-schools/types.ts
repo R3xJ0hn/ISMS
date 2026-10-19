@@ -1,4 +1,4 @@
-import type { LastSchoolVerificationStatus, SchoolType } from "@/lib/generated/prisma/enums";
+import type { ApplicationStatus, LastSchoolVerificationStatus, SchoolType } from "@/lib/generated/prisma/enums";
 
 export type LastSchoolField = "schoolIdentifier" | "schoolName" | "shortName" | "schoolType" | "street" | "barangay" | "city" | "province" | "postalCode";
 
@@ -19,4 +19,23 @@ export type LastSchoolFormState = {
   success: boolean;
   message: string;
   fieldErrors?: Partial<Record<LastSchoolField, string>>;
+};
+
+export type LastSchoolStudentRow = {
+  applicationId: string;
+  name: string;
+  studentNumber: string | null;
+  branch: string;
+  program: string;
+  applicationStatus: ApplicationStatus;
+};
+
+export type LastSchoolStudentsPage = {
+  school: { id: string; schoolName: string };
+  students: LastSchoolStudentRow[];
+  query: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 };

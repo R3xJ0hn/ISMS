@@ -1,13 +1,13 @@
 import { capitalizeInputText, parseRecordId, readFormFields, readFormText } from "@/lib/utils";
 import { validateSchoolYear } from "@/lib/validation";
 import { getAcademicLevelOption, getSemesterOption } from "@/lib/academic-levels";
-import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
+import { ClassStatus, type AcademicLevel, type Semester } from "@/lib/generated/prisma/enums";
 
 export const classFields = [
   "schoolYear", "semester", "sectionName", "yearLevel", "teacherId", "programId", "subjectId", "branchId",
 ] as const;
 
-export type ClassFormValues = Record<typeof classFields[number], string> & { studentIds?: string[] };
+export type ClassFormValues = Record<typeof classFields[number], string> & { studentIds?: string[]; status?: string };
 export type ClassFormState = {
   success: boolean;
   message: string;
@@ -24,7 +24,7 @@ type ClassFormFailure = ClassFormState & { success: false };
 type ClassFormSuccess = {
   success: true;
   id?: bigint;
-  data: { schoolYear: string; semester: Semester; sectionName: string; teacherId: bigint; branchId: bigint; programId: bigint; subjectId: bigint; yearLevel: AcademicLevel };
+  data: { schoolYear: string; semester: Semester; sectionName: string; teacherId: bigint; branchId: bigint; programId: bigint; subjectId: bigint; yearLevel: AcademicLevel; status?: ClassStatus };
   studentIds?: bigint[];
 };
 
@@ -91,6 +91,12 @@ export function parseClassForm(
   const subjectId = parseClassId(values.subjectId);
   const yearLevel = getAcademicLevelOption(values.yearLevel)?.value;
   const semester = formData.getAll("semester").length === 1 ? getSemesterOption(values.semester)?.value : undefined;
+  const statusEntries = formData.getAll("status");
+  const statusInput = readFormText(formData, "status");
+  const status = statusEntries.length === 0
+    ? mode === "create" ? ClassStatus.ongoing : undefined
+    : statusEntries.length === 1 && Object.values(ClassStatus).includes(statusInput as ClassStatus) ? statusInput as ClassStatus : undefined;
+  if (statusEntries.length && !status) fieldErrors.status = "Select a valid class status.";
   let studentIds: bigint[] | undefined;
   if (formData.has("studentIds")) {
     const entries = formData.getAll("studentIds");
@@ -131,6 +137,7 @@ export function parseClassForm(
     data: {
       schoolYear: values.schoolYear.replace(/\s*-\s*/g, "-"),
       semester,
+      ...(status !== undefined ? { status } : {}),
       sectionName: values.sectionName,
       yearLevel,
       teacherId,

@@ -44,6 +44,12 @@ enum Semester {
   SecondSemester
 }
 
+enum ClassStatus {
+  ongoing
+  gradeFinalization
+  locked
+}
+
 enum Gender {
   Male
   Female
@@ -65,6 +71,11 @@ enum ApplicationStatus {
   reviewing
   approved
   rejected
+  updated
+}
+
+enum NotificationType {
+  admissionUpdated
 }
 
 enum UserRole {
@@ -131,6 +142,7 @@ model User {
   loginHistory LoginHistory[]
   verificationTokens VerificationToken[]
   teacher      Teacher?
+  notificationActions Notification[]
 
   @@map("users")
 }
@@ -181,6 +193,8 @@ model Teacher {
 
 model Class {
   id             BigInt   @id @default(autoincrement())
+  classCode      String   @unique @default(dbgenerated("('CLS-'::text || (nextval('classes_class_code_seq'::regclass))::text)")) @map("class_code") @db.Text
+  status         ClassStatus @default(ongoing)
   branchId       BigInt?  @map("branch_id")
   programId      BigInt?  @map("program_id")
   subjectId      BigInt?  @map("subject_id")
@@ -209,6 +223,7 @@ model Class {
   @@index([teacherId, schoolYear])
   @@index([branchId, schoolYear])
   @@index([programId, subjectId])
+  @@index([schoolYear, semester, programId, yearLevel])
   @@map("classes")
 }
 
@@ -502,6 +517,23 @@ model AdmissionApplication {
   lastSchool     LastSchool?    @relation(fields: [lastSchoolId], references: [id], onDelete: SetNull)
   branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
   program        Program        @relation(fields: [programId], references: [id], onDelete: Restrict)
+  notifications  Notification[]
 
   @@map("admission_applications")
+}
+
+model Notification {
+  id            BigInt           @id @default(autoincrement())
+  type          NotificationType
+  applicationId BigInt           @map("application_id")
+  actorUserId   BigInt?           @map("actor_user_id")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor       User?                @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt, id])
+  @@index([applicationId])
+  @@index([actorUserId])
+  @@map("notifications")
 }

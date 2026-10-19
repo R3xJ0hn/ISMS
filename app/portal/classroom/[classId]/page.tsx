@@ -23,6 +23,7 @@ export default async function StudentClassroomDetailPage({ params, searchParams 
     <>
       <ClassBanner
         classId={assignedClass.id}
+        classCode={assignedClass.classCode}
         subjectName={assignedClass.subjectName}
         sectionName={assignedClass.sectionName}
         schoolYear={assignedClass.schoolYear}

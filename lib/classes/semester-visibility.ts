@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentStudent, studentClassMembershipWhere } from "@/lib/portal/student";
 import type { Semester } from "@/lib/generated/prisma/enums";
 import type { StudentGrade } from "@/lib/student-grades";
-import { getClassPeriodVisibility, type ClassPeriodVisibility } from "./period-visibility";
+import { getClassPeriodVisibility, getVisiblePeriodGrades, type ClassPeriodVisibility } from "./period-visibility";
 
 export type SemesterClassVisibility = ClassPeriodVisibility & {
   semester: Semester | null;
@@ -47,7 +47,6 @@ export function filterSemesterGradesByVisibility(
         finalsVisible: visibility.finalsVisible && assignedVisibility.finalsVisible,
       };
     }, getClassPeriodVisibility());
-    const anyHidden = Object.values(periodVisibility).some((visible) => !visible);
     // Rebuild the public row explicitly. The source's raw object can also contain
     // period grades and must never reach the table through a different property.
     return {
@@ -56,13 +55,7 @@ export function filterSemesterGradesByVisibility(
       units: grade.units,
       instructor_id: grade.instructor_id,
       instructor_name: grade.instructor_name,
-      prelim: periodVisibility.prelimVisible ? grade.prelim : null,
-      midterm: periodVisibility.midtermVisible ? grade.midterm : null,
-      prefinals: periodVisibility.prefinalsVisible ? grade.prefinals : null,
-      finals: periodVisibility.finalsVisible ? grade.finals : null,
-      average: anyHidden ? null : grade.average,
-      remarks: anyHidden ? null : grade.remarks,
-      note: anyHidden ? null : grade.note,
+      ...getVisiblePeriodGrades(grade, periodVisibility),
       periodVisibility,
     };
   });
