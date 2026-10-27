@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEmployeeFullName } from "@/lib/employees/names";
+import { classStudentPreviewSelection, serializeClassStudentPreviews } from "@/lib/classes/student-preview";
 import { ClassesTable } from "./classes-table";
 
 export default async function ClassesManagementPage() {
@@ -12,14 +13,14 @@ export default async function ClassesManagementPage() {
   const [classes, teacherCount] = await Promise.all([
     prisma.class.findMany({
       where: { teacher: { user: { role: { not: "superAdmin" } } } },
-      orderBy: [{ schoolYear: "desc" }, { sectionName: "asc" }, { subjectName: "asc" }],
+      orderBy: [{ schoolYear: "desc" }, { semester: "asc" }, { program: { label: "asc" } }, { programId: "asc" }, { yearLevel: "asc" }, { sectionName: "asc" }, { subjectName: "asc" }],
       select: {
-        id: true, schoolYear: true, semester: true, sectionName: true, yearLevel: true,
+        id: true, classCode: true, status: true, branchId: true, programId: true, schoolYear: true, semester: true, sectionName: true, yearLevel: true,
         subjectName: true, spreadsheetUrl: true,
         teacher: { select: { employee: { select: { firstName: true, middleName: true, lastName: true, suffix: true } }, user: { select: { email: true } } } },
         branch: { select: { title: true } },
         program: { select: { code: true, label: true } },
-        _count: { select: { students: true } },
+        ...classStudentPreviewSelection,
       },
     }),
     prisma.teacher.count({ where: { user: { role: "teacher", emailVerified: true } } }),
@@ -27,7 +28,7 @@ export default async function ClassesManagementPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <PortalPageHeader label="Management" title="Manage Classes" description="Assign teachers to classes and subjects. Each teacher adds their own Google Sheets link.">
+      <PortalPageHeader label="Management" title="Manage Classes" description="Classes are grouped by school year, semester, program, and year level. Assign teachers and track each class's status.">
         <div className="flex flex-wrap items-center gap-3">
           <PortalCount count={classes.length} label="classes" />
           <Button asChild><Link href="/portal/classes/new"><Plus aria-hidden="true" />Add class</Link></Button>
@@ -42,10 +43,13 @@ export default async function ClassesManagementPage() {
       )}
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-label="Class assignments">
         <ClassesTable classes={classes.map((classRecord) => ({
-          id: classRecord.id.toString(), schoolYear: classRecord.schoolYear, semester: classRecord.semester,
+          id: classRecord.id.toString(), classCode: classRecord.classCode, status: classRecord.status, schoolYear: classRecord.schoolYear, semester: classRecord.semester,
           sectionName: classRecord.sectionName, yearLevel: classRecord.yearLevel,
           subjectName: classRecord.subjectName, teacherEmail: classRecord.teacher.user.email,
           teacherName: getEmployeeFullName(classRecord.teacher.employee), studentCount: classRecord._count.students,
+          studentPreviews: serializeClassStudentPreviews(classRecord.students),
+          branchId: classRecord.branchId?.toString() ?? null,
+          programId: classRecord.programId?.toString() ?? null,
           branchTitle: classRecord.branch?.title ?? null,
           programLabel: classRecord.program ? classRecord.program.code + " — " + classRecord.program.label : null,
           spreadsheetLinked: Boolean(classRecord.spreadsheetUrl),

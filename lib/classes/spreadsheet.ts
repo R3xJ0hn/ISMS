@@ -1,4 +1,6 @@
 import { getSpreadsheetId } from "./validation";
+import { isAdditionalPointsActivity } from "./presentation";
+import { getSpreadsheetErrorMessage, getSpreadsheetProviderErrorCode, getStudentSpreadsheetErrorMessage, type SpreadsheetErrorCode } from "./spreadsheet-errors";
 
 export type ClassSummaryStudent = {
   studentNumber: string;
@@ -14,11 +16,22 @@ export type ClassSummaryStudent = {
 
 export type ClassSummaryResult =
   | { success: true; students: ClassSummaryStudent[] }
-  | { success: false; message: string };
+  | Failure;
+
+export type ClassRosterStudent = {
+  rowNumber: number;
+  studentNumber: string;
+  studentName: string;
+};
+
+export type ClassRosterResult =
+  | { success: true; students: ClassRosterStudent[] }
+  | Failure;
 
 export type ClassworkActivity = {
   name: string;
-  maxScore: number;
+  maxScore: number | null;
+  isAdditionalPoints?: boolean;
   isExcludable: boolean;
   score?: string | null;
 };
@@ -36,11 +49,11 @@ export type ClassworkPeriod = {
 
 export type ClassworkCatalogResult =
   | { success: true; periods: ClassworkPeriod[] }
-  | { success: false; message: string };
+  | Failure;
 
 export type StudentClassworkResult =
   | { success: true; record: ClassSummaryStudent; periods: ClassworkPeriod[] }
-  | { success: false; message: string; code?: StudentRecordErrorCode };
+  | Failure;
 
 export type StudentRecordErrorCode = "STUDENT_NUMBER_NOT_FOUND" | "STUDENT_REPORT_NOT_FOUND" | "STUDENT_RECORD_AMBIGUOUS";
 
@@ -48,17 +61,24 @@ const unavailableMessage = "Unable to load this class summary. Please try again 
 const malformedMessage = "The spreadsheet returned an incomplete class summary. Ask an administrator to check the spreadsheet connection.";
 const classworkUnavailableMessage = "Unable to load classwork from this class spreadsheet. Please try again later.";
 const classworkMalformedMessage = "The spreadsheet returned incomplete classwork. Ask an administrator to check the spreadsheet connection.";
-const recordsHiddenMessage = "This class has not enabled spreadsheet records in the portal.";
+const rosterUnavailableMessage = "Unable to load the class roster from this spreadsheet. Please try again later.";
+const rosterMalformedMessage = "The spreadsheet returned an incomplete class roster. Check the spreadsheet connection and its Apps Script deployment.";
+const rosterUpgradeMessage = "This spreadsheet service does not support class rosters yet. Update and redeploy the Apps Script service, then try again.";
+const unexpectedResponseMessage = "Unable to load spreadsheet records because the service returned an unexpected response. Ask an administrator to check the Apps Script deployment URL and response.";
 
-type Failure = { success: false; message: string; code?: StudentRecordErrorCode };
-type ScriptAction = "all_students" | "all_classworks" | "student";
+type Failure = { success: false; message: string; code?: SpreadsheetErrorCode };
+type ScriptAction = "all_students" | "all_classworks" | "student" | "class_roster";
 type SpreadsheetSettings = {
   viewRecords: boolean;
   viewExcluded: boolean;
 };
 
-function failure(message: string): Failure {
-  return { success: false, message };
+function failure(message: string, code?: SpreadsheetErrorCode): Failure {
+  return { success: false, message, ...(code ? { code } : {}) };
+}
+
+function codedFailure(code: SpreadsheetErrorCode, student = false): Failure {
+  return failure((student ? getStudentSpreadsheetErrorMessage(code) : getSpreadsheetErrorMessage(code))!, code);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -111,41 +131,40 @@ function gradeFields(record: Record<string, unknown>): Record<string, unknown> |
   return values;
 }
 
-function providerFailure(error: unknown): ClassSummaryResult {
-  if (error === "Invalid request" || error === "Unsupported action") {
-    return failure("The spreadsheet connection does not support class summaries yet. Ask an administrator to update the spreadsheet service.");
-  }
-  if (error === "Unauthorized") {
-    return failure("Unable to access this class spreadsheet. Ask an administrator to check the connection.");
+function providerFailure(payload: Record<string, unknown>, action: ScriptAction): Failure {
+  const code = getSpreadsheetProviderErrorCode(payload.code, payload.error);
+  const studentOnly = code === "STUDENT_NUMBER_REQUIRED" || code === "STUDENT_NUMBER_NOT_FOUND" ||
+    code === "STUDENT_REPORT_NOT_FOUND" || code === "STUDENT_RECORD_AMBIGUOUS";
+  if (code && (!studentOnly || action === "student")) return codedFailure(code, action === "student");
+  if (payload.code === "UNSUPPORTED_ACTION" || payload.error === "Invalid request" || payload.error === "Unsupported action") {
+    return failure(action === "class_roster" ? rosterUpgradeMessage : action === "all_students"
+      ? "The spreadsheet connection does not support class summaries yet. Ask an administrator to update the spreadsheet service."
+      : "This spreadsheet service does not support classwork yet. Update and redeploy the Apps Script service, then refresh.");
   }
   const messages: Record<string, string> = {
     "Worksheet not found": "The spreadsheet service could not find the class worksheet. Ask an administrator to check the spreadsheet connection.",
     "INPUT sheet not found": "The spreadsheet is missing its INPUT sheet.",
     "REPORT sheet not found": "The spreadsheet is missing its REPORT sheet.",
-    "Incomplete student records in INPUT": "The INPUT sheet has a student record without a name or student number.",
-    "Duplicate student number in INPUT": "The INPUT sheet has duplicate student numbers. Correct them before loading the summary.",
-    "Duplicate student name in INPUT": "The INPUT sheet has duplicate student names, so grades cannot be matched safely.",
-    "Duplicate student name in REPORT": "The REPORT sheet has duplicate student names, so grades cannot be matched safely.",
-    "Student missing from REPORT": "A student in the INPUT sheet is missing from REPORT. Check the spreadsheet before loading the summary.",
   };
+  const error = payload.error;
   if (typeof error === "string") {
     if (Object.hasOwn(messages, error)) return failure(messages[error]);
-    if (error.startsWith("Duplicate student number:")) return failure(messages["Duplicate student number in INPUT"]);
-    if (error.startsWith("Duplicate name in INPUT:")) return failure(messages["Duplicate student name in INPUT"]);
-    if (error.startsWith("Duplicate student in REPORT:")) return failure(messages["Duplicate student name in REPORT"]);
+    if (action === "class_roster" && error === "Request could not be completed") {
+      return failure("Unable to load the class roster. Check the spreadsheet connection, or update and redeploy the Apps Script service if it uses an older deployment.");
+    }
   }
-  return failure(unavailableMessage);
+  return failure(action === "class_roster" ? rosterUnavailableMessage : action === "all_students" ? unavailableMessage : classworkUnavailableMessage);
 }
 
 function summaryResponse(payload: unknown): ClassSummaryResult {
   if (!isObject(payload)) return failure(malformedMessage);
-  if (payload.success === false) return providerFailure(payload.error);
+  if (payload.success === false) return providerFailure(payload, "all_students");
   if (Object.hasOwn(payload, "action") && payload.action !== "all_students") return failure(malformedMessage);
   if (Object.hasOwn(payload, "settings")) {
     if (!isObject(payload.settings) ||
       (Object.hasOwn(payload.settings, "view_records_in_web_portal") &&
         typeof payload.settings.view_records_in_web_portal !== "boolean")) return failure(malformedMessage);
-    if (payload.settings.view_records_in_web_portal === false) return failure(recordsHiddenMessage);
+    if (payload.settings.view_records_in_web_portal === false) return codedFailure("RECORDS_DISABLED");
   }
   if (payload.success !== true || !isObject(payload.data) || !Array.isArray(payload.data.students)) {
     return failure(malformedMessage);
@@ -187,18 +206,60 @@ function summaryResponse(payload: unknown): ClassSummaryResult {
   return { success: true, students };
 }
 
+const htmlPrefixLength = 64 * 1024;
+
+/** Retain only a bounded HTML diagnostic prefix without limiting valid JSON summaries. */
+async function responseText(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return text + decoder.decode();
+      text += decoder.decode(value, { stream: true });
+      if (/^\s*</u.test(text) && text.length >= htmlPrefixLength) {
+        await reader.cancel();
+        return text.slice(0, htmlPrefixLength);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function googleAccessErrorCode(value: string): "SCRIPT_ACCESS_DENIED" | "SPREADSHEET_ACCESS_DENIED" | null {
+  const html = value.slice(0, htmlPrefixLength);
+  if (!/^\s*</u.test(html)) return null;
+  const googlePage = /(?:accounts|docs|drive|script)\.google\.com(?:\/|["'])|Google (?:Drive|Apps Script|Accounts)/iu.test(html);
+  if (!googlePage) return null;
+  const loginPage = /<title[^>]*>\s*Sign in[^<]*Google/iu.test(html) ||
+    /<form\b[^>]*action=["']https:\/\/accounts\.google\.com\//iu.test(html);
+  if (loginPage) return "SCRIPT_ACCESS_DENIED";
+  const documentDenied = /you (?:do not|don['’]t) have permission to access the requested document|wala kang pahintulot na i-access ang hiniling na dokumento/iu.test(html) ||
+    (/Google Drive|(?:docs|drive)\.google\.com\//iu.test(html) && /you (?:need access|need permission|don['’]t have access)/iu.test(html));
+  if (documentDenied) return "SPREADSHEET_ACCESS_DENIED";
+  const deniedPage = /you (?:need access|need permission|do not have (?:access|permission)|don['’]t have (?:access|permission))|access denied|wala kang pahintulot na i-access/iu.test(html);
+  return deniedPage ? "SCRIPT_ACCESS_DENIED" : null;
+}
+
 async function requestSpreadsheet(
   spreadsheetUrl: string,
   action: ScriptAction,
   studentNumber?: string,
 ): Promise<{ success: true; payload: unknown } | Failure> {
   const classwork = action !== "all_students";
+  const roster = action === "class_roster";
+  const requestUnavailableMessage = roster ? rosterUnavailableMessage : classwork ? classworkUnavailableMessage : unavailableMessage;
   const spreadsheetId = getSpreadsheetId(spreadsheetUrl);
   if (!spreadsheetId) return failure("This class does not have a valid Google Sheets link. Ask an administrator to check it.");
   const endpoint = scriptEndpoint(process.env.GOOGLE_SCRIPT_URL);
   const secret = process.env.GOOGLE_SCRIPT_SECRET;
   if (!endpoint || !secret) {
-    return failure(classwork
+    return failure(roster
+      ? "Class rosters are not configured. Ask an administrator to set up the spreadsheet connection."
+      : classwork
       ? "Classwork is not configured. Ask an administrator to set up the spreadsheet connection."
       : "Class summaries are not configured. Ask an administrator to set up the spreadsheet connection.");
   }
@@ -211,14 +272,55 @@ async function requestSpreadsheet(
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) return failure(classwork ? classworkUnavailableMessage : unavailableMessage);
-    return { success: true, payload: await response.json() };
+    if (response.status === 401 || response.status === 403) return codedFailure("SCRIPT_ACCESS_DENIED", action === "student");
+    if (!response.ok) return failure(requestUnavailableMessage);
+    const text = await responseText(response);
+    try {
+      return { success: true, payload: JSON.parse(text) as unknown };
+    } catch {
+      const code = googleAccessErrorCode(text);
+      return code ? codedFailure(code, action === "student") : failure(unexpectedResponseMessage);
+    }
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
       return failure("The class spreadsheet took too long to respond. Please try again.");
     }
-    return failure(classwork ? classworkUnavailableMessage : unavailableMessage);
+    return failure(requestUnavailableMessage);
   }
+}
+
+function rosterResponse(payload: unknown): ClassRosterResult {
+  if (!isObject(payload)) return failure(rosterMalformedMessage);
+  if (payload.success === false) return providerFailure(payload, "class_roster");
+  if (payload.success !== true || payload.action !== "class_roster" || !isObject(payload.settings) ||
+    typeof payload.settings.view_records_in_web_portal !== "boolean" ||
+    typeof payload.settings.view_excluded_columns_in_web_portal !== "boolean") return failure(rosterMalformedMessage);
+  if (!payload.settings.view_records_in_web_portal) return codedFailure("RECORDS_DISABLED");
+  if (!isObject(payload.data) || !Array.isArray(payload.data.students) ||
+    !Number.isSafeInteger(payload.data.total_students) || payload.data.total_students !== payload.data.students.length) {
+    return failure(rosterMalformedMessage);
+  }
+  const students: ClassRosterStudent[] = [];
+  let previousRow = 10;
+  for (const student of payload.data.students) {
+    if (!isObject(student) || typeof student.row_number !== "number" ||
+      !Number.isSafeInteger(student.row_number) || student.row_number <= previousRow ||
+      typeof student.student_num !== "string" || typeof student.student_name !== "string") {
+      return failure(rosterMalformedMessage);
+    }
+    const studentNumber = student.student_num.trim();
+    const studentName = student.student_name.trim();
+    if (!studentNumber && !studentName) return failure(rosterMalformedMessage);
+    previousRow = student.row_number;
+    students.push({ rowNumber: student.row_number, studentNumber, studentName });
+  }
+  return { success: true, students };
+}
+
+/** Read INPUT identities directly; grade-report matching must not hide roster problems. */
+export async function getClassRoster(spreadsheetUrl: string): Promise<ClassRosterResult> {
+  const response = await requestSpreadsheet(spreadsheetUrl, "class_roster");
+  return response.success ? rosterResponse(response.payload) : response;
 }
 
 export async function getClassSummary(spreadsheetUrl: string): Promise<ClassSummaryResult> {
@@ -230,27 +332,14 @@ function classworkEnvelope(payload: unknown, action: "all_classworks" | "student
   | { success: true; data: Record<string, unknown>; settings: SpreadsheetSettings }
   | Failure {
   if (!isObject(payload)) return failure(classworkMalformedMessage);
-  if (payload.success === false) {
-    if (action === "student") {
-      const messages: Record<StudentRecordErrorCode, string> = {
-        STUDENT_NUMBER_NOT_FOUND: "Your student number is not listed in this class spreadsheet. Ask your teacher to add or correct it.",
-        STUDENT_REPORT_NOT_FOUND: "Your grade record is not available in this class spreadsheet yet. Ask your teacher to check the REPORT sheet.",
-        STUDENT_RECORD_AMBIGUOUS: "Your spreadsheet records cannot be matched safely. Ask your teacher to correct duplicate student records.",
-      };
-      if (typeof payload.code === "string" && Object.hasOwn(messages, payload.code)) {
-        const code = payload.code as StudentRecordErrorCode;
-        return { success: false, message: messages[code], code };
-      }
-    }
-    return failure(classworkUnavailableMessage);
-  }
+  if (payload.success === false) return providerFailure(payload, action);
   if (payload.success !== true || payload.action !== action || !isObject(payload.data) ||
     !isObject(payload.settings) ||
     typeof payload.settings.view_records_in_web_portal !== "boolean" ||
     typeof payload.settings.view_excluded_columns_in_web_portal !== "boolean") {
     return failure(classworkMalformedMessage);
   }
-  if (!payload.settings.view_records_in_web_portal) return failure(recordsHiddenMessage);
+  if (!payload.settings.view_records_in_web_portal) return codedFailure("RECORDS_DISABLED", action === "student");
   return {
     success: true,
     data: payload.data,
@@ -280,16 +369,23 @@ function classworkPeriods(value: unknown, settings: SpreadsheetSettings, include
       const activities: ClassworkActivity[] = [];
       for (const rawActivity of rawCategory.activities) {
         if (!isObject(rawActivity) || typeof rawActivity.name !== "string" || !rawActivity.name.trim() ||
-          typeof rawActivity.max_score !== "number" || !Number.isFinite(rawActivity.max_score) || rawActivity.max_score <= 0 ||
+          (rawActivity.is_additional_points !== undefined && typeof rawActivity.is_additional_points !== "boolean") ||
           typeof rawActivity.is_excludable !== "boolean") return null;
         const name = rawActivity.name.replace(/`/g, "").trim();
         if (!name) return null;
+        const isAdditionalPoints = rawActivity.is_additional_points === true || isAdditionalPointsActivity(name);
+        if (!(isAdditionalPoints && rawActivity.max_score === null) &&
+          (typeof rawActivity.max_score !== "number" || !Number.isFinite(rawActivity.max_score) || rawActivity.max_score <= 0)) return null;
         const isExcludable = rawActivity.is_excludable || rawActivity.name.includes("`");
         if (isExcludable && !settings.viewExcluded) continue;
-        const activity: ClassworkActivity = { name, maxScore: rawActivity.max_score, isExcludable };
+        const activity: ClassworkActivity = { name, maxScore: isAdditionalPoints ? null : rawActivity.max_score as number, isExcludable,
+          ...(isAdditionalPoints ? { isAdditionalPoints: true } : {}) };
+        if (isAdditionalPoints && !includeScores) continue;
         if (includeScores) {
+          if (isAdditionalPoints && rawActivity.score == null) continue;
           const score = displayValue(rawActivity.score);
           if (score === undefined) return null;
+          if (isAdditionalPoints && (score === null || !score.trim())) continue;
           activity.score = score;
         }
         activities.push(activity);

@@ -272,6 +272,25 @@ export function readFormText(formData: FormData, key: string) {
   return readFormValue(formData, key).trim();
 }
 
+/** Assignment forms send one optional empty sentinel so clearing differs from a missing field. */
+export function readFormRecordIds(formData: FormData, key: string): bigint[] | null {
+  const entries = formData.getAll(key);
+  if (!entries.length || entries.length > 1001) return null;
+  const ids = new Set<bigint>();
+  let hasEmptyEntry = false;
+  for (const entry of entries) {
+    if (entry === "") {
+      if (hasEmptyEntry) return null;
+      hasEmptyEntry = true;
+      continue;
+    }
+    const id = typeof entry === "string" ? parseRecordId(entry, { maxDigits: 20 }) : null;
+    if (id === null) return null;
+    ids.add(id);
+  }
+  return [...ids];
+}
+
 export function readFormFields<const Fields extends readonly string[]>(
   formData: FormData,
   fields: Fields,

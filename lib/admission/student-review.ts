@@ -7,15 +7,18 @@ import { formatAcademicLevel } from "@/lib/academic-levels";
 import { ApplicationStatus, UserRole } from "@/lib/generated/prisma/enums";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { findStudentByEmail } from "@/lib/portal/student";
+import { createAdmissionUpdatedNotification } from "@/lib/notifications";
 import { literalInsensitiveEquality, normalizeEmail, parseRecordId } from "@/lib/utils";
 import { parseDateInput, validateSchoolYear } from "@/lib/validation";
 import { LastSchoolSelectionError, resolveLastSchool, runLastSchoolTransaction } from "./last-school-store";
 import { hasCompleteLastSchoolIdentity } from "./last-school-identity";
 import { studentProfileFromRecord, studentUpdateSelect } from "./records";
+import { saveStudentAddress, saveStudentGuardian } from "./student-relations";
 import {
   addressDataFromProfile,
   firstInvalidStudentUpdateField,
   guardianDataFromProfile,
+  lastSchoolFieldsFromRecord,
   normalizeStudentUpdateInput,
   studentDataFromProfile,
   studentUpdateFields,
@@ -95,16 +98,9 @@ class ReviewFieldError extends Error {
   constructor(readonly field: StudentUpdateField, message: string) { super(message); }
 }
 
-const schoolIdentityFields = [
-  "lastSchoolName", "lastSchoolId", "lastSchoolShortName", "lastSchoolType", "lastSchoolHouseNumber",
-  "lastSchoolSubdivision", "lastSchoolStreet", "lastSchoolBarangay", "lastSchoolCity",
-  "lastSchoolProvince", "lastSchoolPostalCode",
-] as const satisfies readonly StudentUpdateField[];
-
 /** Selected school details are reloaded inside the same transaction as the profile save. */
 async function canonicalReviewSchool(
   tx: Prisma.TransactionClient,
-  student: ReviewStudent,
   profile: UpdateStudentRecordInput,
   submittedRecordId: FormDataEntryValue | null,
 ) {
@@ -122,40 +118,10 @@ async function canonicalReviewSchool(
   });
   if (school?.verificationStatus !== "verified" || !hasCompleteLastSchoolIdentity(school)) throw new LastSchoolSelectionError();
 
-  const canonical = studentProfileFromRecord(student, { ...student.applications[0], lastSchool: school });
   return normalizeStudentUpdateInput({
     ...profile,
-    ...Object.fromEntries(schoolIdentityFields.map((field) => [field, canonical[field]])),
+    ...lastSchoolFieldsFromRecord(school),
   });
-}
-
-async function saveReviewAddress(tx: Prisma.TransactionClient, student: ReviewStudent, input: UpdateStudentRecordInput) {
-  const data = addressDataFromProfile(input, "address");
-  if (student.addressId !== null) {
-    const [studentCount, schoolCount] = await Promise.all([
-      tx.student.count({ where: { addressId: student.addressId } }),
-      tx.lastSchool.count({ where: { addressId: student.addressId } }),
-    ]);
-    if (studentCount <= 1 && schoolCount === 0) {
-      await tx.address.update({ where: { id: student.addressId }, data });
-      return student.addressId;
-    }
-  }
-  return (await tx.address.create({ data, select: { id: true } })).id;
-}
-
-async function saveReviewGuardian(tx: Prisma.TransactionClient, student: ReviewStudent, input: UpdateStudentRecordInput) {
-  const link = student.guardians[0];
-  const data = guardianDataFromProfile(input);
-  const isShared = link && await tx.studentGuardian.count({ where: { guardianId: link.guardianId } }) > 1;
-  const guardian = link && !isShared
-    ? await tx.guardian.update({ where: { id: link.guardianId }, data, select: { id: true } })
-    : await tx.guardian.create({
-        data: { ...data, email: null, addressId: null, facebookAccount: null }, select: { id: true },
-      });
-  const linkData = { guardianId: guardian.id, relationship: input.guardianRelationship, isPrimary: true };
-  if (link) await tx.studentGuardian.update({ where: { id: link.id }, data: linkData });
-  else await tx.studentGuardian.create({ data: { studentId: student.id, ...linkData } });
 }
 
 /** Save only editable profile details while the authenticated student's latest admission is reviewing. */
@@ -195,7 +161,7 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
       ])) as UpdateStudentRecordInput);
       const schoolRecordId = formData.get("lastSchoolRecordId");
       saveStage = "load-school";
-      const profile = await canonicalReviewSchool(tx, student, submittedProfile, schoolRecordId);
+      const profile = await canonicalReviewSchool(tx, submittedProfile, schoolRecordId);
       const invalidField = firstInvalidStudentUpdateField(profile);
       if (invalidField) throw new ReviewFieldError(invalidField, "Complete this field with valid information.");
       if (!validateSchoolYear(profile.lastSchoolYear)) {
@@ -209,15 +175,16 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
       if (!birthDate) throw new ReviewFieldError("birthDate", "Enter a valid birth date.");
 
       saveStage = "save-address";
-      const addressId = await saveReviewAddress(tx, student, profile);
+      const addressId = await saveStudentAddress(tx, student.addressId, addressDataFromProfile(profile, "address"));
       saveStage = "save-guardian";
-      await saveReviewGuardian(tx, student, profile);
+      await saveStudentGuardian(tx, student.id, student.guardians[0], guardianDataFromProfile(profile), profile.guardianRelationship);
       saveStage = "save-school";
       const lastSchool = await resolveLastSchool(tx, profile, typeof schoolRecordId === "string" ? schoolRecordId : undefined);
       saveStage = "save-admission";
       const savedApplication = await tx.admissionApplication.updateMany({
         where: { id: application.id, studentId: student.id, applicationStatus: ApplicationStatus.reviewing },
         data: {
+          applicationStatus: ApplicationStatus.updated,
           lastSchoolId: lastSchool.id,
           LSSchoolYearEnd: profile.lastSchoolYear,
           LSAttainedLevelText: profile.lastSchoolYearLevel,
@@ -233,6 +200,8 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
       await tx.student.update({
         where: { id: student.id }, data: { ...editableStudentData, addressId }, select: { id: true },
       });
+      saveStage = "save-notification";
+      await createAdmissionUpdatedNotification(tx, { applicationId: application.id, actorUserId: account.id });
     });
   } catch (error) {
     if (error instanceof LastSchoolSelectionError) {
@@ -255,12 +224,12 @@ export async function saveStudentAdmissionReview(formData: FormData): Promise<St
     return { success: false, message: "We could not save your information right now. Please try again." };
   }
 
-  for (const path of ["/portal/admission-review", "/portal/information", "/portal/admission", "/portal/students"]) {
+  for (const path of ["/portal/admission-review", "/portal/information", "/portal/admission", "/portal/students", "/portal/dashboard"]) {
     revalidatePath(path);
   }
   revalidatePath("/portal", "layout");
   revalidatePath(`/portal/admission/${applicationId}/edit`);
   revalidatePath(`/portal/students/${applicationId}`);
   revalidatePath(`/portal/students/${applicationId}/edit`);
-  return { success: true, message: "Your information has been saved. Your application is still under review." };
+  return { success: true, message: "Your information has been saved and sent to the administrator for review." };
 }

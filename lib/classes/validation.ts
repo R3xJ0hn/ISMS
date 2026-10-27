@@ -1,13 +1,13 @@
 import { capitalizeInputText, parseRecordId, readFormFields, readFormText } from "@/lib/utils";
 import { validateSchoolYear } from "@/lib/validation";
 import { getAcademicLevelOption, getSemesterOption } from "@/lib/academic-levels";
-import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
+import { ClassStatus, type AcademicLevel, type Semester } from "@/lib/generated/prisma/enums";
 
 export const classFields = [
   "schoolYear", "semester", "sectionName", "yearLevel", "teacherId", "programId", "subjectId", "branchId",
 ] as const;
 
-export type ClassFormValues = Record<typeof classFields[number], string> & { studentIds?: string[] };
+export type ClassFormValues = Record<typeof classFields[number], string> & { studentIds?: string[]; status?: string };
 export type ClassFormState = {
   success: boolean;
   message: string;
@@ -20,11 +20,17 @@ export type TeacherSpreadsheetFormState = {
   fieldErrors?: Partial<Record<"classId" | "spreadsheetUrl", string>>;
 };
 
+export type TeacherSpreadsheetRemovalFormState = {
+  success: boolean;
+  message: string;
+  fieldErrors?: Partial<Record<"classId" | "confirmation" | "expectedSpreadsheetUrl", string>>;
+};
+
 type ClassFormFailure = ClassFormState & { success: false };
 type ClassFormSuccess = {
   success: true;
   id?: bigint;
-  data: { schoolYear: string; semester: Semester; sectionName: string; teacherId: bigint; branchId: bigint; programId: bigint; subjectId: bigint; yearLevel: AcademicLevel };
+  data: { schoolYear: string; semester: Semester; sectionName: string; teacherId: bigint; branchId: bigint; programId: bigint; subjectId: bigint; yearLevel: AcademicLevel; status?: ClassStatus };
   studentIds?: bigint[];
 };
 
@@ -69,6 +75,25 @@ export function parseTeacherSpreadsheetForm(formData: FormData):
   return { success: true, id, spreadsheetUrl };
 }
 
+export function parseTeacherSpreadsheetRemovalForm(formData: FormData):
+  | (TeacherSpreadsheetRemovalFormState & { success: false })
+  | { success: true; id: bigint; confirmation: string; expectedSpreadsheetUrl: string } {
+  const ids = formData.getAll("classId");
+  const confirmations = formData.getAll("confirmation");
+  const urls = formData.getAll("expectedSpreadsheetUrl");
+  const id = ids.length === 1 && typeof ids[0] === "string" ? parseClassId(ids[0]) : null;
+  const confirmation = confirmations.length === 1 && typeof confirmations[0] === "string" ? confirmations[0] : "";
+  const expectedSpreadsheetUrl = urls.length === 1 && typeof urls[0] === "string" ? normalizeSpreadsheetUrl(urls[0]) : null;
+  const fieldErrors: NonNullable<TeacherSpreadsheetRemovalFormState["fieldErrors"]> = {};
+  if (id === null) fieldErrors.classId = "Choose a valid class.";
+  if (!confirmation || confirmation.length > 128) fieldErrors.confirmation = "Type the confirmation exactly as shown.";
+  if (!expectedSpreadsheetUrl) fieldErrors.expectedSpreadsheetUrl = "Reload the class before removing its spreadsheet link.";
+  if (Object.keys(fieldErrors).length || id === null || !confirmation || !expectedSpreadsheetUrl) {
+    return { success: false, message: "Check the highlighted fields.", fieldErrors };
+  }
+  return { success: true, id, confirmation, expectedSpreadsheetUrl };
+}
+
 export function parseClassForm(
   formData: FormData,
   mode: "edit",
@@ -91,6 +116,12 @@ export function parseClassForm(
   const subjectId = parseClassId(values.subjectId);
   const yearLevel = getAcademicLevelOption(values.yearLevel)?.value;
   const semester = formData.getAll("semester").length === 1 ? getSemesterOption(values.semester)?.value : undefined;
+  const statusEntries = formData.getAll("status");
+  const statusInput = readFormText(formData, "status");
+  const status = statusEntries.length === 0
+    ? mode === "create" ? ClassStatus.ongoing : undefined
+    : statusEntries.length === 1 && Object.values(ClassStatus).includes(statusInput as ClassStatus) ? statusInput as ClassStatus : undefined;
+  if (statusEntries.length && !status) fieldErrors.status = "Select a valid class status.";
   let studentIds: bigint[] | undefined;
   if (formData.has("studentIds")) {
     const entries = formData.getAll("studentIds");
@@ -131,6 +162,7 @@ export function parseClassForm(
     data: {
       schoolYear: values.schoolYear.replace(/\s*-\s*/g, "-"),
       semester,
+      ...(status !== undefined ? { status } : {}),
       sectionName: values.sectionName,
       yearLevel,
       teacherId,

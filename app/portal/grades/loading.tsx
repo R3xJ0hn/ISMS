@@ -11,7 +11,7 @@ export default function Loading() {
           <Skeleton className="h-8 w-72 max-w-full" />
           <Skeleton className="h-4 w-40" />
         </div>
-        <Skeleton className="h-10 w-48" />
+        <div className="flex flex-wrap gap-3"><Skeleton className="h-10 w-40" /><Skeleton className="h-10 w-40" /></div>
       </section>
 
       <GradesTableSkeleton />

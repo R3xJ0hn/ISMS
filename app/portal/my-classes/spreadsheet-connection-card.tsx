@@ -7,19 +7,32 @@ import { Button } from "@/components/ui/button";
 import { normalizeSpreadsheetUrl } from "@/lib/classes/validation";
 import { classroomTheme } from "@/lib/portal/theme";
 import { cn } from "@/lib/utils";
-import { SpreadsheetLinkForm } from "./spreadsheet-link-form";
+import { SpreadsheetLinkForm, SpreadsheetRemoveForm } from "./spreadsheet-link-form";
 
-export function SpreadsheetConnectionCard({ classId, spreadsheetUrl }: { classId: string; spreadsheetUrl: string | null }) {
+export function SpreadsheetConnectionCard({ classId, classCode, spreadsheetUrl }: { classId: string; classCode: string; spreadsheetUrl: string | null }) {
   const linked = Boolean(spreadsheetUrl && normalizeSpreadsheetUrl(spreadsheetUrl));
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dialogSpreadsheetUrl, setDialogSpreadsheetUrl] = useState(spreadsheetUrl);
+  const [removing, setRemoving] = useState(false);
+  const [removalAttempt, setRemovalAttempt] = useState(0);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const ActionIcon = linked ? Pencil : Plus;
   const actionLabel = linked ? "Edit Google Sheets link" : "Add Google Sheets link";
   const statusColor = linked ? "text-emerald-700" : "text-red-700";
+  const dialogLinked = Boolean(dialogSpreadsheetUrl && normalizeSpreadsheetUrl(dialogSpreadsheetUrl));
 
   function changeOpen(nextOpen: boolean) {
-    if (!busy) setOpen(nextOpen);
+    if (busy) return;
+    if (nextOpen) setDialogSpreadsheetUrl(spreadsheetUrl);
+    setOpen(nextOpen);
+    if (!nextOpen) setRemoving(false);
+  }
+
+  function showRemoval() {
+    if (busy || !dialogLinked) return;
+    setRemovalAttempt((attempt) => attempt + 1);
+    setRemoving(true);
   }
 
   return (
@@ -43,12 +56,21 @@ export function SpreadsheetConnectionCard({ classId, spreadsheetUrl }: { classId
           className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-xl outline-none sm:p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <Dialog.Title className="text-lg font-semibold">{actionLabel}</Dialog.Title>
-              <Dialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">{linked ? "Update the spreadsheet used for this class's student records and grade summary." : "Connect this class to its student records and grade summary."}</Dialog.Description>
+              <Dialog.Title className="text-lg font-semibold">{removing ? "Remove Google Sheets link" : actionLabel}</Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">{removing ? `Confirm that you want to disconnect the spreadsheet from ${classCode}.` : linked ? "Update the spreadsheet used for this class's student records and grade summary." : "Connect this class to its student records and grade summary."}</Dialog.Description>
             </div>
             <Dialog.Close asChild><Button type="button" variant="ghost" size="icon-sm" aria-label="Close spreadsheet dialog" disabled={busy} className="shrink-0"><X aria-hidden="true" /></Button></Dialog.Close>
           </div>
-          <SpreadsheetLinkForm classId={classId} spreadsheetUrl={spreadsheetUrl} onCancel={() => changeOpen(false)} onPendingChange={setBusy} />
+          <div className="relative overflow-hidden">
+            <div inert={removing} aria-hidden={removing} className={cn("min-w-0 transition-transform duration-300 ease-in-out motion-reduce:transition-none", removing ? "absolute inset-x-0 top-0 -translate-x-full" : "relative translate-x-0")}>
+              <SpreadsheetLinkForm classId={classId} spreadsheetUrl={dialogSpreadsheetUrl} active={!removing}
+                onCancel={() => changeOpen(false)} onRemove={dialogLinked ? showRemoval : undefined} onPendingChange={setBusy} />
+            </div>
+            {dialogLinked && dialogSpreadsheetUrl && <div inert={!removing} aria-hidden={!removing} className={cn("min-w-0 transition-transform duration-300 ease-in-out motion-reduce:transition-none", removing ? "relative translate-x-0" : "absolute inset-x-0 top-0 translate-x-full")}>
+              <SpreadsheetRemoveForm key={removalAttempt} classId={classId} classCode={classCode} spreadsheetUrl={dialogSpreadsheetUrl} active={removing}
+                onCancel={() => { if (!busy) setRemoving(false); }} onPendingChange={setBusy} />
+            </div>}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

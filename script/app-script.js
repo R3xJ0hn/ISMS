@@ -6,6 +6,7 @@
  * 1. student
  * 2. all_students
  * 3. all_classworks
+ * 4. class_roster (INPUT identities only; REPORT is not required)
  *
  * Required sheets:
  * INPUT, REPORT, Prelim, Midterm, Pre-Finals, Finals
@@ -67,10 +68,38 @@ function normalize(value) {
     .replace(/\s+/g, " ");
 }
 
-function studentRequestError(code, message = "Student request could not be completed") {
-  const error = new Error(message);
-  error.code = code;
+// Only errors created here can supply response codes. Native/provider error.code
+// values and exception text are never trusted or returned to portal users.
+const requestErrors = new WeakMap();
+const responseErrorCodes = new Set([
+  "SPREADSHEET_ACCESS_DENIED", "SPREADSHEET_OPEN_FAILED",
+  "DUPLICATE_STUDENT_NUMBER_INPUT", "DUPLICATE_STUDENT_NAME_INPUT",
+  "DUPLICATE_STUDENT_NAME_REPORT", "INCOMPLETE_STUDENT_INPUT", "STUDENT_MISSING_REPORT",
+  "STUDENT_NUMBER_REQUIRED", "STUDENT_NUMBER_NOT_FOUND",
+  "STUDENT_REPORT_NOT_FOUND", "STUDENT_RECORD_AMBIGUOUS"
+]);
+
+function requestError(code, studentCode = code) {
+  const error = new Error("Spreadsheet request could not be completed");
+  requestErrors.set(error, { code, studentCode });
   return error;
+}
+
+function studentRequestError(code) {
+  return requestError(code);
+}
+
+function openSpreadsheet(spreadsheetId) {
+  try {
+    return SpreadsheetApp.openById(spreadsheetId);
+  } catch (error) {
+    const message = error && typeof error.message === "string" ? error.message.trim() : "";
+    // Missing/deleted and service failures are ambiguous; only explicit document
+    // permission denials should prompt changing spreadsheet sharing.
+    const permissionDenied = message === "Wala kang pahintulot na i-access ang hiniling na dokumento." ||
+      /^(?:Exception:\s*)?You do not have permission to access (?:the requested document|this document|this spreadsheet|the document)\.?$/i.test(message);
+    throw requestError(permissionDenied ? "SPREADSHEET_ACCESS_DENIED" : "SPREADSHEET_OPEN_FAILED");
+  }
 }
 
 function toValue(value) {
@@ -171,12 +200,36 @@ function getStudents(input) {
   );
 
   return rows
-    .filter(row => clean(row[1]))
+    .filter(row => clean(row[1]) || clean(row[5]))
     .map(row => ({
       student_num: clean(row[5]),
       student_name: clean(row[1]),
       note: clean(row[7]) || null
     }));
+}
+
+// Roster review must retain incomplete and duplicated identities so the portal
+// can explain them. Read only student names (B) and numbers (F), never notes.
+function getClassRoster(input) {
+  const start = CONFIG.input.studentStartRow;
+  const lastRow = input.getLastRow();
+  if (lastRow < start) return { total_students: 0, students: [] };
+  const height = lastRow - start + 1;
+  const names = readRows(input, start, 2, height, 1);
+  const numbers = readRows(input, start, 6, height, 1);
+  const students = [];
+  for (let index = 0; index < height; index++) {
+    const studentName = clean(names[index][0]);
+    const studentNumber = clean(numbers[index][0]);
+    if (studentName || studentNumber) {
+      students.push({
+        row_number: start + index,
+        student_num: studentNumber,
+        student_name: studentName
+      });
+    }
+  }
+  return { total_students: students.length, students };
 }
 
 function buildStudentIndex(students) {
@@ -187,22 +240,19 @@ function buildStudentIndex(students) {
     const nameKey = normalize(student.student_name);
     const numberKey = student.student_num;
 
+    if (!nameKey || !numberKey) {
+      throw requestError("INCOMPLETE_STUDENT_INPUT", "STUDENT_RECORD_AMBIGUOUS");
+    }
+
     if (byName.has(nameKey)) {
-      throw studentRequestError(
-        "STUDENT_RECORD_AMBIGUOUS",
-        "Duplicate student name: " +
-        student.student_name
-      );
+      throw requestError("DUPLICATE_STUDENT_NAME_INPUT", "STUDENT_RECORD_AMBIGUOUS");
     }
 
     byName.set(nameKey, student);
 
     if (numberKey) {
       if (byNumber.has(numberKey)) {
-        throw studentRequestError(
-          "STUDENT_RECORD_AMBIGUOUS",
-          "Duplicate student number: " + numberKey
-        );
+        throw requestError("DUPLICATE_STUDENT_NUMBER_INPUT", "STUDENT_RECORD_AMBIGUOUS");
       }
 
       byNumber.set(numberKey, student);
@@ -241,7 +291,8 @@ function formatGrades(values, note) {
   return grades;
 }
 
-function getAllReportStudents(book, students) {
+function getAllReportStudents(book, students, requireCompleteReport = false) {
+  const index = buildStudentIndex(students);
   const report = book.getSheetByName("REPORT");
 
   if (!report) {
@@ -251,9 +302,10 @@ function getAllReportStudents(book, students) {
   const start = CONFIG.report.startRow;
   const lastRow = report.getLastRow();
 
-  if (lastRow < start) return [];
-
-  const index = buildStudentIndex(students);
+  if (lastRow < start) {
+    if (requireCompleteReport && students.length) throw requestError("STUDENT_MISSING_REPORT", "STUDENT_REPORT_NOT_FOUND");
+    return [];
+  }
 
   const rows = readRows(
     report,
@@ -278,10 +330,7 @@ function getAllReportStudents(book, students) {
     if (!student) return;
 
     if (seen.has(key)) {
-      throw studentRequestError(
-        "STUDENT_RECORD_AMBIGUOUS",
-        "Duplicate student in REPORT: " + name
-      );
+      throw requestError("DUPLICATE_STUDENT_NAME_REPORT", "STUDENT_RECORD_AMBIGUOUS");
     }
 
     seen.add(key);
@@ -295,6 +344,10 @@ function getAllReportStudents(book, students) {
       )
     });
   });
+
+  if (requireCompleteReport && results.length !== students.length) {
+    throw requestError("STUDENT_MISSING_REPORT", "STUDENT_REPORT_NOT_FOUND");
+  }
 
   return results;
 }
@@ -347,6 +400,7 @@ function getActivityGroups(headers) {
     const normalized = normalize(title);
 
     const isCategory =
+      /^ADDITIONAL POINTS\b/.test(normalized.replace(/`/g, "")) ||
       normalized.includes("WRITTEN") ||
       normalized.includes("PERFORMANCE") ||
       normalized.includes("QUARTERLY");
@@ -370,15 +424,28 @@ function parseActivity(
 ) {
   const rawName = clean(headers[1][col]);
   const rawMax = clean(headers[2][col]);
+  const additionalPoints = [rawName, clean(headers[0][col]), rawMax]
+    .find(value => /^ADDITIONAL POINTS\b/.test(normalize(value.replace(/`/g, ""))));
 
   // Backtick anywhere in name = excludable.
-  const isExcludable = rawName.includes("`");
+  const isExcludable = rawName.includes("`") || (additionalPoints || "").includes("`");
 
   if (
     isExcludable &&
     !settings.view_excluded_columns_in_web_portal
   ) {
     return null;
+  }
+
+  // These are percentage-point additions, not an assessment with a maximum score.
+  if (additionalPoints) {
+    return {
+      name: "Additional Points (Added to Performance Task %)",
+      max_score: null,
+      is_additional_points: true,
+      is_excludable: isExcludable,
+      column_index: col
+    };
   }
 
   let name = rawName.replace(/`/g, "").trim();
@@ -526,12 +593,15 @@ function readPeriod(
       );
 
       if (!activity) continue;
+      // Only a selected student's nonblank additional points belong in records.
+      if (activity.is_additional_points && (studentScores === null || clean(studentScores[col]) === "")) continue;
 
       const output = {
         name: activity.name,
         max_score: activity.max_score,
         is_excludable: activity.is_excludable
       };
+      if (activity.is_additional_points) output.is_additional_points = true;
 
       if (studentName !== null) {
         output.score = studentScores === null
@@ -587,7 +657,8 @@ function getClassReport(book, input) {
 
   const reportStudents = getAllReportStudents(
     book,
-    students
+    students,
+    true
   );
 
   return {
@@ -693,11 +764,12 @@ function doPost(e) {
     const supportedActions = [
       "student",
       "all_students",
-      "all_classworks"
+      "all_classworks",
+      "class_roster"
     ];
 
     if (!supportedActions.includes(action)) {
-      throw new Error("Unsupported action");
+      return json({ success: false, error: "Unsupported action", code: "UNSUPPORTED_ACTION" });
     }
 
     if (
@@ -706,9 +778,7 @@ function doPost(e) {
       throw new Error("Invalid spreadsheet ID");
     }
 
-    const book = SpreadsheetApp.openById(
-      spreadsheetId
-    );
+    const book = openSpreadsheet(spreadsheetId);
 
     const input = book.getSheetByName("INPUT");
 
@@ -718,9 +788,17 @@ function doPost(e) {
 
     const settings = getSettings(input);
 
+    if (!settings.view_records_in_web_portal) {
+      return json({ success: true, action, settings, data: {} });
+    }
+
     let data;
 
     switch (action) {
+      case "class_roster":
+        data = getClassRoster(input);
+        break;
+
       case "all_classworks":
         data = getAllClassworks(
           book,
@@ -754,21 +832,17 @@ function doPost(e) {
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Spreadsheet request could not be completed");
 
     const response = {
       success: false,
       error: "Request could not be completed"
     };
     // Only fixed codes leave the script; never expose exception text or IDs.
-    const studentErrorCodes = [
-      "STUDENT_NUMBER_REQUIRED",
-      "STUDENT_NUMBER_NOT_FOUND",
-      "STUDENT_REPORT_NOT_FOUND",
-      "STUDENT_RECORD_AMBIGUOUS"
-    ];
-    if (studentRequest && error && studentErrorCodes.includes(error.code)) {
-      response.code = error.code;
+    const trustedError = error && typeof error === "object" ? requestErrors.get(error) : null;
+    const code = trustedError && (studentRequest ? trustedError.studentCode : trustedError.code);
+    if (responseErrorCodes.has(code)) {
+      response.code = code;
     }
     return json(response);
   }

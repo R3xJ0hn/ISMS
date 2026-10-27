@@ -44,7 +44,13 @@ function missingSubjectError(): ClassFormState {
 
 function saveClassError(error: unknown): ClassFormState {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    if (error.code === "P2002") return duplicateClassError();
+    if (error.code === "P2002") {
+      const targets = Array.isArray(error.meta?.target) ? error.meta.target : [error.meta?.target];
+      if (targets.some((target) => typeof target === "string" && /class_?code/i.test(target))) {
+        return { success: false, message: "The class reference could not be generated. Please try again." };
+      }
+      return duplicateClassError();
+    }
     if (error.code === "P2025") return missingClassError();
     if (error.code === "P2003") return { success: false, message: "The selected class assignment changed while saving. Check the teacher, branch, program and subject and try again." };
     if (error.code === "P2034") return { success: false, message: "Classes changed while saving. Please try again." };
@@ -55,7 +61,7 @@ function saveClassError(error: unknown): ClassFormState {
 
 function refreshClassPages(id: bigint) {
   for (const path of [
-    "/portal/classes", `/portal/classes/${id}/edit`, "/portal/my-classes", `/portal/my-classes/${id}`,
+    "/portal/classes", `/portal/classes/${id}`, `/portal/classes/${id}/edit`, "/portal/my-classes", `/portal/my-classes/${id}`,
     "/portal/classroom", `/portal/classroom/${id}`, "/portal/grades",
   ]) revalidatePath(path);
 }

@@ -1,4 +1,4 @@
-import { parseRecordId, readFormText } from "@/lib/utils";
+import { parseRecordId, readFormRecordIds, readFormText } from "@/lib/utils";
 
 export type BranchProgramFormState = {
   success: boolean;
@@ -17,11 +17,9 @@ export function parseBranchProgramForm(formData: FormData):
   if (branchId === null) return {
     success: false, message: "Choose an existing branch.", fieldErrors: { branchId: "Choose a valid branch." },
   };
-  const entries = formData.getAll("programIds");
-  const selections = entries.filter((entry) => entry !== "");
-  const programIds = selections.map((entry) => typeof entry === "string" ? parseBranchProgramId(entry) : null);
-  if (!entries.length || entries.length > 1001 || entries.length - selections.length > 1 || programIds.some((id) => id === null)) return {
+  const programIds = readFormRecordIds(formData, "programIds");
+  if (programIds === null) return {
     success: false, message: "Check the selected programs.", fieldErrors: { programIds: "Select existing programs, or clear all selections." },
   };
-  return { success: true, branchId, programIds: [...new Set(programIds as bigint[])] };
+  return { success: true, branchId, programIds };
 }

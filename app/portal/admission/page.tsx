@@ -3,6 +3,7 @@ import { AddAdmittedStudentModal, BulkAdmitStudentsModal } from "@/app/portal/ad
 import { AdmissionsTable } from "./admissions-table";
 import { PortalCount, PortalPageHeader } from "@/components/portal/page-header";
 import { requireAdmin } from "@/lib/auth";
+import { getAdmissionLastSchools } from "@/lib/admission/last-school-catalog";
 
 import { ApplicationStatus } from "@/lib/generated/prisma/enums";
 import { getPortalAdmissionOptions } from "@/lib/portal/admission-options";
@@ -17,7 +18,7 @@ export default async function AdmissionPage({ searchParams }: AdmissionPageProps
 
   const branchId = (await searchParams)?.branchId;
   const selectedBranchId = parseRecordId((Array.isArray(branchId) ? branchId[0] : branchId) ?? "");
-  const [admittedStudents, options] = await Promise.all([
+  const [admittedStudents, options, lastSchools] = await Promise.all([
     prisma.admissionApplication.findMany({
       where: {
         applicationStatus: { not: ApplicationStatus.approved },
@@ -40,6 +41,7 @@ export default async function AdmissionPage({ searchParams }: AdmissionPageProps
       },
     }),
     getPortalAdmissionOptions(),
+    getAdmissionLastSchools(),
   ]);
 
   return (
@@ -52,7 +54,7 @@ export default async function AdmissionPage({ searchParams }: AdmissionPageProps
         <div className="flex flex-wrap items-center gap-2">
           <PortalCount count={admittedStudents.length} label="applications" />
           <BulkAdmitStudentsModal options={options} />
-          <AddAdmittedStudentModal options={options} />
+          <AddAdmittedStudentModal options={options} lastSchools={lastSchools.schools} lastSchoolsError={lastSchools.error} />
         </div>
       </PortalPageHeader>
 

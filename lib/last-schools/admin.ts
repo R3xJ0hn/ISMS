@@ -9,8 +9,8 @@ import { addressSelect } from "@/lib/admission/records";
 import { findMatchingLastSchool, resolveLastSchool, runLastSchoolTransaction } from "@/lib/admission/last-school-store";
 import { hasCompleteLastSchoolIdentity } from "@/lib/admission/last-school-identity";
 import { addressDataFromProfile, lastSchoolDataFromProfile, normalizeStudentUpdateInput, studentUpdateFields, type UpdateStudentRecordInput } from "@/lib/admission/student-fields";
-import { capitalizeInputText, enumIncludes, formatAddress, parseRecordId, readFormText, sanitizeInputText } from "@/lib/utils";
-import type { LastSchoolField, LastSchoolFormRecord, LastSchoolFormState, LastSchoolTableRow } from "./types";
+import { capitalizeInputText, enumIncludes, formatAddress, formatStudentName, parsePositiveSafeInteger, parseRecordId, readFormText, sanitizeInputText } from "@/lib/utils";
+import type { LastSchoolField, LastSchoolFormRecord, LastSchoolFormState, LastSchoolStudentsPage, LastSchoolTableRow } from "./types";
 
 const schoolSelect = {
   id: true, schoolName: true, schoolId: true, shortName: true, schoolType: true, addressId: true,
@@ -49,6 +49,57 @@ export async function getManagedLastSchool(schoolId: string): Promise<LastSchool
   return school ? formRecord(school) : null;
 }
 
+/** Bounded admission records linked to one school; no contact or account details are exposed. */
+export async function getManagedLastSchoolStudents(schoolId: string, search: {
+  query?: string | string[];
+  page?: string | string[];
+} = {}): Promise<LastSchoolStudentsPage | null> {
+  await requireAdmin();
+  const id = parseRecordId(schoolId, { canonical: true, maxDigits: 19 });
+  if (id === null) return null;
+  const school = await prisma.lastSchool.findUnique({ where: { id }, select: { id: true, schoolName: true } });
+  if (!school) return null;
+
+  const query = sanitizeInputText(typeof search.query === "string" ? search.query : "").slice(0, 120).trim();
+  const requestedPage = typeof search.page === "string" ? parsePositiveSafeInteger(search.page) ?? 1 : 1;
+  const pageSize = 50;
+  const where: Prisma.AdmissionApplicationWhereInput = {
+    lastSchoolId: id,
+    ...(query ? { AND: query.split(/\s+/).map((term) => {
+      const contains = { contains: term.replace(/[\\%_]/g, (character) => `\\${character}`), mode: "insensitive" as const };
+      return { OR: [
+        { student: { firstName: contains } }, { student: { middleName: contains } },
+        { student: { lastName: contains } }, { student: { suffix: contains } }, { student: { studentNumber: contains } },
+        { branch: { title: contains } }, { program: { code: contains } }, { program: { label: contains } },
+      ] };
+    }) } : {}),
+  };
+  const total = await prisma.admissionApplication.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const applications = await prisma.admissionApplication.findMany({
+    where,
+    orderBy: [{ student: { lastName: "asc" } }, { student: { firstName: "asc" } }, { id: "asc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+    select: {
+      id: true,
+      applicationStatus: true,
+      student: { select: { firstName: true, middleName: true, lastName: true, suffix: true, studentNumber: true } },
+      branch: { select: { title: true } },
+      program: { select: { code: true, label: true } },
+    },
+  });
+  return {
+    school: { id: school.id.toString(), schoolName: school.schoolName }, query, page, pageSize, total, totalPages,
+    students: applications.map((application) => ({
+      applicationId: application.id.toString(), name: formatStudentName(application.student),
+      studentNumber: application.student.studentNumber, branch: application.branch.title,
+      program: `${application.program.code} - ${application.program.label}`, applicationStatus: application.applicationStatus,
+    })),
+  };
+}
+
 function parseSchoolForm(formData: FormData) {
   const values = Object.fromEntries(Object.keys(fieldLimits).map((field) => [
     field, field === "postalCode" ? sanitizeInputText(readFormText(formData, field)) : capitalizeInputText(readFormText(formData, field)),
@@ -81,6 +132,7 @@ function schoolProfile(values: ReturnType<typeof parseSchoolForm>["values"], sch
 function refreshSchools() {
   for (const path of ["/portal/last-schools", "/portal/admission", "/portal/students", "/portal/admission-review", "/portal/information", "/admission"]) revalidatePath(path);
   revalidatePath("/portal/last-schools/[schoolId]/edit", "page");
+  revalidatePath("/portal/last-schools/[schoolId]/students", "page");
   revalidatePath("/portal/admission/[applicationId]/edit", "page");
   revalidatePath("/portal/students/[applicationId]", "page");
 }
@@ -131,7 +183,7 @@ export async function saveManagedLastSchool(formData: FormData): Promise<LastSch
           },
         });
       } else {
-        const school = await resolveLastSchool(tx, profile);
+        const school = await resolveLastSchool(tx, profile, undefined, { matchSuggestion: false });
         await tx.lastSchool.update({ where: { id: school.id }, data: { verificationStatus: "verified", reviewedAt: new Date() } });
       }
       return { success: true, message: saved ? intent === "verify" ? "School details saved and verified." : "School details updated." : "School added and verified." };

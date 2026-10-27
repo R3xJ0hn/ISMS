@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import {
   BookOpen,
+  Building2,
   ClipboardList,
   GraduationCap,
   History,
   Info,
+  LayoutDashboard,
   Mail,
   PanelsTopLeft,
   Settings2,
@@ -17,20 +18,12 @@ import {
 } from "lucide-react";
 
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/generated/prisma/enums";
 import { isActivePath } from "@/lib/utils";
@@ -39,228 +32,103 @@ type SidebarLinkItem = {
   title: string;
   href: string;
   icon: LucideIcon;
+  exact?: boolean;
+  superAdminOnly?: boolean;
 };
 
-type SidebarParentItem = {
+type SidebarLinkGroup = {
   title: string;
-  icon: LucideIcon;
-  children: SidebarLinkItem[];
+  items: SidebarLinkItem[];
 };
 
-type SidebarItem = SidebarLinkItem | SidebarParentItem;
-
-function getSidebarItems(role: UserRoleValue): SidebarItem[] {
-  if (role === UserRole.teacher) {
-    return [
-      {
-        title: "My Classes",
-        href: "/portal/my-classes",
-        icon: BookOpen,
-      },
-    ];
-  }
-
-  if (role === UserRole.student) {
-    return [
-      {
-        title: "Grades",
-        href: "/portal/grades",
-        icon: GraduationCap,
-      },
-    ];
-  }
-
-  if (role === UserRole.admin || role === UserRole.superAdmin) {
-    return [
-      {
-        title: "Login History",
-        href: "/portal/login-history",
-        icon: History,
-      },
-    ];
-  }
-
-  return [
-    {
-      title: "Portal",
-      href: "/portal",
-      icon: PanelsTopLeft,
-    },
-  ];
-}
-
-function getManagementItems(role: UserRoleValue): SidebarItem[] {
-  if (role === UserRole.admin || role === UserRole.superAdmin) {
-    return [
-      {
-        title: "Manage Students",
-        icon: Users,
-        children: [
-          {
-            title: "Admission",
-            href: "/portal/admission",
-            icon: ClipboardList,
-          },
-          {
-            title: "Students",
-            href: "/portal/students",
-            icon: GraduationCap,
-          },
-        ],
-      },
+const adminGroups: SidebarLinkGroup[] = [
+  {
+    title: "Navigation",
+    items: [
+      { title: "Dashboard", href: "/portal/dashboard", icon: LayoutDashboard, exact: true },
+    ],
+  },
+  {
+    title: "Students",
+    items: [
+      { title: "Admissions", href: "/portal/admission", icon: ClipboardList },
+      { title: "Manage Students", href: "/portal/students", icon: GraduationCap },
+      { title: "Manage Last Schools", href: "/portal/last-schools", icon: Building2 },
+    ],
+  },
+  {
+    title: "Academics",
+    items: [
+      { title: "Manage Classes", href: "/portal/classes", icon: ClipboardList, superAdminOnly: true },
+      { title: "Manage Programs", href: "/portal/programs", icon: BookOpen, superAdminOnly: true },
+      { title: "Manage Subjects", href: "/portal/subjects", icon: BookOpen, superAdminOnly: true },
+      { title: "Manage Branch Programs", href: "/portal/branch-programs", icon: Building2 },
+    ],
+  },
+  {
+    title: "People & Access",
+    items: [
+      { title: "Manage Employees", href: "/portal/employees", icon: Users, superAdminOnly: true },
+      { title: "Manage Teachers", href: "/portal/teachers", icon: GraduationCap, superAdminOnly: true },
       { title: "Manage Users", href: "/portal/users", icon: Users },
-      { title: "Manage Last Schools", href: "/portal/last-schools", icon: GraduationCap },
-      { title: "Manage Branch Programs", href: "/portal/branch-programs", icon: BookOpen },
-      ...(role === UserRole.superAdmin ? [
-        { title: "Manage Classes", href: "/portal/classes", icon: ClipboardList },
-        { title: "Manage Employees", href: "/portal/employees", icon: Users },
-        { title: "Manage Teachers", href: "/portal/teachers", icon: Users },
-        { title: "Manage Programs", href: "/portal/programs", icon: BookOpen },
-        { title: "Manage Subjects", href: "/portal/subjects", icon: BookOpen },
-      ] : []),
-    ];
+      { title: "Login History", href: "/portal/login-history", icon: History },
+    ],
+  },
+  {
+    title: "Website",
+    items: [
+      { title: "Site Settings", href: "/portal/site-settings", icon: Settings2, exact: true },
+      { title: "About Us", href: "/portal/site-settings/about", icon: Info },
+      { title: "Contact", href: "/portal/site-settings/contact", icon: Mail },
+    ],
+  },
+];
+
+function getSidebarGroups(role: UserRoleValue): SidebarLinkGroup[] {
+  if (role === UserRole.admin || role === UserRole.superAdmin) {
+    return adminGroups.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.superAdminOnly || role === UserRole.superAdmin),
+    }));
   }
 
-  return [];
-}
+  const items: SidebarLinkItem[] = role === UserRole.teacher
+    ? [{ title: "My Classes", href: "/portal/my-classes", icon: BookOpen }]
+    : role === UserRole.student
+      ? [{ title: "Grades", href: "/portal/grades", icon: GraduationCap }]
+      : [{ title: "Portal", href: "/portal", icon: PanelsTopLeft }];
 
-function hasChildren(item: SidebarItem): item is SidebarParentItem {
-  return "children" in item;
-}
-
-function SidebarParentNavItem({
-  item,
-  pathname,
-}: {
-  item: SidebarParentItem;
-  pathname: string;
-}) {
-  const isActiveChild = item.children.some((child) =>
-    isActivePath(pathname, child.href)
-  );
-  const [manuallyOpen, setManuallyOpen] = useState(false);
-  const [manuallyClosedPath, setManuallyClosedPath] = useState<string | null>(
-    null
-  );
-  const open =
-    (isActiveChild && manuallyClosedPath !== pathname) || manuallyOpen;
-
-  return (
-    <Collapsible
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setManuallyOpen(nextOpen);
-        setManuallyClosedPath(!nextOpen && isActiveChild ? pathname : null);
-      }}
-    >
-      <CollapsibleTrigger asChild>
-        <SidebarMenuButton isActive={isActiveChild}>
-          <item.icon />
-          <span>{item.title}</span>
-        </SidebarMenuButton>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <SidebarMenuSub>
-          {item.children.map((child) => (
-            <SidebarMenuSubItem key={child.title}>
-              <SidebarMenuSubButton
-                asChild
-                isActive={isActivePath(pathname, child.href)}
-              >
-                <Link href={child.href}>
-                  <child.icon />
-                  <span>{child.title}</span>
-                </Link>
-              </SidebarMenuSubButton>
-            </SidebarMenuSubItem>
-          ))}
-        </SidebarMenuSub>
-      </CollapsibleContent>
-    </Collapsible>
-  );
+  return [{ title: "Navigation", items }];
 }
 
 export function AppSidebarNav({ role }: { role: UserRoleValue }) {
   const pathname = usePathname();
-  const navigationItems = getSidebarItems(role);
-  const managementItems = getManagementItems(role);
-  const canManageSite = role === UserRole.admin || role === UserRole.superAdmin;
-  const siteItems = [
-    { title: "Overview", href: "/portal/site-settings", icon: Settings2 },
-    { title: "About Us", href: "/portal/site-settings/about", icon: Info },
-    { title: "Contact", href: "/portal/site-settings/contact", icon: Mail },
-  ];
 
   return (
     <>
-      <SidebarGroup>
-        <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {navigationItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                {!hasChildren(item) ? (
-                  <SidebarMenuButton asChild isActive={isActivePath(pathname, item.href)}>
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarParentNavItem item={item} pathname={pathname} />
-                )}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-      {managementItems.length > 0 && (
-        <SidebarGroup>
-          <SidebarGroupLabel>Management</SidebarGroupLabel>
+      {getSidebarGroups(role).map((group) => (
+        <SidebarGroup key={group.title}>
+          <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {managementItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  {!hasChildren(item) ? (
-                    <SidebarMenuButton asChild isActive={isActivePath(pathname, item.href)}>
-                      <Link href={item.href}>
-                        <item.icon />
+              {group.items.map((item) => {
+                const active = item.exact ? pathname === item.href : isActivePath(pathname, item.href);
+
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
+                      <Link href={item.href} aria-label={item.title} aria-current={active ? "page" : undefined}>
+                        <item.icon aria-hidden="true" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
-                  ) : (
-                    <SidebarParentNavItem item={item} pathname={pathname} />
-                  )}
-                </SidebarMenuItem>
-              ))}
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-      )}
-      {canManageSite && (
-        <SidebarGroup>
-          <SidebarGroupLabel>Site Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {siteItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={item.href === "/portal/site-settings"
-                      ? pathname === item.href
-                      : isActivePath(pathname, item.href)}
-                  >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
+      ))}
     </>
   );
 }

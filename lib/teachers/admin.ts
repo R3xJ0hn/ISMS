@@ -1,12 +1,13 @@
 import { requireSuperAdmin } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
-import { EmployeeRole, EmployeeStatus, VerificationTokenPurpose } from "@/lib/generated/prisma/enums";
+import { EmployeeRole, EmployeeStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { literalInsensitiveEquality, normalizeEmail } from "@/lib/utils";
 import { getEmployeeFullName } from "@/lib/employees/names";
 import { revalidatePath } from "next/cache";
 import { sendTeacherInvitationEmail } from "@/lib/auth/email";
-import { createTeacherInvitationToken, createTeacherInvitationUrl, validTeacherInvitationEmail } from "@/lib/auth/tokens";
+import { validTeacherInvitationEmail } from "@/lib/auth/tokens";
+import { discardTeacherSetupLink, issueTeacherSetupLink } from "./password-setup";
 import { serializeTeacherEmployee, teacherEmployeeSelect } from "./records";
 import { parseTeacherEmployeeId, parseTeacherInvitationForm, type TeacherFormState } from "./validation";
 
@@ -60,14 +61,9 @@ export async function inviteTeacher(_previousState: TeacherFormState, formData: 
       if (!validTeacherInvitationEmail(email) || await tx.user.findFirst({ where: { email: literalInsensitiveEquality(email) }, select: { id: true } })) {
         return { kind: "state", state: unavailable };
       }
-      const now = new Date();
-      const recent = await tx.verificationToken.findFirst({ where: { employeeId: employee.id, userId: null, purpose: VerificationTokenPurpose.teacherSetup, createdAt: { gt: new Date(now.getTime() - 60_000) } }, select: { id: true } });
-      if (recent) return { kind: "state", state: { success: false, message: "Please wait 60 seconds before sending another account setup email." } };
-      const issued = await createTeacherInvitationToken(employee.id.toString(), email);
-      const invitationUrl = createTeacherInvitationUrl(issued.token);
-      await tx.verificationToken.updateMany({ where: { employeeId: employee.id, userId: null, purpose: VerificationTokenPurpose.teacherSetup, consumedAt: null }, data: { consumedAt: now } });
-      await tx.verificationToken.create({ data: { jti: issued.jti, employeeId: employee.id, userId: null, purpose: VerificationTokenPurpose.teacherSetup, expiresAt: issued.expiresAt } });
-      return { kind: "send", employeeId: employee.id, jti: issued.jti, to: email, fullName: getEmployeeFullName(employee), invitationUrl };
+      const issued = await issueTeacherSetupLink(tx, employee.id, email, "invitation");
+      if (!issued) return { kind: "state", state: { success: false, message: "Please wait 60 seconds before sending another account setup email." } };
+      return { kind: "send", employeeId: employee.id, jti: issued.jti, to: email, fullName: getEmployeeFullName(employee), invitationUrl: issued.url };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch { return failure; }
   if (request.kind === "state") return request.state;
@@ -75,7 +71,7 @@ export async function inviteTeacher(_previousState: TeacherFormState, formData: 
   try {
     await sendTeacherInvitationEmail({ to: request.to, fullName: request.fullName, invitationUrl: request.invitationUrl });
   } catch {
-    try { await prisma.verificationToken.deleteMany({ where: { jti: request.jti, employeeId: request.employeeId, userId: null, purpose: VerificationTokenPurpose.teacherSetup, consumedAt: null } }); } catch { /* Delivery cleanup affects only this pending invitation. */ }
+    await discardTeacherSetupLink(request);
     revalidatePath("/portal/teachers");
     return failure;
   }

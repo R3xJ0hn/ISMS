@@ -4,12 +4,18 @@ import { getEmployeeFullName } from "@/lib/employees/names";
 import { formatStudentName } from "@/lib/utils";
 import { getCurrentStudent, studentClassMembershipWhere } from "@/lib/portal/student";
 import { getStudentClasswork, type ClassSummaryStudent, type ClassworkCatalogResult } from "./spreadsheet";
+import { getStudentSpreadsheetErrorMessage } from "./spreadsheet-errors";
 import { parseClassId } from "./validation";
-import { getClassPeriodVisibility, classPeriodDefinitions, type ClassPeriodVisibility } from "./period-visibility";
+import { getClassPeriodVisibility, classPeriodDefinitions, getVisiblePeriodGrades } from "./period-visibility";
 import { classStudentPreviewSelection, serializeClassStudentPreviews } from "./student-preview";
+import { classListOrderBy } from "./grouping";
 
 const classSelection = {
   id: true,
+  classCode: true,
+  status: true,
+  programId: true,
+  program: { select: { code: true, label: true } },
   schoolYear: true,
   semester: true,
   sectionName: true,
@@ -31,6 +37,11 @@ type SelectedClass = Prisma.ClassGetPayload<{ select: typeof classSelection }>;
 function classroomMetadata(assignedClass: SelectedClass) {
   return {
     id: assignedClass.id.toString(),
+    classCode: assignedClass.classCode,
+    status: assignedClass.status,
+    programId: assignedClass.programId?.toString() ?? null,
+    programCode: assignedClass.program?.code ?? null,
+    programLabel: assignedClass.program ? `${assignedClass.program.code} — ${assignedClass.program.label}` : null,
     schoolYear: assignedClass.schoolYear,
     semester: assignedClass.semester,
     sectionName: assignedClass.sectionName,
@@ -42,28 +53,13 @@ function classroomMetadata(assignedClass: SelectedClass) {
   };
 }
 
-function releasedGradeRecord(record: ClassSummaryStudent, visibility: ClassPeriodVisibility): ClassSummaryStudent {
-  const allVisible = classPeriodDefinitions.every(({ field }) => visibility[field]);
-  return {
-    studentNumber: record.studentNumber,
-    studentName: record.studentName,
-    prelim: visibility.prelimVisible ? record.prelim : null,
-    midterm: visibility.midtermVisible ? record.midterm : null,
-    prefinals: visibility.prefinalsVisible ? record.prefinals : null,
-    finals: visibility.finalsVisible ? record.finals : null,
-    average: allVisible ? record.average : null,
-    remarks: allVisible ? record.remarks : null,
-    note: allVisible ? record.note : null,
-  };
-}
-
 export async function getStudentClasses() {
   const student = await getCurrentStudent();
   if (!student) return [];
   const classes = await prisma.class.findMany({
     where: studentClassMembershipWhere(student.id),
     select: { ...classSelection, ...classStudentPreviewSelection },
-    orderBy: [{ schoolYear: "desc" }, { subjectName: "asc" }, { sectionName: "asc" }],
+    orderBy: classListOrderBy,
   });
   return classes.map((assignedClass) => ({
     ...classroomMetadata(assignedClass),
@@ -106,12 +102,7 @@ export async function getStudentClass(classId: string) {
     const records = await getStudentClasswork(assignedClass.spreadsheetUrl, studentNumber);
     if (!records.success) {
       const hidden = records.message === "This class has not enabled spreadsheet records in the portal.";
-      const recordMessages = {
-        STUDENT_NUMBER_NOT_FOUND: "Your student number is not listed in this class spreadsheet. Ask your teacher to add or correct it.",
-        STUDENT_REPORT_NOT_FOUND: "Your grade record is not available in this class spreadsheet yet. Ask your teacher to check the REPORT sheet.",
-        STUDENT_RECORD_AMBIGUOUS: "Your spreadsheet records cannot be matched safely. Ask your teacher to correct duplicate student records.",
-      };
-      const message = records.code && Object.hasOwn(recordMessages, records.code) ? recordMessages[records.code] : hidden ? records.message : null;
+      const message = getStudentSpreadsheetErrorMessage(records.code) ?? (hidden ? records.message : null);
       grades = { success: false, message: message ?? "Your class grades are unavailable right now. Ask your teacher to check the connected spreadsheet and your student number, then try again." };
       classwork = { success: false, message: message ?? "Your classwork is unavailable right now. Ask your teacher to check the connected spreadsheet and your student number, then try again." };
     } else {
@@ -131,7 +122,10 @@ export async function getStudentClass(classId: string) {
         grades = { success: false, message: "Your class grades cannot be matched safely. Please contact your teacher." };
         classwork = { success: false, message: "Your classwork cannot be matched safely. Please contact your teacher." };
       } else {
-        grades = { success: true, record: releasedGradeRecord(records.record, periodVisibility) };
+        grades = { success: true, record: {
+          studentNumber: records.record.studentNumber, studentName: records.record.studentName,
+          ...getVisiblePeriodGrades(records.record, periodVisibility),
+        } };
         classwork = { success: true, periods: records.periods.filter(({ period }) =>
           classPeriodDefinitions.some((definition) => definition.period === period && periodVisibility[definition.field])
         ) };

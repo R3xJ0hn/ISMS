@@ -12,8 +12,11 @@ export default async function MyClassesPage() {
       <PortalPageHeader label="Your classroom" title="My Classes" description="A space for every class. Open one to manage your students and grade summary.">
         <PortalCount count={classes.length} label={classes.length === 1 ? "class" : "classes"} />
       </PortalPageHeader>
-      <ClassroomClassGrid role="teacher" classes={classes.map(({ id, schoolYear, semester, sectionName, yearLevel, subjectName, spreadsheetUrl, branch, students, _count }) => ({
-        id: id.toString(), href: `/portal/my-classes/${id}`, schoolYear, semester, sectionName, yearLevel, subjectName,
+      <ClassroomClassGrid role="teacher" classes={classes.map(({ id, classCode, status, programId, program, schoolYear, semester, sectionName, yearLevel, subjectName, spreadsheetUrl, branch, students, _count }) => ({
+        id: id.toString(), href: `/portal/my-classes/${id}`, classCode, status,
+        programCode: program?.code ?? null,
+        programId: programId?.toString() ?? null, programLabel: program ? `${program.code} — ${program.label}` : null,
+        schoolYear, semester, sectionName, yearLevel, subjectName,
         branchTitle: branch?.title ?? null, studentCount: _count.students,
         studentPreviews: serializeClassStudentPreviews(students),
         spreadsheetLinked: Boolean(spreadsheetUrl && normalizeSpreadsheetUrl(spreadsheetUrl)),

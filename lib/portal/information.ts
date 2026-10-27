@@ -10,6 +10,7 @@ const nameSelection = { firstName: true, middleName: true, lastName: true, suffi
 
 const employeeSelection = {
   ...nameSelection,
+  userImage: true,
   employeeId: true,
   birthDate: true,
   placeOfBirth: true,
@@ -26,6 +27,7 @@ const employeeSelection = {
 
 const studentSelection = {
   ...nameSelection,
+  userImage: true,
   studentNumber: true,
   birthDate: true,
   gender: true,
@@ -70,10 +72,11 @@ const studentSelection = {
 type EmployeeRecord = Prisma.EmployeeGetPayload<{ select: typeof employeeSelection }>;
 type StudentRecord = Prisma.StudentGetPayload<{ select: typeof studentSelection }>;
 
-function teacherInformation(employee: EmployeeRecord) {
+function teacherInformation(employee: EmployeeRecord, accountImage: string | null = null) {
   return {
     kind: "teacher" as const,
     name: getEmployeeFullName(employee),
+    userImage: employee.userImage?.trim() || accountImage?.trim() || null,
     personal: {
       birthDate: formatDateInput(employee.birthDate),
       birthplace: employee.placeOfBirth,
@@ -97,13 +100,14 @@ function teacherInformation(employee: EmployeeRecord) {
   };
 }
 
-function studentInformation(student: StudentRecord) {
+function studentInformation(student: StudentRecord, accountImage: string | null = null) {
   const guardian = student.guardians[0];
   const application = student.applications[0];
   const address = student.address;
   return {
     kind: "student" as const,
     name: formatStudentName(student),
+    userImage: student.userImage?.trim() || accountImage?.trim() || null,
     studentNumber: student.studentNumber,
     personal: {
       birthDate: formatDateInput(student.birthDate),
@@ -163,9 +167,9 @@ export async function getMyInformation(): Promise<MyInformation> {
     if (userId === null) return information;
     const teacher = await prisma.teacher.findUnique({
       where: { userId, user: { role: "teacher", emailVerified: true } },
-      select: { employee: { select: employeeSelection } },
+      select: { employee: { select: employeeSelection }, user: { select: { userImage: true } } },
     });
-    return { ...information, profile: teacher ? teacherInformation(teacher.employee) : null };
+    return { ...information, profile: teacher ? teacherInformation(teacher.employee, teacher.user.userImage) : null };
   }
 
   const email = normalizeEmail(session.email);
@@ -175,5 +179,15 @@ export async function getMyInformation(): Promise<MyInformation> {
   const student = await prisma.student.findFirst({
     where: { id: identity.id, email: literalInsensitiveEquality(email) }, select: studentSelection,
   });
-  return { ...information, profile: student ? studentInformation(student) : null };
+  if (!student) return information;
+  let accountImage: string | null = null;
+  const userId = parseRecordId(session.id);
+  if (!student.userImage?.trim() && userId !== null) {
+    const account = await prisma.user.findFirst({
+      where: { id: userId, role: "student", emailVerified: true, email: literalInsensitiveEquality(email) },
+      select: { userImage: true },
+    });
+    accountImage = account?.userImage ?? null;
+  }
+  return { ...information, profile: studentInformation(student, accountImage) };
 }

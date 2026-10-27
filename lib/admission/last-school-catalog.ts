@@ -55,7 +55,7 @@ export async function getAdmissionLastSchools(): Promise<AdmissionLastSchoolsRes
   } catch {
     return {
       schools: [],
-      error: "Saved schools are unavailable right now. Choose Other to enter your school details.",
+      error: "Saved schools are unavailable right now. Please try again to load the school list.",
     };
   }
 }

@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { BookOpen, BriefcaseBusiness, ContactRound, GraduationCap, UserRound, Users } from "lucide-react";
 import { formatAcademicLevel } from "@/lib/academic-levels";
-import { formatProgramType, formatRoleLabel } from "@/lib/utils";
+import { formatProgramType, formatRoleLabel, getInitials } from "@/lib/utils";
 import { getMyInformation } from "@/lib/portal/information";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function displayDate(value: string | null | undefined) {
   if (!value) return null;
@@ -43,7 +44,10 @@ export default async function MyInformationPage() {
       ) : (
         <>
           <section className="flex min-w-0 items-start gap-4 rounded-2xl border border-border bg-card p-5 sm:p-6" aria-label="Your profile">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-primary"><UserRound aria-hidden="true" className="size-6" /></span>
+            <Avatar className="size-16 border border-border">
+              <AvatarImage src={profile.userImage ?? undefined} alt={`Profile photo for ${profile.name}`} className="object-cover" />
+              <AvatarFallback className="bg-accent text-lg font-semibold text-primary">{getInitials(profile.name)}</AvatarFallback>
+            </Avatar>
             <div className="min-w-0 flex-1"><p className="text-xl font-semibold [overflow-wrap:anywhere]">{profile.name}</p><p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">{profile.kind === "teacher" ? `Employee ID: ${profile.employment.employeeId}` : `Student number: ${profile.studentNumber ?? "Not assigned"}`}</p></div>
             <span className="hidden rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground sm:inline-block">{roleLabel}</span>
           </section>

@@ -27,6 +27,30 @@ export function getClassPeriodVisibility(value?: Partial<ClassPeriodVisibility> 
   };
 }
 
+type PeriodGradeValues = {
+  prelim: string | null;
+  midterm: string | null;
+  prefinals: string | null;
+  finals: string | null;
+  average: string | null;
+  remarks: string | null;
+  note: string | null;
+};
+
+/** Explicit projection prevents hidden grades leaking through raw or extra source fields. */
+export function getVisiblePeriodGrades(grade: PeriodGradeValues, visibility: ClassPeriodVisibility): PeriodGradeValues {
+  const allVisible = classPeriodDefinitions.every(({ field }) => visibility[field]);
+  return {
+    prelim: visibility.prelimVisible ? grade.prelim : null,
+    midterm: visibility.midtermVisible ? grade.midterm : null,
+    prefinals: visibility.prefinalsVisible ? grade.prefinals : null,
+    finals: visibility.finalsVisible ? grade.finals : null,
+    average: allVisible ? grade.average : null,
+    remarks: allVisible ? grade.remarks : null,
+    note: allVisible ? grade.note : null,
+  };
+}
+
 export type ClassPeriodVisibilityFormState = {
   success: boolean;
   message: string;
