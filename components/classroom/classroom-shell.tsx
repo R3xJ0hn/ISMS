@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Dialog, DropdownMenu } from "radix-ui";
-import { GraduationCap, House, LogOut, Menu, PanelLeftClose, UserRound, X } from "lucide-react";
+import { ClipboardList, GraduationCap, House, LogOut, Menu, PanelLeftClose, UserRound, X } from "lucide-react";
 import { logoutAction } from "@/app/login/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getInitials, isActivePath } from "@/lib/utils";
@@ -28,6 +28,7 @@ export function ClassroomShell({ role, displayName, email, avatarUrl, children }
   const roleLabel = role === "teacher" ? "Teacher" : "Student";
   const links = [
     { title: "Classes", href: classesHref, icon: House },
+    ...(role === "student" ? [{ title: "To-dos", href: "/portal/to-dos", icon: ClipboardList }] : []),
     ...(role === "student" ? [{ title: "My grades", href: "/portal/grades", icon: GraduationCap }] : []),
     { title: "My information", href: "/portal/information", icon: UserRound },
   ];

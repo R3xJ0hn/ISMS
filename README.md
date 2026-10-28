@@ -374,6 +374,8 @@ Student **My grades** uses the student's saved class enrollments. Choose a schoo
 
 The latest assigned school year is selected first. If no semester is specified, the page chooses the first semester with assigned classes; legacy classes without a semester appear separately under **Semester not assigned**. Missing links or spreadsheet failures are shown per class, so other available grades remain visible. Changing or removing a class assignment, spreadsheet link, or visibility setting while grades load is checked before results are shown. A separate student semester-report URL is no longer needed.
 
+Student **To-dos** lists only activities without a recorded score from classes marked **Ongoing**, grouped by subject. Each task shows its grading period, category, and points and links to that class's Classwork tab. Zero scores and recorded values such as ABS or INC are excluded, along with Additional Points. Only the signed-in student's records and released periods are used. Classes in Grade finalization or Locked status are excluded. Use **Refresh** to reload records; unavailable classwork appears in a separate expandable notice so it is not mistaken for having no tasks.
+
 ### Add class students
 
 In **Manage Classes**, use the Branch, School year, Year level, Program, and Semester dropdowns to narrow the table. Desktop search and filters share one row; scroll the filter strip to reach more options, with **Clear filters** kept on the right whenever filters are active. The table shows the school year and semester together in one column. Student profile thumbnails show each name on hover or keyboard focus, with pastel initials when a photo is missing and a `+N` badge for the rest of the roster.
