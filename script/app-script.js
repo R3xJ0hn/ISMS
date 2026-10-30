@@ -137,43 +137,30 @@ function readRows(sheet, row, col, height, width) {
 // SPREADSHEET SETTINGS
 // =====================================
 
-function getSettings(input) {
-  return {
-    view_records_in_web_portal:
-      toBoolean(input.getRange(
-        CONFIG.input.viewRecords
-      ).getValue()),
+// Execution-local only: no cross-request caching of grades or access settings.
+const inputMetadata = new WeakMap();
+function getInputMetadata(input) {
+  if (!inputMetadata.has(input)) {
+    const range = input.getRange(3, 3, 6, 5); // C3:G8
+    inputMetadata.set(input, { values: range.getValues(), display: range.getDisplayValues() });
+  }
+  return inputMetadata.get(input);
+}
 
-    view_excluded_columns_in_web_portal:
-      toBoolean(input.getRange(
-        CONFIG.input.viewExcluded
-      ).getValue())
+function getSettings(input) {
+  const { values } = getInputMetadata(input);
+  return {
+    view_records_in_web_portal: toBoolean(values[4][4]),
+    view_excluded_columns_in_web_portal: toBoolean(values[5][4])
   };
 }
 
-// =====================================
-// SUBJECT INFORMATION
-// =====================================
-
 function getSubject(input) {
+  const { display } = getInputMetadata(input);
   return {
-    subject_code: clean(
-      input.getRange(
-        CONFIG.input.subjectCode
-      ).getDisplayValue()
-    ),
-
-    subject_title: clean(
-      input.getRange(
-        CONFIG.input.subjectTitle
-      ).getDisplayValue()
-    ),
-
-    instructor_name: clean(
-      input.getRange(
-        CONFIG.input.instructorName
-      ).getDisplayValue()
-    )
+    subject_code: clean(display[5][0]),
+    subject_title: clean(display[0][0]),
+    instructor_name: clean(display[1][0])
   };
 }
 
@@ -374,7 +361,7 @@ function getCategoryWeight(name, input) {
 
   if (!cell) return null;
 
-  const raw = input.getRange(cell).getValue();
+  const raw = getInputMetadata(input).values[Number(cell.slice(1)) - 3][3];
   const value = Number(raw);
 
   if (!Number.isFinite(value) || raw === "") {
@@ -514,8 +501,9 @@ function readPeriod(
   }
 
   const lastCol = sheet.getLastColumn();
+  const lastRow = sheet.getLastRow();
 
-  if (sheet.getLastRow() < 3 || lastCol < 4) {
+  if (lastRow < 3 || lastCol < 4) {
     return {
       period: period.name,
       categories: []
@@ -529,7 +517,6 @@ function readPeriod(
   let studentScores = null;
 
   if (studentName !== null) {
-    const lastRow = sheet.getLastRow();
     const names = lastRow >= 4
       ? readRows(sheet, 4, 2, lastRow - 3, 1)
       : [];
@@ -627,9 +614,15 @@ function readPeriod(
     };
   });
 
+  // Only return the selected student's note, never a catalog-wide note.
+  const noteColumn = headers[0].findIndex((_, col) =>
+    headers.some(row => /^(NOTE|NOTES)$/.test(normalize(row[col]))));
   return {
     period: period.name,
-    categories
+    categories,
+    ...(studentName !== null ? {
+      note: studentScores && noteColumn >= 0 ? clean(studentScores[noteColumn]) || null : null
+    } : {})
   };
 }
 

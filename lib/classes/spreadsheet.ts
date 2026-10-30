@@ -43,6 +43,7 @@ export type ClassworkCategory = {
 };
 
 export type ClassworkPeriod = {
+  note?: string | null;
   period: "Prelim" | "Midterm" | "Prefinals" | "Finals";
   categories: ClassworkCategory[];
 };
@@ -392,7 +393,9 @@ function classworkPeriods(value: unknown, settings: SpreadsheetSettings, include
       }
       categories.push({ name: rawCategory.name.trim(), weight: rawCategory.weight as number | null, activities });
     }
-    periods.push({ period: rawPeriod.period as ClassworkPeriod["period"], categories });
+    if (includeScores && rawPeriod.note != null && typeof rawPeriod.note !== "string") return null;
+    periods.push({ period: rawPeriod.period as ClassworkPeriod["period"], categories,
+      ...(includeScores ? { note: typeof rawPeriod.note === "string" ? rawPeriod.note.trim() || null : null } : {}) });
   }
   // The script returns all four periods, including an empty catalog for a missing sheet.
   if (seen.size !== periodNames.length) return null;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { PortalTable } from "@/components/portal/data-table";
 import { getVisiblePeriodGrades } from "@/lib/classes/period-visibility";
 import type { StudentClassGrade } from "@/lib/classes/student-grades";
@@ -50,20 +50,31 @@ export function StudentGradesTable({ grades }: { grades: readonly StudentClassGr
               <div className="flex items-baseline gap-2"><dt className="text-xs text-muted-foreground">Units</dt><dd className="font-medium">{grade.units ?? "-"}</dd></div>
               <div className="col-span-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2"><dt className="text-xs text-muted-foreground">Instructor</dt><dd className="wrap-anywhere">{grade.instructorName || "Not assigned"}</dd></div>
             </dl>
-            <dl className="mt-3 min-w-0 divide-y divide-border/50">
+            <dl className="mt-4 flex min-w-0 items-center justify-between gap-4 border-y border-amber-200/50 bg-amber-50/50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <div className="min-w-0 flex-1">
+                <dt className="text-xs font-medium text-[#927044] dark:text-[#c6ac87]">Equivalent</dt>
+                <dd className="mt-1 wrap-anywhere text-3xl font-semibold tracking-tight text-[#785b35] dark:text-[#dbc29c]">{averageValue(grade) === "Hidden" ? "Hidden" : grade.remarks ?? "-"}</dd>
+              </div>
+              <div className="min-w-0 text-right">
+                <dt className="text-xs text-muted-foreground">Final average</dt>
+                <dd className="mt-1 wrap-anywhere text-base font-medium tabular-nums">{averageValue(grade)}</dd>
+              </div>
+            </dl>
+            <details className="group/quarters mt-2 min-w-0">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                Quarterly grades
+                <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/quarters:rotate-180" />
+              </summary>
+              <dl className="min-w-0 divide-y divide-border/50">
               {gradingPeriods.map(([label, field, visibility]) => (
                 <div key={field} className="flex min-w-0 items-baseline justify-between gap-4 py-2">
                   <dt className="text-sm text-muted-foreground">{label}</dt>
                   <dd className="min-w-0 wrap-anywhere text-right text-base font-medium tabular-nums">{grade.periodVisibility[visibility] ? grade[field] ?? "-" : "Hidden"}</dd>
                 </div>
               ))}
-            </dl>
-            <dl className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-border py-3">
-              <dt className="text-sm font-semibold">Final average</dt>
-              <dd className={`min-w-0 wrap-anywhere font-semibold tabular-nums ${averageValue(grade) === "Hidden" ? "text-sm text-muted-foreground" : "text-2xl tracking-tight"}`}>{averageValue(grade)}</dd>
-            </dl>
-            {(grade.remarks || grade.note) && <dl className="mt-4 space-y-3 text-sm">
-              {grade.remarks && <div><dt className="text-xs text-muted-foreground">Remarks</dt><dd className="mt-1 wrap-anywhere">{grade.remarks}</dd></div>}
+              </dl>
+            </details>
+            {grade.note && <dl className="mt-4 space-y-3 text-sm">
               {grade.note && <div><dt className="text-xs text-muted-foreground">Note</dt><dd className="mt-1 wrap-anywhere text-muted-foreground">{grade.note}</dd></div>}
             </dl>}
           </article>
@@ -79,7 +90,7 @@ export function StudentGradesTable({ grades }: { grades: readonly StudentClassGr
             { header: "Instructor", className: "min-w-36 whitespace-normal", cell: (grade) => grade.instructorName || "Not assigned" },
             ...gradingPeriods.map(([label, field, visibility]) => ({ header: label, cell: (grade: StudentClassGrade) => grade.periodVisibility[visibility] ? grade[field] ?? "-" : "Hidden" })),
             { header: "Ave", className: "font-semibold text-foreground", cell: averageValue },
-            { header: "Remarks", className: "max-w-64 whitespace-normal", cell: (grade) => grade.remarks ?? "-" },
+            { header: "Equivalent", className: "max-w-64 whitespace-normal font-semibold text-[#785b35] dark:text-[#dbc29c]", cell: (grade) => grade.remarks ?? "-" },
             { header: "Note", className: "max-w-64 whitespace-normal", cell: (grade) => grade.note ?? "-" },
           ]}
         />

@@ -353,6 +353,10 @@ In **Grades**, select an enrolled student's name to view their individual activi
 
 **Additional Points (Added to Performance Task %)** appears in student activity records, including the teacher's individual-student view, when that student's spreadsheet value is nonblank. Zero is shown; blank values are hidden. These additions have no maximum score or pass/fail coloring. Redeploy the updated Apps Script to enable reading this column.
 
+**Quarter notes:** In each quarter sheet, label the notes column `NOTE` or `NOTES` in the header (rows 1–3), then enter a note on the student's row. Classwork displays that student's note under the corresponding released quarter, even when it has no activities. Plain text preserves line breaks. Use `[Missing:Quiz 1][Reminder:Submit by Friday]` to display titled sections; ordinary text around these entries is also preserved. Notes are displayed as text, never HTML. Older script deployments continue to work without quarter notes.
+
+Copy the updated script and deploy a new version to enable quarter notes and the batched INPUT metadata reads. Keep the deployment URL and secret unchanged. The optimization reduces repeated spreadsheet calls without caching student records or visibility settings across requests; Google service latency can still affect loading time.
+
 If the wrong spreadsheet is connected, open **Overview → Edit Google Sheets link → Remove link**. The dialog slides to a confirmation step. Type the exact class code followed by `/remove-link`, for example `CLS-15/remove-link`, then choose **Confirm removal**. **Back** returns to editing and keeps the link draft. Removal disconnects the portal's grades and classwork until another link is added; it keeps the Google Sheet itself. If the saved link changed in another tab, reload the class before removing it.
 
 Spreadsheet errors include instructions for the detected problem:
