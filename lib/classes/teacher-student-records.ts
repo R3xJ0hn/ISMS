@@ -1,3 +1,4 @@
+import { calendarVersion } from "@/lib/academics/calendar";
 import "server-only";
 
 import { formatStudentName } from "@/lib/utils";
@@ -42,13 +43,13 @@ export async function getTeacherStudentRecords(classId: string, studentId: strin
     classwork = { success: false, message: "Connect the class spreadsheet in Overview to view this student's activities." };
   } else {
     const unavailable = "Unable to load this student's activity records. Check the class spreadsheet and student number, then try again.";
-    const result = await getStudentClasswork(assignedClass.spreadsheetUrl, number).catch(() => ({ success: false as const, message: unavailable }));
+    const result = await getStudentClasswork(assignedClass.spreadsheetUrl, number, assignedClass.calendar).catch(() => ({ success: false as const, message: unavailable }));
     // Assignment, enrollment, number and link can change while Google Sheets responds.
     const current = await getAssignedClass(classId);
     if (!current) return null;
     const currentStudent = enrolledStudent(current, id);
     if (!currentStudent) return null;
-    if (currentStudent.studentNumber?.trim() !== number || !uniqueNumber(current, id, number) ||
+    if (calendarVersion(current.calendar)!==calendarVersion(assignedClass.calendar) || currentStudent.studentNumber?.trim() !== number || !uniqueNumber(current, id, number) ||
       normalizeSpreadsheetUrl(current.spreadsheetUrl ?? "") !== normalizeSpreadsheetUrl(assignedClass.spreadsheetUrl)) {
       return studentRecords(current, currentStudent, { success: false, message: "The class or student record changed while activities were loading. Refresh to view current records." });
     }

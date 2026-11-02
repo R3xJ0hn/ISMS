@@ -17,6 +17,26 @@ You need:
 
 Cloudinary is optional for profile photos. Google Apps Script is needed to display spreadsheet records inside classes.
 
+### Academic terms setup
+
+As a super administrator, open **Academics → Academic Terms**. Add a scheme using a preset, then adjust its ordered terms and grading periods. Available presets cover college grading with four or three periods, SHS with Q1–Q4 across two semesters, and three terms with one overall grade per term. Each period has a display name and an exact Google Sheets worksheet name. You can add or remove terms and periods before saving, edit unused schemes, or duplicate a scheme to create a new version.
+
+Assign a scheme to each program using **Program calendar** on this page. Add/Edit Class then offers the terms belonging to that program's scheme. Teacher visibility controls, classwork, student grades, To-dos, class filters, and Excel exports read the class's saved periods. Changing a program's default does not change existing classes. Schemes referenced by programs or classes cannot be structurally edited; duplicate them to create a new version. Disconnect a class's spreadsheet before changing its assigned term.
+
+For each period, configure its exact worksheet name and its numeric column in REPORT (C = 3, D = 4, and so on). Each term also has separate REPORT columns for the average and equivalent. Column B remains the student name; identifiers come from INPUT. These mappings are sent by the server to Apps Script, not selected by the student.
+
+For an existing database, apply the additive setup once, then regenerate Prisma:
+
+```sh
+node script/migrate-dynamic-academics.mjs --check
+node script/migrate-dynamic-academics.mjs
+npx prisma generate --generator client
+```
+
+The migration runner uses `DATABASE_URL` and adds the scheme tables if needed. It maps existing class semesters to saved terms, copies visibility settings into period rows, assigns a default legacy scheme to programs without one, then removes the obsolete Semester enum and four visibility columns in the same transaction. `--check` runs the migration and rolls it back. It verifies copied visibility and compares hashes of enrollments, spreadsheet links and other protected class/program data before committing. SQL files are in [prisma/updates](prisma/updates). New databases created from the current Prisma schema already have the new structure and do not need these migrations.
+
+Copy [script/app-script.js](script/app-script.js) into Apps Script and update its deployed version before using a new scheme. The script returns `calendar_version: 2` and reads the period worksheets and REPORT columns supplied by the class calendar. Only the immutable migrated scheme accepts older responses; every configured period must still match. New schemes show an update-required message for older deployments instead of guessing a grade layout.
+
 Check that Node.js and npm are available:
 
 ```sh
@@ -227,7 +247,7 @@ Sign in with the first administrator account and prepare these items in order:
 5. **Manage Last Schools:** add verified schools for the admission dropdown. Add and Edit School share the same form and require the school's ID; students do not need to enter it when suggesting a school. Review student suggestions here before making them available to everyone.
 6. **Site Settings:** fill in the About Us and Contact content used by the public website.
 7. Add employees, activate teacher accounts, and prepare student records using the instructions below.
-8. **Manage Classes:** choose the school year, semester, branch, program, subject, teacher, section, and year level. Add students to the roster and save.
+8. **Academic Terms:** create a scheme and assign it to each program. In **Manage Classes**, choose the school year, saved academic term, branch, program, subject, teacher, section, and year level. Add students to the roster and save.
 
 Public program listings also need public content such as a slug, display title and code, overview, and category. A program can remain available for admission without appearing in the public catalog.
 
@@ -310,6 +330,17 @@ A green **Verified school** mark beside **Last School Attended** identifies an e
 
 In **Manage Last Schools**, filter records by **Pending**, **Verified**, or **Rejected**. Click a school's admission count to see its linked students, search their admission records, and select **Edit student**. In **Last School Attended**, type in **Find a saved school** and select a result directly from the dropdown to replace a duplicate suggestion with the correct verified school. Save the student to update that admission's school link; other students and the saved school's details stay unchanged. **Add Student** uses the same optional school search. The picker also supports the arrow keys, Enter, and Escape.
 
+A rejected school is permanently removed when no admission records reference it. This applies immediately after rejection or after its final linked admission is reassigned or deleted. Draft and rejected admissions still count as links. Pending/verified schools remain, and a school's address is deleted only when no school, student, guardian, or branch uses it.
+
+Install this database rule once for each database, including new installations after schema setup:
+
+```sh
+node script/cleanup-rejected-schools.mjs --check
+node script/cleanup-rejected-schools.mjs
+```
+
+The check runs the cleanup and rolls it back. Applying it installs deferred database triggers and removes existing rejected orphan schools in one transaction, verifying that linked schools, admissions, and shared address references remain unchanged. The SQL is [prisma/updates/20261102_rejected_last_school_cleanup.sql](prisma/updates/20261102_rejected_last_school_cleanup.sql). To run the isolated PostgreSQL integration checks (all test objects roll back), use `node --env-file=.env --test tests/rejected-school-cleanup.integration.mjs`.
+
 On the admission form, search the saved school list first. **Other — school not listed** appears only when the search finds no matches. If the list cannot load, retry loading it before choosing a school. Suggestions reuse a matching saved school when its identity is unambiguous, even when optional details were left blank.
 
 Employee and student forms allow optional profile photos. With Cloudinary configured, upload JPEG, PNG, or WebP files up to **5 MB**. Saving without an image preserves the existing photo; removing it requires choosing the removal option.
@@ -340,7 +371,7 @@ The URL must use HTTPS and must not include extra query parameters or a fragment
 
 ### Prepare and connect a class spreadsheet
 
-Use the grading workbook layout expected by the script; an arbitrary spreadsheet with the same tab names is insufficient. Required tabs are **INPUT**, **REPORT**, **Prelim**, **Midterm**, **Pre-Finals**, and **Finals**. See the script's `CONFIG` and row-reading functions for the expected cells and columns.
+Use the grading workbook layout expected by the script; an arbitrary spreadsheet with the same tab names is insufficient. Required tabs are **INPUT**, **REPORT**, and the worksheet names configured for the class's grading periods in **Academic Terms**. The legacy college preset uses Prelim, Midterm, Pre-Finals, and Finals, but these names and the number of periods are not required by the parser. See the script's `CONFIG` and row-reading functions for the shared INPUT and activity layout.
 
 - Enable **INPUT!G7** to allow records in the portal. **INPUT!G8** controls excluded activities.
 - Keep student numbers in **INPUT column F** identical to the saved portal numbers, including capitalization and leading zeros. Student names must also match the report without duplicates.
@@ -372,23 +403,23 @@ Spreadsheet errors include instructions for the detected problem:
 
 Copy the updated [script/app-script.js](script/app-script.js) to Apps Script and deploy a new version to enable the detailed errors. Older deployments can still return a generic failure. Refresh the affected portal tab after correcting the problem.
 
-Teachers can release or hide **Prelim, Midterm, Prefinals, and Finals** independently through **Overview → Student record visibility**. Hidden periods are withheld from student classwork and grades; the final average and related summary values are also hidden while any period is hidden.
+Teachers can release or hide each configured grading period independently through **Overview → Student record visibility**. Hidden periods are withheld from student classwork and grades; the final average and equivalent are also hidden while any configured period is hidden.
 
-Student **My grades** uses the student's saved class enrollments. Choose a school year and semester to view those classes' grades from each connected spreadsheet, using the same `GOOGLE_SCRIPT_URL` and `GOOGLE_SCRIPT_SECRET` service as the class workspace. Subject names/codes, units, instructors, and class references come from the database. The page requests only the signed-in student's record and respects each teacher's grading-period visibility; final averages, remarks, and notes stay hidden until all periods are released.
+Student **My grades** uses the student's saved class enrollments. Choose a school year and academic term to view grades from each connected spreadsheet, using the same `GOOGLE_SCRIPT_URL` and `GOOGLE_SCRIPT_SECRET` service as the class workspace. Subject names/codes, units, instructors, class references, and grading-period definitions come from the database. The page requests only the signed-in student's record and respects each teacher's grading-period visibility; final averages, equivalents, and summary notes stay hidden until all periods are released.
 
-The latest assigned school year is selected first. If no semester is specified, the page chooses the first semester with assigned classes; legacy classes without a semester appear separately under **Semester not assigned**. Missing links or spreadsheet failures are shown per class, so other available grades remain visible. Changing or removing a class assignment, spreadsheet link, or visibility setting while grades load is checked before results are shown. A separate student semester-report URL is no longer needed.
+The latest assigned school year is selected first, followed by its first assigned academic term. Term options come from the student's classes, including third terms and migrated **Term not assigned** records. Missing links or spreadsheet failures are shown per class, so available grades remain visible. Identity, membership, spreadsheet mapping, and visibility are checked again after remote requests. Grades, Classwork, and To-dos share this loading and privacy logic in `lib/classes/student.ts`.
 
 Student **To-dos** lists only activities without a recorded score from classes marked **Ongoing**, grouped by subject. Each task shows its grading period, category, and points and links to that class's Classwork tab. Zero scores and recorded values such as ABS or INC are excluded, along with Additional Points. Only the signed-in student's records and released periods are used. Classes in Grade finalization or Locked status are excluded. Use **Refresh** to reload records; unavailable classwork appears in a separate expandable notice so it is not mistaken for having no tasks.
 
 ### Add class students
 
-In **Manage Classes**, use the Branch, School year, Year level, Program, and Semester dropdowns to narrow the table. Desktop search and filters share one row; scroll the filter strip to reach more options, with **Clear filters** kept on the right whenever filters are active. The table shows the school year and semester together in one column. Student profile thumbnails show each name on hover or keyboard focus, with pastel initials when a photo is missing and a `+N` badge for the rest of the roster.
+In **Manage Classes**, use the Branch, School year, Year level, Program, and Term dropdowns to narrow the table. Desktop search and filters share one row; scroll the filter strip to reach more options, with **Clear filters** kept on the right whenever filters are active. The table shows the school year and term together in one column. Student profile thumbnails show each name on hover or keyboard focus, with pastel initials when a photo is missing and a `+N` badge for the rest of the roster.
 
 Class rows are grouped by **School year → Semester → Program → Year level**. Each group shows its matching class count, and column sorting applies within those groups. A group's heading repeats when its records continue onto another page.
 
 Every class receives a permanent reference such as **CLS-15**. Search by this code to find the assignment; its reference stays the same when class details change. In Add/Edit Class, administrators can choose **Ongoing**, **Grade finalization** (classes have ended while grades and missing work are being finalized), or **Locked**. These are display statuses for now: they do not restrict teachers' spreadsheet or visibility changes. The **Status** filter helps locate classes in each stage.
 
-Teacher **My Classes** and student **My classes** use the same school year, semester, program, and year-level groups. Newest school years appear first. Within each group, cards show **Ongoing**, then **Grade finalization**, then **Locked**, with subjects alphabetized within each status. Every card displays its class code and status. Search by class code, subject, or program, or combine the school year, semester, year level, program, and status filters to find a class.
+Teacher **My Classes** and student **My classes** use the same school year, academic term, program, and year-level groups. Newest school years appear first; academic terms follow their saved order. Within each group, cards show **Ongoing**, then **Grade finalization**, then **Locked**, with subjects alphabetized within each status. Every card displays its class code and status. Search by class code, subject, or program, or combine the school year, term, year level, program, and status filters.
 
 In Add/Edit Class, search for saved students by name or number and select a dropdown result. The selected roster shows their names and photos, with a remove button.
 
@@ -396,7 +427,7 @@ In Add/Edit Class, search for saved students by name or number and select a drop
 
 ### View a class and compare its student lists
 
-Click a subject in **Manage Classes** to open **Class view**. The **Student list** tab shows saved enrollment, student numbers, names, profile photos, Prelim, Midterm, Prefinals, Finals, final averages, and remarks, with search, sorting, and pagination. Grades come from the connected Google Sheet and attach only to a unique matching student number. Use **Refresh grades** after spreadsheet changes.
+Click a subject in **Manage Classes** to open **Class view**. The **Student list** tab shows saved enrollment, student numbers, names, profile photos, each configured grading period, final averages, and equivalents, with search, sorting, and pagination. Grades come from the connected Google Sheet and attach only to a unique matching student number. Excel exports use the same configured period columns. Use **Refresh grades** after spreadsheet changes.
 
 Choose **Export → Excel (.xlsx)** to download every enrolled student, including students outside the current search or page. The workbook includes grades and a separate sheet of class details. Missing matches and unavailable grades are labeled explicitly; student numbers retain their leading zeros. Enrollment remains visible and exportable if the spreadsheet cannot be loaded.
 
@@ -436,7 +467,7 @@ Production builds need network access to download the configured Google fonts. F
 | A branch has no available programs | Assign offerings through **Manage Branch Programs**. |
 | A program has no subjects in Add Class | Assign subjects to it through **Manage Programs**. |
 | Teacher account setup is unavailable | Check the saved employee email, Teacher role, employment status, and any conflicting existing account. |
-| No classes appear | Save a class assignment for the teacher and add the student to its roster. Check the selected school-year and semester filters. |
+| No classes appear | Save a class assignment for the teacher and add the student to its roster. Check the selected school-year and term filters. |
 | Class grades or classwork are unavailable | Check the script deployment, matching secret, spreadsheet access and layout, INPUT!G7, exact student number, and teacher period visibility. |
 | A school is missing from the admission dropdown | Only verified schools appear. Search its name or location; if no matches remain, choose **Other — school not listed**, or have an administrator add/verify it in **Manage Last Schools**. |
 | A photo upload fails | Confirm the Cloudinary cloud name and credentials belong to the same account. Check the file format and size. Photos can be left blank. |
@@ -470,6 +501,6 @@ Before adding another helper or component, check these shared pieces:
 | Admission status labels, ordering, and update notifications | `lib/admission/status.ts` shares labels and priority. `lib/notifications.ts` writes update events inside the student save transaction and reads the protected dashboard feed. |
 | Teacher account setup tokens | `lib/teachers/password-setup.ts` shares issuance, cooldown, and failed-delivery cleanup. Admin setup and password recovery retain their own eligibility checks, responses, and link lifetimes. |
 | Optional profile uploads | `lib/users/profile-image.ts` shares validation, upload preparation, and cleanup across account, employee, and student forms. |
-| Grade columns, sorting, and visibility | `lib/classes/presentation.ts` defines table fields; `period-visibility.ts` explicitly projects released grades for both class and semester views. |
+| Calendar, grade columns, and visibility | `lib/academics/calendar.ts` projects saved term definitions; `lib/classes/presentation.ts` builds grade columns and parses notes; `period-visibility.ts` projects released grades. |
 
 Keep permission checks and flow-specific validation at their entry points. Shared persistence helpers assume their caller has authorized the operation. Student-facing grade responses must keep explicit field projections so hidden grades and raw spreadsheet data cannot bypass visibility settings. Use the raw form reader for passwords and signed tokens; text sanitation is for editable record fields.

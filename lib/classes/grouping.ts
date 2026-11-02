@@ -1,11 +1,15 @@
-import { academicLevelOptions, formatAcademicLevel, formatSemester, semesterOptions } from "@/lib/academic-levels";
+import {
+  academicLevelOptions,
+  formatAcademicLevel,
+  formatTerm,
+} from "@/lib/academic-levels";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
+import type { AcademicLevel } from "@/lib/generated/prisma/enums";
 
 /** Keep teacher and student lists in the same stable school/program/lifecycle order. */
 export const classListOrderBy = [
   { schoolYear: "desc" },
-  { semester: "asc" },
+  { academicTerm: { position: "asc" } },
   { program: { code: "asc" } },
   { program: { label: "asc" } },
   { programId: "asc" },
@@ -19,28 +23,44 @@ export const classListOrderBy = [
 
 type ClassGroupRow = {
   schoolYear: string;
-  semester?: Semester | null;
+  term?: string | null;
+  termId?: string;
+  termPosition?: number;
   programId: string | null;
   programLabel?: string | null;
   yearLevel: AcademicLevel;
 };
 
-const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
-const semesterOrder = (value: Semester | null | undefined) => {
-  const index = semesterOptions.findIndex((option) => option.value === value);
-  return index < 0 ? semesterOptions.length : index;
-};
+const collator = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base",
+});
 const yearLevelOrder = (value: AcademicLevel) => {
-  const index = academicLevelOptions.findIndex((option) => option.value === value);
+  const index = academicLevelOptions.findIndex(
+    (option) => option.value === value,
+  );
   return index < 0 ? academicLevelOptions.length : index;
 };
 
 export const classTableGrouping = {
-  key: (row: ClassGroupRow) => JSON.stringify([row.schoolYear, row.semester ?? null, row.programId, row.yearLevel]),
-  label: (row: ClassGroupRow) => [row.schoolYear, formatSemester(row.semester), row.programLabel ?? "Program not assigned", formatAcademicLevel(row.yearLevel)].join(" / "),
+  key: (row: ClassGroupRow) =>
+    JSON.stringify([
+      row.schoolYear,
+      row.termId ?? row.term ?? null,
+      row.programId,
+      row.yearLevel,
+    ]),
+  label: (row: ClassGroupRow) =>
+    [
+      row.schoolYear,
+      formatTerm(row.term),
+      row.programLabel ?? "Program not assigned",
+      formatAcademicLevel(row.yearLevel),
+    ].join(" / "),
   compare: (left: ClassGroupRow, right: ClassGroupRow) =>
     collator.compare(right.schoolYear, left.schoolYear) ||
-    semesterOrder(left.semester) - semesterOrder(right.semester) ||
+    (left.termPosition ?? 0) - (right.termPosition ?? 0) ||
+    collator.compare(left.term ?? "", right.term ?? "") ||
     Number(left.programId === null) - Number(right.programId === null) ||
     collator.compare(left.programLabel ?? "", right.programLabel ?? "") ||
     collator.compare(left.programId ?? "", right.programId ?? "") ||

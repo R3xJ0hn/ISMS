@@ -1,8 +1,8 @@
+import { academicSelection } from "@/lib/academics/calendar";
 import { createHash } from "node:crypto";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth";
 import { getEmployeeFullName } from "@/lib/employees/names";
-import type { Semester } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { getRosterDatabaseStudents, rosterStudentSelection } from "./roster-data";
 import { compareClassRoster, type DatabaseRosterStudent } from "./roster-cross-match";
@@ -15,7 +15,7 @@ export type ClassRosterReview = {
   subjectName: string;
   sectionName: string;
   schoolYear: string;
-  semester: Semester | null;
+  term: string | null;
   teacherName: string;
   state: "needs_review" | "matched" | "unavailable" | "not_connected";
   severity: "warning" | "attention" | null;
@@ -48,7 +48,7 @@ export async function getClassRosterReviewReport({ refresh = false }: { refresh?
     where: { teacher: { user: { role: { not: "superAdmin" } } } },
     orderBy: [{ schoolYear: "desc" }, { sectionName: "asc" }, { subjectName: "asc" }, { id: "asc" }],
     select: {
-      id: true, classCode: true, subjectName: true, sectionName: true, schoolYear: true, semester: true,
+      id: true, classCode: true, subjectName: true, sectionName: true, schoolYear: true, ...academicSelection,
       spreadsheetUrl: true,
       teacher: { select: { employee: { select: { firstName: true, middleName: true, lastName: true, suffix: true } } } },
       students: { select: { student: { select: rosterStudentSelection } } },
@@ -77,7 +77,7 @@ export async function getClassRosterReviewReport({ refresh = false }: { refresh?
   const classes = records.map((record): ClassRosterReview => {
     const review: ClassRosterReview = {
       id: record.id.toString(), classCode: record.classCode, subjectName: record.subjectName,
-      sectionName: record.sectionName, schoolYear: record.schoolYear, semester: record.semester,
+      sectionName: record.sectionName, schoolYear: record.schoolYear, term: record.academicTerm.name,
       teacherName: getEmployeeFullName(record.teacher.employee), state: "not_connected", severity: null,
       issueCount: null, issueRows: null, missingStudents: null, nameDifferences: null,
       message: null, checkedAt: null,

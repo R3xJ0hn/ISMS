@@ -62,6 +62,7 @@ const adminGroups: SidebarLinkGroup[] = [
       { title: "Manage Classes", href: "/portal/classes", icon: ClipboardList, superAdminOnly: true },
       { title: "Manage Programs", href: "/portal/programs", icon: BookOpen, superAdminOnly: true },
       { title: "Manage Subjects", href: "/portal/subjects", icon: BookOpen, superAdminOnly: true },
+      { title: "Academic Terms", href: "/portal/academic-terms", icon: Settings2, superAdminOnly: true },
       { title: "Manage Branch Programs", href: "/portal/branch-programs", icon: Building2 },
     ],
   },

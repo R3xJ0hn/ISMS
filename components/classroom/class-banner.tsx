@@ -1,6 +1,6 @@
 import { Building2, CalendarDays, GraduationCap, UserRound } from "lucide-react";
-import { formatAcademicLevel, formatSemester } from "@/lib/academic-levels";
-import type { AcademicLevel, Semester } from "@/lib/generated/prisma/enums";
+import { formatAcademicLevel, formatTerm } from "@/lib/academic-levels";
+import type { AcademicLevel } from "@/lib/generated/prisma/enums";
 import { cn } from "@/lib/utils";
 import { classCoverTheme } from "@/lib/portal/classroom-colors";
 
@@ -16,13 +16,13 @@ export function ClassCoverDecoration() {
   );
 }
 
-export function ClassBanner({ classId, classCode, subjectName, sectionName, schoolYear, semester, yearLevel, branchTitle, teacherName }: {
+export function ClassBanner({ classId, classCode, subjectName, sectionName, schoolYear, term, yearLevel, branchTitle, teacherName }: {
   classId: string;
   classCode: string;
   subjectName: string;
   sectionName: string;
   schoolYear: string;
-  semester?: Semester | null;
+  term?: string | null;
   yearLevel: AcademicLevel;
   branchTitle: string | null;
   teacherName?: string;
@@ -41,7 +41,7 @@ export function ClassBanner({ classId, classCode, subjectName, sectionName, scho
             <span>Class code</span><span className="min-w-0 font-mono font-semibold [overflow-wrap:anywhere]">{classCode}</span>
           </span>
           <span className="inline-flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-4" />{schoolYear}</span>
-          <span>{formatSemester(semester)}</span>
+          <span>{formatTerm(term)}</span>
           <span className="inline-flex min-w-0 max-w-full items-center gap-2"><Building2 aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{branchTitle ?? "Branch not assigned"}</span></span>
           <GraduationCap aria-hidden="true" className="ml-auto hidden size-8 text-white/60 sm:block" />
         </div>

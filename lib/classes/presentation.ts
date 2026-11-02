@@ -1,10 +1,26 @@
 import type { ClassStatus } from "@/lib/generated/prisma/enums";
 
 export const classStatusOptions = [
-  { value: "ongoing", label: "Ongoing", badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-800" },
-  { value: "gradeFinalization", label: "Grade finalization", badgeClassName: "border-amber-200 bg-amber-50 text-amber-800" },
-  { value: "locked", label: "Locked", badgeClassName: "border-slate-200 bg-slate-100 text-slate-700" },
-] as const satisfies readonly { value: ClassStatus; label: string; badgeClassName: string }[];
+  {
+    value: "ongoing",
+    label: "Ongoing",
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  },
+  {
+    value: "gradeFinalization",
+    label: "Grade finalization",
+    badgeClassName: "border-amber-200 bg-amber-50 text-amber-800",
+  },
+  {
+    value: "locked",
+    label: "Locked",
+    badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
+  },
+] as const satisfies readonly {
+  value: ClassStatus;
+  label: string;
+  badgeClassName: string;
+}[];
 
 export function getClassStatusOption(value: unknown) {
   return classStatusOptions.find((option) => option.value === value);
@@ -14,10 +30,23 @@ export function formatClassStatus(value: unknown) {
   return getClassStatusOption(value)?.label ?? "Ongoing";
 }
 
-export const classGradeFields = [
-  ["Prelim", "prelim"], ["Midterm", "midterm"], ["Prefinals", "prefinals"],
-  ["Finals", "finals"], ["Average", "average"],
-] as const;
+export function classGradeFields(
+  periods: readonly { key: string; name: string }[],
+): [string, string][] {
+  return [
+    ...periods.map((p) => [p.name, p.key] as [string, string]),
+    ["Average", "average"],
+  ];
+}
+export function getClassGradeValue(
+  row:
+    | { periodGrades: Record<string, string | null>; average: string | null }
+    | null
+    | undefined,
+  key: string,
+) {
+  return key === "average" ? row?.average : row?.periodGrades[key];
+}
 
 /** Older spreadsheet deployments send this as a regular activity with a dummy maximum. */
 export function isAdditionalPointsActivity(name: string): boolean {
@@ -25,9 +54,35 @@ export function isAdditionalPointsActivity(name: string): boolean {
 }
 
 /** Keep unavailable grades last while preserving nonnumeric spreadsheet markers. */
-export function getClassGradeSortValue(value: string | null | undefined, percentages = false): string | number | null {
+export function getClassGradeSortValue(
+  value: string | null | undefined,
+  percentages = false,
+): string | number | null {
   if (value == null || !value.trim()) return null;
   const normalized = value.replace(/,/g, "");
-  const number = Number(percentages ? normalized.replace(/%$/, "") : normalized);
+  const number = Number(
+    percentages ? normalized.replace(/%$/, "") : normalized,
+  );
   return Number.isFinite(number) ? number : value;
+}
+
+export type ClassworkNotePart = { title?: string; text: string };
+
+/** Preserve ordinary text and malformed templates rather than losing notes. */
+export function parseClassworkNote(note: string): ClassworkNotePart[] {
+  const parts: ClassworkNotePart[] = [];
+  const template = /\[([^\[\]:\r\n]+):([^\[\]]+)\]/g;
+  let cursor = 0;
+  for (const match of note.matchAll(template)) {
+    const title = match[1].trim();
+    const text = match[2].trim();
+    if (!title || !text) continue;
+    const before = note.slice(cursor, match.index).trim();
+    if (before) parts.push({ text: before });
+    parts.push({ title, text });
+    cursor = match.index + match[0].length;
+  }
+  const remaining = note.slice(cursor).trim();
+  if (remaining) parts.push({ text: remaining });
+  return parts;
 }

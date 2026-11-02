@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ArrowUpRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InteractivePortalTable, type InteractiveTableColumn } from "@/components/portal/interactive-table";
-import { formatSemester } from "@/lib/academic-levels";
+import { formatTerm } from "@/lib/academic-levels";
 import type { ClassRosterReview } from "@/lib/classes/roster-review";
 import { useClassRosterReviews } from "../classes/use-class-roster-reviews";
 
@@ -15,7 +15,7 @@ const columns: InteractiveTableColumn<ClassRosterReview>[] = [
       <span className="font-mono text-xs">{row.classCode}</span><span className="mt-1 block font-semibold">{row.subjectName}</span><span className="mt-1 block text-xs text-muted-foreground">{row.sectionName}</span>
     </Link>
   ) },
-  { header: "School year / Semester", sortValue: (row) => `${row.schoolYear} ${row.semester ?? ""}`, cell: (row) => <div><p>{row.schoolYear}</p><p className="mt-1 text-xs text-muted-foreground">{formatSemester(row.semester)}</p></div> },
+  { header: "School year / Term", sortValue: (row) => `${row.schoolYear} ${row.term ?? ""}`, cell: (row) => <div><p>{row.schoolYear}</p><p className="mt-1 text-xs text-muted-foreground">{formatTerm(row.term)}</p></div> },
   { header: "Teacher", sortValue: (row) => row.teacherName, className: "max-w-56 whitespace-normal", cell: (row) => row.teacherName },
   { header: "Review", sortValue: (row) => row.issueCount ?? -1, className: "min-w-64 whitespace-normal", cell: (row) => (
     <div>
@@ -66,7 +66,7 @@ export function ClassReviewReport() {
           ].map(({ label, count, color }) => <div key={label} className="rounded-xl border border-border p-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className={`mt-1 text-2xl font-semibold ${count ? color : "text-foreground"}`}>{count}</dd></div>)}
         </dl>
         <p className="px-5 pb-4 text-xs text-muted-foreground">{classes.filter((row) => row.state === "matched").length} classes have no roster issues. Refresh to check the latest spreadsheet records.</p>
-        <InteractivePortalTable rows={rows} columns={columns} rowKey={(row) => row.id} searchValue={(row) => `${row.classCode} ${row.subjectName} ${row.sectionName} ${row.teacherName} ${row.schoolYear} ${formatSemester(row.semester)}`}
+        <InteractivePortalTable rows={rows} columns={columns} rowKey={(row) => row.id} searchValue={(row) => `${row.classCode} ${row.subjectName} ${row.sectionName} ${row.teacherName} ${row.schoolYear} ${formatTerm(row.term)}`}
           searchLabel="Search class review report" searchPlaceholder="Search class code, subject, or teacher..." rowLabel="classes" resetKey={category}
           emptyTitle={classes.length ? "No classes in this review category" : "No classes have been created yet"} className="min-w-200"
           toolbarControls={<select aria-label="Class review category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">

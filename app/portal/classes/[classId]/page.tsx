@@ -4,7 +4,7 @@ import { FileSpreadsheet, Pencil, RefreshCw, Users } from "lucide-react";
 import { PortalFormPage } from "@/components/portal/page-header";
 import { RosterCrossMatchView } from "@/components/portal/roster-cross-match-view";
 import { Button } from "@/components/ui/button";
-import { formatAcademicLevel, formatSemester } from "@/lib/academic-levels";
+import { formatAcademicLevel, formatTerm } from "@/lib/academic-levels";
 import { getManagedClassView } from "@/lib/classes/class-view";
 import { mergeEnrolledStudentGrades } from "@/lib/classes/enrolled-grades";
 import { getClassStatusOption } from "@/lib/classes/presentation";
@@ -26,7 +26,7 @@ export default async function ManagedClassPage({ params, searchParams }: {
   const status = getClassStatusOption(record.status) ?? getClassStatusOption("ongoing")!;
   const gradeAvailability = summary?.success ? "Available" : record.spreadsheetUrl ? "Unavailable" : "No Google Sheet connected";
   const details = [
-    { label: "School year / Semester", value: `${record.schoolYear} / ${formatSemester(record.semester)}` },
+    { label: "School year / Term", value: `${record.schoolYear} / ${formatTerm(record.term)}` },
     { label: "Program", value: record.program ? `${record.program.code} — ${record.program.label}` : "Not assigned" },
     { label: "Year level / Section", value: `${formatAcademicLevel(record.yearLevel)} / ${record.sectionName}` },
     { label: "Branch", value: record.branch?.title ?? "Not assigned" },
@@ -69,8 +69,8 @@ export default async function ManagedClassPage({ params, searchParams }: {
             record.students.map(({ student }) => ({ id: student.id.toString(), name: formatStudentName(student), studentNumber: student.studentNumber, imageUrl: student.userImage })),
             summary?.success ? summary.students : [],
           )} gradeAvailability={gradeAvailability} exportDetails={{
-            classCode: record.classCode, subjectName: record.subjectName, schoolYear: record.schoolYear,
-            semester: formatSemester(record.semester), program: record.program?.code ?? "Not assigned",
+            periods:record.calendar.periods, classCode: record.classCode, subjectName: record.subjectName, schoolYear: record.schoolYear,
+            term: formatTerm(record.term), program: record.program?.code ?? "Not assigned",
             yearLevel: formatAcademicLevel(record.yearLevel), sectionName: record.sectionName,
             branch: record.branch?.title ?? "Not assigned", teacher: getEmployeeFullName(record.teacher.employee), gradeAvailability,
           }} />

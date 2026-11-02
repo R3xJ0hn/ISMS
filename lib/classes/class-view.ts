@@ -1,3 +1,4 @@
+import { academicSelection, getClassCalendar } from "@/lib/academics/calendar";
 import { requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -8,7 +9,7 @@ import { parseClassId } from "./validation";
 
 const classViewSelection = {
   id: true, classCode: true, status: true, subjectName: true, sectionName: true,
-  schoolYear: true, semester: true, yearLevel: true, spreadsheetUrl: true,
+  schoolYear: true, ...academicSelection, yearLevel: true, spreadsheetUrl: true,
   branch: { select: { title: true } },
   program: { select: { code: true, label: true } },
   teacher: { select: { employee: { select: { firstName: true, middleName: true, lastName: true, suffix: true } } } },
@@ -39,7 +40,7 @@ export async function getManagedClassView(classId: string, includeCrossMatch = f
       summary = { success: false, message: "Ask the teacher to connect a Google Sheet from the class Overview to view grades." };
     } else {
       try {
-        summary = await getClassSummary(record.spreadsheetUrl);
+        summary = await getClassSummary(record.spreadsheetUrl, getClassCalendar(record));
       } catch {
         console.error("Failed to load the class grade summary.");
         summary = { success: false, message: "Unable to load class grades right now. Please refresh to try again." };
@@ -49,5 +50,5 @@ export async function getManagedClassView(classId: string, includeCrossMatch = f
   if (includeCrossMatch) {
     crossMatch = await getClassRosterComparison(record.spreadsheetUrl, record.students.map(({ student }) => student));
   }
-  return { record, crossMatch, summary };
+  return { record: {...record,term:record.academicTerm.name,calendar:getClassCalendar(record)}, crossMatch, summary };
 }

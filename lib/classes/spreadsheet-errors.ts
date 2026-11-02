@@ -1,4 +1,5 @@
 const spreadsheetMessages = {
+  CALENDAR_UPGRADE_REQUIRED: "Update and redeploy the Apps Script to support this class's academic scheme.",
   SPREADSHEET_ACCESS_DENIED: "Spreadsheet access is restricted. Share the spreadsheet with the Google account running the Apps Script deployment, then refresh.",
   SPREADSHEET_OPEN_FAILED: "The connected spreadsheet could not be opened. Check that the saved Google Sheets link is correct and the spreadsheet still exists, then refresh.",
   SCRIPT_ACCESS_DENIED: "The portal cannot access the Apps Script spreadsheet service without Google sign-in. Ask an administrator to check the deployment URL and web app access settings so the portal can call it without signing in.",
@@ -18,6 +19,7 @@ const spreadsheetMessages = {
 export type SpreadsheetErrorCode = keyof typeof spreadsheetMessages;
 
 const studentMessages: Record<SpreadsheetErrorCode, string> = {
+  CALENDAR_UPGRADE_REQUIRED: "Ask your teacher or administrator to update the spreadsheet connection for this class's academic scheme.",
   SPREADSHEET_ACCESS_DENIED: "Your class spreadsheet cannot be accessed. Ask your teacher to share it with the Google account running the Apps Script deployment, then try again.",
   SPREADSHEET_OPEN_FAILED: "Your class spreadsheet could not be opened. Ask your teacher to check the saved Google Sheets link and that the spreadsheet still exists.",
   SCRIPT_ACCESS_DENIED: "The portal cannot access the spreadsheet service. Ask your teacher or administrator to check the Apps Script deployment and its access settings.",

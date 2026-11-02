@@ -2,7 +2,7 @@ import type { ClassSummaryStudent } from "./spreadsheet";
 import { matchClassStudentProfiles, type ClassRosterProfile } from "./student-preview";
 
 export type ClassStudentGrades = Pick<ClassSummaryStudent,
-  "prelim" | "midterm" | "prefinals" | "finals" | "average" | "remarks" | "note">;
+  "periodGrades" | "periods" | "average" | "remarks" | "note">;
 
 export type EnrolledClassStudent = ClassRosterProfile & {
   imageUrl: string | null;
@@ -18,8 +18,7 @@ export function mergeEnrolledStudentGrades(
   for (const row of summary) {
     const profile = profiles.get(row.studentNumber.trim());
     if (profile) grades.set(profile.id, {
-      prelim: row.prelim, midterm: row.midterm, prefinals: row.prefinals,
-      finals: row.finals, average: row.average, remarks: row.remarks, note: row.note,
+      periodGrades: row.periodGrades, periods:row.periods, average: row.average, remarks: row.remarks, note: row.note,
     });
   }
   return roster.map((student) => ({

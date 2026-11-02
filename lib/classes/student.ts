@@ -1,143 +1,286 @@
-import type { Prisma } from "@/lib/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
 import { getEmployeeFullName } from "@/lib/employees/names";
 import { formatStudentName } from "@/lib/utils";
-import { getCurrentStudent, studentClassMembershipWhere } from "@/lib/portal/student";
-import { getStudentClasswork, type ClassSummaryStudent, type ClassworkCatalogResult } from "./spreadsheet";
-import { getStudentSpreadsheetErrorMessage } from "./spreadsheet-errors";
-import { parseClassId } from "./validation";
-import { getClassPeriodVisibility, classPeriodDefinitions, getVisiblePeriodGrades } from "./period-visibility";
-import { classStudentPreviewSelection, serializeClassStudentPreviews } from "./student-preview";
+import {
+  classStudentPreviewSelection,
+  serializeClassStudentPreviews,
+} from "./student-preview";
+import "server-only";
+import {
+  academicSelection,
+  getClassCalendar,
+  calendarVersion,
+} from "@/lib/academics/calendar";
+import { prisma } from "@/lib/prisma";
+import {
+  getCurrentStudent,
+  studentClassMembershipWhere,
+} from "@/lib/portal/student";
 import { classListOrderBy } from "./grouping";
+import {
+  getStudentClasswork,
+  type ClassSummaryStudent,
+  type StudentClassworkResult,
+} from "./spreadsheet";
+import {
+  getSpreadsheetId,
+  normalizeSpreadsheetUrl,
+  parseClassId,
+} from "./validation";
+import {
+  getClassPeriodVisibility,
+  getVisiblePeriodGrades,
+} from "./period-visibility";
+import { getStudentSpreadsheetErrorMessage } from "./spreadsheet-errors";
+import type { Prisma } from "@/lib/generated/prisma/client";
 
-const classSelection = {
+export const studentClassSelection = {
   id: true,
   classCode: true,
   status: true,
-  programId: true,
-  program: { select: { code: true, label: true } },
-  schoolYear: true,
-  semester: true,
-  sectionName: true,
-  yearLevel: true,
   subjectName: true,
+  sectionName: true,
+  schoolYear: true,
+  yearLevel: true,
+  programId: true,
   spreadsheetUrl: true,
-  prelimVisible: true,
-  midtermVisible: true,
-  prefinalsVisible: true,
-  finalsVisible: true,
+  ...academicSelection,
+  program: { select: { code: true, label: true } },
   branch: { select: { title: true } },
-  teacher: { select: { employee: { select: {
-    firstName: true, middleName: true, lastName: true, suffix: true,
-  } } } },
-} as const;
+  subject: { select: { name: true, code: true, units: true } },
+  teacher: {
+    select: {
+      employee: {
+        select: {
+          firstName: true,
+          middleName: true,
+          lastName: true,
+          suffix: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.ClassSelect;
+export type StudentAssignedClass = Prisma.ClassGetPayload<{
+  select: typeof studentClassSelection;
+}>;
+const unavailable =
+  "Your class records are unavailable right now. Ask your teacher to check the spreadsheet and your student number, then try again.";
 
-type SelectedClass = Prisma.ClassGetPayload<{ select: typeof classSelection }>;
-
-function classroomMetadata(assignedClass: SelectedClass) {
-  return {
-    id: assignedClass.id.toString(),
-    classCode: assignedClass.classCode,
-    status: assignedClass.status,
-    programId: assignedClass.programId?.toString() ?? null,
-    programCode: assignedClass.program?.code ?? null,
-    programLabel: assignedClass.program ? `${assignedClass.program.code} — ${assignedClass.program.label}` : null,
-    schoolYear: assignedClass.schoolYear,
-    semester: assignedClass.semester,
-    sectionName: assignedClass.sectionName,
-    yearLevel: assignedClass.yearLevel,
-    subjectName: assignedClass.subjectName,
-    branchTitle: assignedClass.branch?.title ?? null,
-    teacherName: getEmployeeFullName(assignedClass.teacher.employee),
-    spreadsheetLinked: Boolean(assignedClass.spreadsheetUrl),
-  };
+/** One bounded loader for Grades, Classwork and To-dos. Revalidate identity and enrollment after remote reads. */
+export async function getStudentRecordReport(
+  options: {
+    classId?: bigint;
+    ongoing?: boolean;
+    choose?: (rows: StudentAssignedClass[]) => StudentAssignedClass[];
+  } = {},
+) {
+  let student = await getCurrentStudent();
+  if (!student)
+    return {
+      student: null,
+      allClasses: [] as StudentAssignedClass[],
+      classes: [] as {
+        row: StudentAssignedClass;
+        result: StudentClassworkResult;
+      }[],
+      message: "Your student record is not available. Contact the registrar.",
+    };
+  const id = student.id,
+    number = student.studentNumber?.trim() || null;
+  const load = () =>
+    prisma.class.findMany({
+      where: {
+        ...studentClassMembershipWhere(id),
+        ...(options.classId ? { id: options.classId } : {}),
+        ...(options.ongoing ? { status: "ongoing" as const } : {}),
+      },
+      select: studentClassSelection,
+      orderBy: classListOrderBy,
+    });
+  let allClasses = await load();
+  const choose = options.choose ?? ((rows) => rows);
+  const initial = new Map(
+    choose(allClasses).map((row) => [String(row.id), row]),
+  );
+  const key = (row: StudentAssignedClass) =>
+    number && row.spreadsheetUrl && getSpreadsheetId(row.spreadsheetUrl)
+      ? JSON.stringify([
+          getSpreadsheetId(row.spreadsheetUrl),
+          number,
+          calendarVersion(getClassCalendar(row)),
+        ])
+      : null;
+  const requests = new Map<string, StudentAssignedClass>();
+  for (const row of initial.values()) {
+    const id = key(row);
+    if (id && getClassCalendar(row).periods.some((p) => p.visible))
+      requests.set(id, row);
+  }
+  const pending = [...requests],
+    results = new Map<string, StudentClassworkResult>();
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(3, pending.length) }, async () => {
+      while (next < pending.length) {
+        const [id, row] = pending[next++];
+        try {
+          results.set(
+            id,
+            await getStudentClasswork(
+              row.spreadsheetUrl!,
+              number!,
+              getClassCalendar(row),
+            ),
+          );
+        } catch {
+          results.set(id, { success: false, message: unavailable });
+        }
+      }
+    }),
+  );
+  if (requests.size) {
+    const current = await getCurrentStudent();
+    if (
+      !current ||
+      current.id !== id ||
+      (current.studentNumber?.trim() || null) !== number
+    )
+      return {
+        student: null,
+        allClasses: [],
+        classes: [],
+        message:
+          "Your student record changed while records were loading. Refresh the page.",
+      };
+    student = current;
+    allClasses = await load();
+  }
+  const classes = choose(allClasses).map((row) => {
+    const calendar = getClassCalendar(row),
+      original = initial.get(String(row.id));
+    let result: StudentClassworkResult;
+    if (!calendar.periods.some((p) => p.visible))
+      result = {
+        success: false,
+        message: "Your teacher has hidden all grading periods for this class.",
+      };
+    else if (!row.spreadsheetUrl)
+      result = {
+        success: false,
+        message: "Your teacher has not connected this class spreadsheet yet.",
+      };
+    else if (!number)
+      result = {
+        success: false,
+        message:
+          "Your student number is not available yet. Contact the registrar.",
+      };
+    else if (
+      !original ||
+      calendarVersion(getClassCalendar(original)) !==
+        calendarVersion(calendar) ||
+      normalizeSpreadsheetUrl(original.spreadsheetUrl ?? "") !==
+        normalizeSpreadsheetUrl(row.spreadsheetUrl)
+    )
+      result = {
+        success: false,
+        message:
+          "The class changed while records were loading. Refresh the page.",
+      };
+    else {
+      const response = results.get(key(row) ?? "");
+      if (!response) result = { success: false, message: unavailable };
+      else if (!response.success)
+        result = {
+          success: false,
+          message:
+            getStudentSpreadsheetErrorMessage(response.code) ?? unavailable,
+          ...(response.code ? { code: response.code } : {}),
+        };
+      else if (response.record.studentNumber.trim() !== number)
+        result = {
+          success: false,
+          message:
+            "Your spreadsheet record cannot be matched safely. Contact your teacher.",
+        };
+      else {
+        const visibility = Object.fromEntries(
+          calendar.periods.map((p) => [p.key, p.visible]),
+        );
+        result = {
+          success: true,
+          record: {
+            studentNumber: response.record.studentNumber,
+            studentName: response.record.studentName,
+            periods: calendar.periods.map(({ key, name }) => ({ key, name })),
+            ...getVisiblePeriodGrades(response.record, visibility),
+          },
+          periods: response.periods.filter((p) => visibility[p.key]),
+        };
+      }
+    }
+    return { row, result };
+  });
+  return { student, allClasses, classes, message: null };
 }
 
+function classroomMetadata(row: StudentAssignedClass) {
+  return {
+    id: String(row.id),
+    classCode: row.classCode,
+    status: row.status,
+    programId: row.programId ? String(row.programId) : null,
+    programCode: row.program?.code ?? null,
+    programLabel: row.program?.label ?? null,
+    schoolYear: row.schoolYear,
+    term: row.academicTerm.name,
+    termId: String(row.academicTermId),
+    termPosition: row.academicTerm.position,
+    sectionName: row.sectionName,
+    yearLevel: row.yearLevel,
+    subjectName: row.subjectName,
+    branchTitle: row.branch?.title ?? null,
+    teacherName: getEmployeeFullName(row.teacher.employee),
+    spreadsheetLinked: Boolean(row.spreadsheetUrl),
+  };
+}
 export async function getStudentClasses() {
   const student = await getCurrentStudent();
   if (!student) return [];
-  const classes = await prisma.class.findMany({
+  const rows = await prisma.class.findMany({
     where: studentClassMembershipWhere(student.id),
-    select: { ...classSelection, ...classStudentPreviewSelection },
+    select: { ...studentClassSelection, ...classStudentPreviewSelection },
     orderBy: classListOrderBy,
   });
-  return classes.map((assignedClass) => ({
-    ...classroomMetadata(assignedClass),
-    studentPreviews: serializeClassStudentPreviews(assignedClass.students),
-    studentCount: assignedClass._count.students,
+  return rows.map((row) => ({
+    ...classroomMetadata(row),
+    studentPreviews: serializeClassStudentPreviews(row.students),
+    studentCount: row._count.students,
   }));
 }
-
 export type StudentClassGrades =
   | { success: true; record: ClassSummaryStudent | null }
   | { success: false; message: string };
-
 export async function getStudentClass(classId: string) {
-  const student = await getCurrentStudent();
   const id = parseClassId(classId);
-  if (!student || id === null) return null;
-  let assignedClass = await prisma.class.findFirst({
-    where: { id, ...studentClassMembershipWhere(student.id) },
-    select: classSelection,
-  });
-  if (!assignedClass) return null;
-
-  let periodVisibility = getClassPeriodVisibility(assignedClass);
-  const anyPeriodVisible = classPeriodDefinitions.some(({ field }) => periodVisibility[field]);
-  const studentNumber = student.studentNumber?.trim() || null;
-  let grades: StudentClassGrades;
-  let classwork: ClassworkCatalogResult;
-  if (!anyPeriodVisible) {
-    const message = "Your teacher has hidden all grading periods for this class.";
-    grades = { success: false, message };
-    classwork = { success: false, message };
-  } else if (!studentNumber) {
-    grades = { success: false, message: "Your student number is not available yet. Contact the registrar to see your class grades." };
-    classwork = { success: false, message: "Your student number is not available yet. Contact the registrar to see your classwork." };
-  } else if (!assignedClass.spreadsheetUrl) {
-    grades = { success: false, message: "Your teacher has not connected the class grade summary yet." };
-    classwork = { success: false, message: "Your teacher has not connected the class spreadsheet yet." };
-  } else {
-    // Fetch only this student's records; never request the teacher's full grade roster.
-    const records = await getStudentClasswork(assignedClass.spreadsheetUrl, studentNumber);
-    if (!records.success) {
-      const hidden = records.message === "This class has not enabled spreadsheet records in the portal.";
-      const message = getStudentSpreadsheetErrorMessage(records.code) ?? (hidden ? records.message : null);
-      grades = { success: false, message: message ?? "Your class grades are unavailable right now. Ask your teacher to check the connected spreadsheet and your student number, then try again." };
-      classwork = { success: false, message: message ?? "Your classwork is unavailable right now. Ask your teacher to check the connected spreadsheet and your student number, then try again." };
-    } else {
-      // A teacher may hide records or change the roster while the spreadsheet request is pending.
-      assignedClass = await prisma.class.findFirst({
-        where: { id, ...studentClassMembershipWhere(student.id) },
-        select: classSelection,
-      });
-      if (!assignedClass) return null;
-      periodVisibility = getClassPeriodVisibility(assignedClass);
-      if (!classPeriodDefinitions.some(({ field }) => periodVisibility[field])) {
-        const message = "Your teacher has hidden all grading periods for this class.";
-        grades = { success: false, message };
-        classwork = { success: false, message };
-      // Student numbers are identifiers: preserve case and leading zeros, and never match by name.
-      } else if (records.record.studentNumber.trim() !== studentNumber) {
-        grades = { success: false, message: "Your class grades cannot be matched safely. Please contact your teacher." };
-        classwork = { success: false, message: "Your classwork cannot be matched safely. Please contact your teacher." };
-      } else {
-        grades = { success: true, record: {
-          studentNumber: records.record.studentNumber, studentName: records.record.studentName,
-          ...getVisiblePeriodGrades(records.record, periodVisibility),
-        } };
-        classwork = { success: true, periods: records.periods.filter(({ period }) =>
-          classPeriodDefinitions.some((definition) => definition.period === period && periodVisibility[definition.field])
-        ) };
-      }
-    }
-  }
-
+  if (!id) return null;
+  const report = await getStudentRecordReport({ classId: id });
+  const entry = report.classes[0];
+  if (!entry || !report.student) return null;
+  const { row, result } = entry;
   return {
-    ...classroomMetadata(assignedClass),
-    student: { name: formatStudentName(student), studentNumber },
-    periodVisibility,
-    grades,
-    classwork,
+    ...classroomMetadata(row),
+    student: {
+      name: formatStudentName(report.student),
+      studentNumber: report.student.studentNumber,
+    },
+    calendar: getClassCalendar(row),
+    periodVisibility: getClassPeriodVisibility(row),
+    grades: result.success
+      ? { success: true as const, record: result.record }
+      : result,
+    classwork: result.success
+      ? { success: true as const, periods: result.periods }
+      : result,
   };
 }

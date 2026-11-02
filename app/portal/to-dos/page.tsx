@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ChevronRight, ClipboardCheck, Clock3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requireSession } from "@/lib/auth";
-import { formatSemester } from "@/lib/academic-levels";
+import { formatTerm } from "@/lib/academic-levels";
 import { getStudentTodos } from "@/lib/classes/student-todos";
 
 export default async function StudentTodosPage() {
@@ -12,9 +12,9 @@ export default async function StudentTodosPage() {
   const report = await getStudentTodos();
   const pendingClasses = report.classes.flatMap((assignedClass) => {
     if (!assignedClass.classwork.success) return [];
-    const tasks = assignedClass.classwork.periods.flatMap(({ period, categories }) =>
+    const tasks = assignedClass.classwork.periods.flatMap(({ period, key:periodKey, categories }) =>
       categories.flatMap((category, categoryIndex) => category.activities.map((activity, activityIndex) => ({
-        activity, period, category: category.name, key: `${period}-${categoryIndex}-${activityIndex}`,
+        activity, period, periodKey, category: category.name, key: `${periodKey}-${categoryIndex}-${activityIndex}`,
       }))));
     return tasks.length ? [{ assignedClass, tasks }] : [];
   });
@@ -44,14 +44,14 @@ export default async function StudentTodosPage() {
               <header className="flex min-w-0 items-center justify-between gap-3 border-b bg-violet-50/40 px-4 py-4 sm:px-5 dark:bg-violet-950/20">
                 <Link href={`/portal/classroom/${assignedClass.id}?tab=classwork`} className="min-w-0 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
                   <h2 className="wrap-anywhere text-sm font-semibold leading-6 text-violet-800 dark:text-violet-300">{assignedClass.subjectName}</h2>
-                  <p className="mt-1 wrap-anywhere text-xs leading-5 text-muted-foreground">{assignedClass.classCode} · {assignedClass.sectionName} · {assignedClass.schoolYear} / {formatSemester(assignedClass.semester)}</p>
+                  <p className="mt-1 wrap-anywhere text-xs leading-5 text-muted-foreground">{assignedClass.classCode} · {assignedClass.sectionName} · {assignedClass.schoolYear} / {formatTerm(assignedClass.term)}</p>
                 </Link>
                 <span className="shrink-0 text-xs text-muted-foreground">{tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>
               </header>
               <ul className="divide-y divide-border/60">
-                {tasks.map(({ activity, period, category, key }) => (
+                {tasks.map(({ activity, period, periodKey, category, key }) => (
                   <li key={key}>
-                    <Link href={`/portal/classroom/${assignedClass.id}?tab=classwork#classwork-${period.toLowerCase()}`}
+                    <Link href={`/portal/classroom/${assignedClass.id}?tab=classwork#classwork-${periodKey}`}
                       className="group flex min-w-0 items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/35 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring motion-reduce:transition-none sm:px-5">
                       <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-50/70 text-[#9a6b45] dark:bg-amber-950/25 dark:text-[#d8ad86]"><Clock3 className="size-4" /></span>
                       <div className="min-w-0 flex-1">
