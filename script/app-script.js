@@ -9,7 +9,7 @@
  * 4. class_roster (INPUT identities only; REPORT is not required)
  *
  * Required sheets:
- * INPUT, REPORT, Prelim, Midterm, Pre-Finals, Finals
+ * INPUT, REPORT, plus the worksheet names sent in the database calendar.
  *
  * INPUT!G7 = View Records in Web Portal
  * INPUT!G8 = View Excluded Columns in Web Portal
@@ -18,13 +18,6 @@
  */
 
 const CONFIG = {
-  periods: [
-    { name: "Prelim", sheet: "Prelim" },
-    { name: "Midterm", sheet: "Midterm" },
-    { name: "Prefinals", sheet: "Pre-Finals" },
-    { name: "Finals", sheet: "Finals" }
-  ],
-
   input: {
     studentStartRow: 11,
     subjectCode: "C8",
@@ -36,16 +29,7 @@ const CONFIG = {
 
   report: {
     startRow: 6
-  },
-
-  gradeLabels: [
-    "Prelim",
-    "Midterm",
-    "Prefinals",
-    "Finals",
-    "Ave",
-    "Remarks"
-  ]
+  }
 };
 
 // =====================================
@@ -147,7 +131,12 @@ function getInputMetadata(input) {
   return inputMetadata.get(input);
 }
 
-function getSettings(input) {
+function getSettings(input, rosterOnly = false) {
+  // Roster comparisons need only access switches, never subject or grading metadata.
+  if (rosterOnly) return {
+    view_records_in_web_portal: toBoolean(input.getRange(CONFIG.input.viewRecords).getValue()),
+    view_excluded_columns_in_web_portal: toBoolean(input.getRange(CONFIG.input.viewExcluded).getValue())
+  };
   const { values } = getInputMetadata(input);
   return {
     view_records_in_web_portal: toBoolean(values[4][4]),
@@ -254,31 +243,34 @@ function buildStudentIndex(students) {
 //
 // REPORT:
 // B = Student Name
-// C = Prelim
-// D = Midterm
-// E = Prefinals
-// F = Finals
-// G = Average
-// H = Equivalent / Remarks
+// Grade and summary columns come from the database calendar.
 // =====================================
 
-function formatGrades(values, note) {
-  const grades = CONFIG.gradeLabels.map(
-    (label, index) => ({
-      Label: label,
-      Value: toValue(values[index])
-    })
-  );
-
-  grades.push({
-    Label: "Note",
-    Value: note || null
-  });
-
-  return grades;
+function formatGrades(row, note, calendar) {
+  return [
+    ...calendar.periods.map(period => ({ Label: period.key, Value: toValue(row[period.reportColumn - 2]) })),
+    { Label: "Average", Value: toValue(row[calendar.averageColumn - 2]) },
+    { Label: "Equivalent", Value: toValue(row[calendar.equivalentColumn - 2]) },
+    { Label: "Note", Value: note || null }
+  ];
 }
 
-function getAllReportStudents(book, students, requireCompleteReport = false) {
+function parseCalendar(raw) {
+  if (!raw || !Array.isArray(raw.periods) || raw.periods.length < 1 || raw.periods.length > 8) throw new Error("Academic calendar required");
+  const names = new Set(), keys = new Set(), sheets = new Set(), columns = new Set();
+  const column = value => Number.isSafeInteger(value) && value >= 3 && value <= 702;
+  const periods = raw.periods.map(period => {
+    if (!period || !/^period_\d+$/.test(period.key) || !clean(period.name) || clean(period.name).length > 80 || !clean(period.sheet) || clean(period.sheet).length > 100 || !column(period.reportColumn)) throw new Error("Invalid academic calendar");
+    const name = clean(period.name), sheet = clean(period.sheet);
+    if (keys.has(period.key) || names.has(normalize(name)) || sheets.has(normalize(sheet)) || columns.has(period.reportColumn)) throw new Error("Duplicate academic calendar mapping");
+    keys.add(period.key); names.add(normalize(name)); sheets.add(normalize(sheet)); columns.add(period.reportColumn);
+    return { key: period.key, name, sheet, reportColumn: period.reportColumn };
+  });
+  if (!column(raw.averageColumn) || !column(raw.equivalentColumn) || raw.averageColumn === raw.equivalentColumn || columns.has(raw.averageColumn) || columns.has(raw.equivalentColumn)) throw new Error("Invalid summary columns");
+  return { periods, averageColumn: raw.averageColumn, equivalentColumn: raw.equivalentColumn };
+}
+
+function getAllReportStudents(book, students, requireCompleteReport = false, calendar) {
   const index = buildStudentIndex(students);
   const report = book.getSheetByName("REPORT");
 
@@ -299,7 +291,7 @@ function getAllReportStudents(book, students, requireCompleteReport = false) {
     start,
     2,
     lastRow - start + 1,
-    7
+    Math.max(calendar.averageColumn, calendar.equivalentColumn, ...calendar.periods.map(period => period.reportColumn)) - 1
   );
 
   const results = [];
@@ -326,8 +318,9 @@ function getAllReportStudents(book, students, requireCompleteReport = false) {
       student_num: student.student_num,
       student_name: student.student_name,
       grades: formatGrades(
-        row.slice(1, 7),
-        student.note
+        row,
+        student.note,
+        calendar
       )
     });
   });
@@ -630,8 +623,8 @@ function readPeriod(
 // ACTION 1: ALL CLASSWORKS
 // =====================================
 
-function getAllClassworks(book, input, settings) {
-  const periods = CONFIG.periods.map(period =>
+function getAllClassworks(book, input, settings, calendar) {
+  const periods = calendar.periods.map(period =>
     readPeriod(book, period, input, settings)
   );
 
@@ -645,13 +638,14 @@ function getAllClassworks(book, input, settings) {
 // ACTION 2: ALL STUDENTS
 // =====================================
 
-function getClassReport(book, input) {
+function getClassReport(book, input, calendar) {
   const students = getStudents(input);
 
   const reportStudents = getAllReportStudents(
     book,
     students,
-    true
+    true,
+    calendar
   );
 
   return {
@@ -669,7 +663,8 @@ function getStudentRecord(
   book,
   input,
   settings,
-  studentNum
+  studentNum,
+  calendar
 ) {
   const students = getStudents(input);
   const index = buildStudentIndex(students);
@@ -686,7 +681,9 @@ function getStudentRecord(
 
   const reportStudents = getAllReportStudents(
     book,
-    students
+    students,
+    false,
+    calendar
   );
 
   const reportRecord = reportStudents.find(
@@ -699,7 +696,7 @@ function getStudentRecord(
     throw studentRequestError("STUDENT_REPORT_NOT_FOUND");
   }
 
-  const periods = CONFIG.periods.map(period =>
+  const periods = calendar.periods.map(period =>
     readPeriod(
       book,
       period,
@@ -779,12 +776,13 @@ function doPost(e) {
       throw new Error("INPUT sheet not found");
     }
 
-    const settings = getSettings(input);
+    const settings = getSettings(input, action === "class_roster");
 
     if (!settings.view_records_in_web_portal) {
       return json({ success: true, action, settings, data: {} });
     }
 
+    const calendar = action === "class_roster" ? null : parseCalendar(body.calendar);
     let data;
 
     switch (action) {
@@ -796,14 +794,16 @@ function doPost(e) {
         data = getAllClassworks(
           book,
           input,
-          settings
+          settings,
+          calendar
         );
         break;
 
       case "all_students":
         data = getClassReport(
           book,
-          input
+          input,
+          calendar
         );
         break;
 
@@ -812,7 +812,8 @@ function doPost(e) {
           book,
           input,
           settings,
-          clean(body.studentNum)
+          clean(body.studentNum),
+          calendar
         );
         break;
     }
@@ -820,6 +821,7 @@ function doPost(e) {
     return json({
       success: true,
       action,
+      ...(action === "class_roster" ? {} : { calendar_version: 2 }),
       settings,
       data
     });

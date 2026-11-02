@@ -15,7 +15,7 @@ function isReport(value: unknown): value is ClassRosterReviewReport {
     const item = row as Record<string, unknown>;
     if (typeof item.id !== "string" || !/^[1-9]\d*$/.test(item.id) ||
       !["classCode", "subjectName", "sectionName", "schoolYear", "teacherName"].every((key) => typeof item[key] === "string") ||
-      ![null, "FirstSemester", "SecondSemester"].includes(item.semester as string | null) ||
+      !(item.term === null || typeof item.term === "string") ||
       !["needs_review", "matched", "unavailable", "not_connected"].includes(String(item.state)) ||
       ![null, "warning", "attention"].includes(item.severity as string | null) ||
       !(item.message === null || typeof item.message === "string") ||

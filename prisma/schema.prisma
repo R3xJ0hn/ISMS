@@ -39,11 +39,6 @@ enum AcademicLevel {
   FourthYear
 }
 
-enum Semester {
-  FirstSemester
-  SecondSemester
-}
-
 enum ClassStatus {
   ongoing
   gradeFinalization
@@ -192,6 +187,9 @@ model Teacher {
 }
 
 model Class {
+  academicTermId BigInt @map("academic_term_id")
+  academicTerm AcademicTerm @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  gradingPeriods ClassGradingPeriod[]
   id             BigInt   @id @default(autoincrement())
   classCode      String   @unique @default(dbgenerated("('CLS-'::text || (nextval('classes_class_code_seq'::regclass))::text)")) @map("class_code") @db.Text
   status         ClassStatus @default(ongoing)
@@ -199,16 +197,11 @@ model Class {
   programId      BigInt?  @map("program_id")
   subjectId      BigInt?  @map("subject_id")
   schoolYear     String   @map("school_year") @db.Text
-  semester       Semester?
   sectionName    String   @map("section_name") @db.Text
   yearLevel      AcademicLevel @map("year_level")
   teacherId      BigInt   @map("teacher_id")
   subjectName    String   @map("subject_name") @db.Text
   spreadsheetUrl String?  @map("spreadsheet_url") @db.Text
-  prelimVisible  Boolean  @default(true) @map("prelim_visible")
-  midtermVisible Boolean  @default(true) @map("midterm_visible")
-  prefinalsVisible Boolean @default(true) @map("prefinals_visible")
-  finalsVisible  Boolean  @default(true) @map("finals_visible")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -219,11 +212,12 @@ model Class {
   programSubject ProgramSubject? @relation(fields: [programId, subjectId], references: [programId, subjectId], onDelete: Restrict)
   students ClassStudent[]
 
-  @@unique([teacherId, branchId, schoolYear, semester, sectionName, yearLevel, programId, subjectId], map: "classes_assignment_key")
+  @@unique([teacherId, branchId, schoolYear, academicTermId, sectionName, yearLevel, programId, subjectId], map: "classes_assignment_key")
   @@index([teacherId, schoolYear])
+  @@index([academicTermId])
   @@index([branchId, schoolYear])
   @@index([programId, subjectId])
-  @@index([schoolYear, semester, programId, yearLevel])
+  @@index([schoolYear, academicTermId, programId, yearLevel])
   @@map("classes")
 }
 
@@ -347,6 +341,8 @@ model Branch {
 }
 
 model Program {
+  academicSchemeId BigInt? @map("academic_scheme_id")
+  academicScheme AcademicScheme? @relation(fields: [academicSchemeId], references: [id], onDelete: Restrict)
   id            BigInt      @id @default(autoincrement())
   programTypeId BigInt      @map("program_type_id")
   code          String      @unique @db.Text
@@ -371,7 +367,69 @@ model Program {
   group        ProgramGroup? @relation(fields: [groupId], references: [id], onDelete: Restrict)
 
   @@index([groupId, sortOrder])
+  @@index([academicSchemeId])
   @@map("programs")
+}
+
+// Scheme definitions are versioned by creating a new scheme once classes use them.
+// School year stays on Class; these terms describe the reusable annual structure.
+model AcademicScheme {
+  id BigInt @id @default(autoincrement())
+  name String @unique @db.VarChar(120)
+  revision Int @default(1)
+  legacySpreadsheet Boolean @default(false) @map("legacy_spreadsheet")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  terms AcademicTerm[]
+  programs Program[]
+
+  @@map("academic_schemes")
+}
+
+model AcademicTerm {
+  id BigInt @id @default(autoincrement())
+  schemeId BigInt @map("scheme_id")
+  name String @db.VarChar(80)
+  position Int
+  averageColumn Int @default(7) @map("average_column")
+  equivalentColumn Int @default(8) @map("equivalent_column")
+  scheme AcademicScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  periods GradingPeriod[]
+  classes Class[]
+
+  @@unique([schemeId, position])
+  @@unique([schemeId, name])
+  @@map("academic_terms")
+}
+
+model GradingPeriod {
+  id BigInt @id @default(autoincrement())
+  termId BigInt @map("term_id")
+  key String @db.VarChar(40)
+  name String @db.VarChar(80)
+  worksheetName String @map("worksheet_name") @db.VarChar(100)
+  position Int
+  reportColumn Int @default(3) @map("report_column")
+  term AcademicTerm @relation(fields: [termId], references: [id], onDelete: Cascade)
+  classes ClassGradingPeriod[]
+
+  @@unique([termId, position])
+  @@unique([termId, key])
+  @@unique([termId, name])
+  @@unique([termId, reportColumn])
+  @@map("grading_periods")
+}
+
+model ClassGradingPeriod {
+  classId BigInt @map("class_id")
+  gradingPeriodId BigInt @map("grading_period_id")
+  visible Boolean @default(true)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  gradingPeriod GradingPeriod @relation(fields: [gradingPeriodId], references: [id], onDelete: Restrict)
+
+  @@id([classId, gradingPeriodId])
+  @@index([gradingPeriodId])
+  @@map("class_grading_periods")
 }
 
 model ProgramGroup {
@@ -519,6 +577,7 @@ model AdmissionApplication {
   program        Program        @relation(fields: [programId], references: [id], onDelete: Restrict)
   notifications  Notification[]
 
+  @@index([lastSchoolId])
   @@map("admission_applications")
 }
 

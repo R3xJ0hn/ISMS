@@ -1,85 +1,79 @@
-import { parseClassId } from "./validation";
+import { getClassCalendar, type ClassCalendar } from "@/lib/academics/calendar";
+import { parseRecordId } from "@/lib/utils";
 
-export const classPeriodDefinitions = [
-  { period: "Prelim", label: "Prelim", field: "prelimVisible" },
-  { period: "Midterm", label: "Midterm", field: "midtermVisible" },
-  { period: "Prefinals", label: "Prefinals", field: "prefinalsVisible" },
-  { period: "Finals", label: "Finals", field: "finalsVisible" },
-] as const;
-
-export type ClassPeriodName = typeof classPeriodDefinitions[number]["period"];
-export type ClassPeriodVisibilityField = typeof classPeriodDefinitions[number]["field"];
-export type ClassPeriodVisibility = Record<ClassPeriodVisibilityField, boolean>;
-
-export const defaultClassPeriodVisibility: Readonly<ClassPeriodVisibility> = {
-  prelimVisible: true,
-  midtermVisible: true,
-  prefinalsVisible: true,
-  finalsVisible: true,
-};
-
-export function getClassPeriodVisibility(value?: Partial<ClassPeriodVisibility> | null): ClassPeriodVisibility {
-  return {
-    prelimVisible: value?.prelimVisible !== false,
-    midtermVisible: value?.midtermVisible !== false,
-    prefinalsVisible: value?.prefinalsVisible !== false,
-    finalsVisible: value?.finalsVisible !== false,
-  };
+export type ClassPeriodName = string;
+export type ClassPeriodVisibility = Record<string, boolean>;
+export function getClassPeriodVisibility(
+  value: Parameters<typeof getClassCalendar>[0] | ClassCalendar,
+): ClassPeriodVisibility {
+  const calendar = "periods" in value ? value : getClassCalendar(value);
+  return Object.fromEntries(
+    calendar.periods.map((period) => [period.key, period.visible]),
+  );
 }
-
-type PeriodGradeValues = {
-  prelim: string | null;
-  midterm: string | null;
-  prefinals: string | null;
-  finals: string | null;
+type PeriodGrades = {
+  periodGrades: Record<string, string | null>;
   average: string | null;
   remarks: string | null;
   note: string | null;
 };
-
-/** Explicit projection prevents hidden grades leaking through raw or extra source fields. */
-export function getVisiblePeriodGrades(grade: PeriodGradeValues, visibility: ClassPeriodVisibility): PeriodGradeValues {
-  const allVisible = classPeriodDefinitions.every(({ field }) => visibility[field]);
+/** Project only configured visible keys; final results require every configured period. */
+export function getVisiblePeriodGrades(
+  grade: PeriodGrades,
+  visibility: ClassPeriodVisibility,
+): PeriodGrades {
+  const allVisible =
+    Object.keys(visibility).length > 0 &&
+    Object.values(visibility).every(Boolean);
   return {
-    prelim: visibility.prelimVisible ? grade.prelim : null,
-    midterm: visibility.midtermVisible ? grade.midterm : null,
-    prefinals: visibility.prefinalsVisible ? grade.prefinals : null,
-    finals: visibility.finalsVisible ? grade.finals : null,
+    periodGrades: Object.fromEntries(
+      Object.entries(visibility).map(([key, visible]) => [
+        key,
+        visible ? (grade.periodGrades[key] ?? null) : null,
+      ]),
+    ),
     average: allVisible ? grade.average : null,
     remarks: allVisible ? grade.remarks : null,
     note: allVisible ? grade.note : null,
   };
 }
-
 export type ClassPeriodVisibilityFormState = {
   success: boolean;
   message: string;
-  period?: ClassPeriodName;
+  period?: string;
   visible?: boolean;
   fieldErrors?: Partial<Record<"classId" | "period" | "visible", string>>;
 };
-
-function singleFormValue(formData: FormData, field: string): string | null {
-  const values = formData.getAll(field);
-  return values.length === 1 && typeof values[0] === "string" ? values[0] : null;
-}
-
-export function parseClassPeriodVisibilityForm(formData: FormData):
-  | (ClassPeriodVisibilityFormState & { success: false })
-  | { success: true; id: bigint; period: ClassPeriodName; field: ClassPeriodVisibilityField; visible: boolean } {
-  const classId = singleFormValue(formData, "classId");
-  const id = classId === null ? null : parseClassId(classId);
-  const period = singleFormValue(formData, "period");
-  const definition = classPeriodDefinitions.find((item) => item.period === period);
-  const visible = singleFormValue(formData, "visible");
-  const fieldErrors: NonNullable<ClassPeriodVisibilityFormState["fieldErrors"]> = {};
-
-  if (id === null) fieldErrors.classId = "Choose a valid class.";
-  if (!definition) fieldErrors.period = "Choose a valid grading period.";
-  if (visible !== "true" && visible !== "false") fieldErrors.visible = "Choose whether students can see this grading period.";
-  if (Object.keys(fieldErrors).length || id === null || !definition) {
-    return { success: false, message: "Check the grading period settings and try again.", fieldErrors };
-  }
-
-  return { success: true, id, period: definition.period, field: definition.field, visible: visible === "true" };
+export function parseClassPeriodVisibilityForm(
+  form: FormData,
+):
+  | {
+      success: true;
+      id: bigint;
+      termId: bigint;
+      period: string;
+      visible: boolean;
+    }
+  | (ClassPeriodVisibilityFormState & { success: false }) {
+  const single = (name: string) => {
+    const values = form.getAll(name);
+    return values.length === 1 && typeof values[0] === "string"
+      ? values[0]
+      : "";
+  };
+  const id = parseRecordId(single("classId")),
+    termId = parseRecordId(single("termId")),
+    period = single("period"),
+    visible = single("visible");
+  if (
+    !id ||
+    !termId ||
+    !/^period_\d+$/.test(period) ||
+    !["true", "false"].includes(visible)
+  )
+    return {
+      success: false,
+      message: "Choose a valid class, grading period and visibility.",
+    };
+  return { success: true, id, termId, period, visible: visible === "true" };
 }

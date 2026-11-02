@@ -1,3 +1,4 @@
+import { academicSelection } from "@/lib/academics/calendar";
 import Link from "next/link";
 import { Plus, UserPlus } from "lucide-react";
 import { PortalCount, PortalPageHeader } from "@/components/portal/page-header";
@@ -13,9 +14,9 @@ export default async function ClassesManagementPage() {
   const [classes, teacherCount] = await Promise.all([
     prisma.class.findMany({
       where: { teacher: { user: { role: { not: "superAdmin" } } } },
-      orderBy: [{ schoolYear: "desc" }, { semester: "asc" }, { program: { label: "asc" } }, { programId: "asc" }, { yearLevel: "asc" }, { sectionName: "asc" }, { subjectName: "asc" }],
+      orderBy: [{ schoolYear: "desc" }, { academicTerm: { position: "asc" } }, { program: { label: "asc" } }, { programId: "asc" }, { yearLevel: "asc" }, { sectionName: "asc" }, { subjectName: "asc" }],
       select: {
-        id: true, classCode: true, status: true, branchId: true, programId: true, schoolYear: true, semester: true, sectionName: true, yearLevel: true,
+        id: true, classCode: true, status: true, branchId: true, programId: true, schoolYear: true, ...academicSelection, sectionName: true, yearLevel: true,
         subjectName: true, spreadsheetUrl: true,
         teacher: { select: { employee: { select: { firstName: true, middleName: true, lastName: true, suffix: true } }, user: { select: { email: true } } } },
         branch: { select: { title: true } },
@@ -28,7 +29,7 @@ export default async function ClassesManagementPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-      <PortalPageHeader label="Management" title="Manage Classes" description="Classes are grouped by school year, semester, program, and year level. Assign teachers and track each class's status.">
+      <PortalPageHeader label="Management" title="Manage Classes" description="Classes are grouped by school year, term, program, and year level. Assign teachers and track each class's status.">
         <div className="flex flex-wrap items-center gap-3">
           <PortalCount count={classes.length} label="classes" />
           <Button asChild><Link href="/portal/classes/new"><Plus aria-hidden="true" />Add class</Link></Button>
@@ -43,7 +44,7 @@ export default async function ClassesManagementPage() {
       )}
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm" aria-label="Class assignments">
         <ClassesTable classes={classes.map((classRecord) => ({
-          id: classRecord.id.toString(), classCode: classRecord.classCode, status: classRecord.status, schoolYear: classRecord.schoolYear, semester: classRecord.semester,
+          id: classRecord.id.toString(), classCode: classRecord.classCode, status: classRecord.status, schoolYear: classRecord.schoolYear, term: classRecord.academicTerm.name, termId:String(classRecord.academicTermId), termPosition:classRecord.academicTerm.position,
           sectionName: classRecord.sectionName, yearLevel: classRecord.yearLevel,
           subjectName: classRecord.subjectName, teacherEmail: classRecord.teacher.user.email,
           teacherName: getEmployeeFullName(classRecord.teacher.employee), studentCount: classRecord._count.students,

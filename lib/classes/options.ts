@@ -5,28 +5,110 @@ import { getEmployeeFullName } from "@/lib/employees/names";
 
 export async function getClassFormOptions() {
   await requireSuperAdmin();
-  const [teachers, students, branches, programs, subjects] = await Promise.all([
-    prisma.teacher.findMany({
-      where: { user: { role: "teacher", emailVerified: true } },
-      orderBy: [{ employee: { lastName: "asc" } }, { employee: { firstName: "asc" } }, { employeeId: "asc" }],
-      select: { employeeId: true, employee: { select: { firstName: true, middleName: true, lastName: true, suffix: true } }, user: { select: { email: true } } },
-    }),
-    prisma.student.findMany({
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
-      select: { id: true, studentNumber: true, firstName: true, middleName: true, lastName: true, suffix: true, userImage: true },
-    }),
-    prisma.branch.findMany({ orderBy: { title: "asc" }, select: { id: true, title: true } }),
-    prisma.program.findMany({
-      orderBy: [{ label: "asc" }, { id: "asc" }],
-      select: { id: true, code: true, label: true, programType: true, branchPrograms: { select: { branchId: true } }, programSubjects: { select: { subjectId: true } } },
-    }),
-    prisma.subject.findMany({ orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, code: true } }),
-  ]);
+  const [teachers, students, branches, programs, subjects, schemes] =
+    await Promise.all([
+      prisma.teacher.findMany({
+        where: { user: { role: "teacher", emailVerified: true } },
+        orderBy: [
+          { employee: { lastName: "asc" } },
+          { employee: { firstName: "asc" } },
+          { employeeId: "asc" },
+        ],
+        select: {
+          employeeId: true,
+          employee: {
+            select: {
+              firstName: true,
+              middleName: true,
+              lastName: true,
+              suffix: true,
+            },
+          },
+          user: { select: { email: true } },
+        },
+      }),
+      prisma.student.findMany({
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          studentNumber: true,
+          firstName: true,
+          middleName: true,
+          lastName: true,
+          suffix: true,
+          userImage: true,
+        },
+      }),
+      prisma.branch.findMany({
+        orderBy: { title: "asc" },
+        select: { id: true, title: true },
+      }),
+      prisma.program.findMany({
+        orderBy: [{ label: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          code: true,
+          label: true,
+          programType: true,
+          academicSchemeId: true,
+          branchPrograms: { select: { branchId: true } },
+          programSubjects: { select: { subjectId: true } },
+        },
+      }),
+      prisma.subject.findMany({
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        select: { id: true, name: true, code: true },
+      }),
+      prisma.academicScheme.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          terms: {
+            orderBy: { position: "asc" },
+            select: { id: true, name: true },
+          },
+        },
+      }),
+    ]);
   return {
-    teachers: teachers.map((teacher) => ({ id: teacher.employeeId.toString(), name: getEmployeeFullName(teacher.employee), email: teacher.user.email })),
-    students: students.map((student) => ({ id: student.id.toString(), name: formatStudentName(student), studentNumber: student.studentNumber, userImage: student.userImage ?? null })),
-    branches: branches.map((branch) => ({ id: branch.id.toString(), title: branch.title })),
-    programs: programs.map((program) => ({ id: program.id.toString(), code: program.code, label: program.label, programType: program.programType, branchIds: program.branchPrograms.map((entry) => entry.branchId.toString()), subjectIds: program.programSubjects.map((entry) => entry.subjectId.toString()) })),
-    subjects: subjects.map((subject) => ({ id: subject.id.toString(), name: subject.name, code: subject.code })),
+    teachers: teachers.map((teacher) => ({
+      id: teacher.employeeId.toString(),
+      name: getEmployeeFullName(teacher.employee),
+      email: teacher.user.email,
+    })),
+    students: students.map((student) => ({
+      id: student.id.toString(),
+      name: formatStudentName(student),
+      studentNumber: student.studentNumber,
+      userImage: student.userImage ?? null,
+    })),
+    branches: branches.map((branch) => ({
+      id: branch.id.toString(),
+      title: branch.title,
+    })),
+    programs: programs.map((program) => ({
+      id: program.id.toString(),
+      code: program.code,
+      label: program.label,
+      programType: program.programType,
+      schemeId: program.academicSchemeId?.toString() ?? null,
+      branchIds: program.branchPrograms.map((entry) =>
+        entry.branchId.toString(),
+      ),
+      subjectIds: program.programSubjects.map((entry) =>
+        entry.subjectId.toString(),
+      ),
+    })),
+    schemes: schemes.map((s) => ({
+      id: String(s.id),
+      name: s.name,
+      terms: s.terms.map((t) => ({ id: String(t.id), name: t.name })),
+    })),
+    subjects: subjects.map((subject) => ({
+      id: subject.id.toString(),
+      name: subject.name,
+      code: subject.code,
+    })),
   };
 }

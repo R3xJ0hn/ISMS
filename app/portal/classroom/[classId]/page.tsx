@@ -6,7 +6,7 @@ import { ClassworkView } from "@/components/classroom/classwork-view";
 import { StudentGradeSummary } from "@/components/classroom/student-grade-summary";
 import { WorkspaceTabs } from "@/components/classroom/workspace-tabs";
 import { Button } from "@/components/ui/button";
-import { formatAcademicLevel, formatSemester } from "@/lib/academic-levels";
+import { formatAcademicLevel, formatTerm } from "@/lib/academic-levels";
 import { getStudentClass } from "@/lib/classes/student";
 
 export default async function StudentClassroomDetailPage({ params, searchParams }: {
@@ -27,7 +27,7 @@ export default async function StudentClassroomDetailPage({ params, searchParams 
         subjectName={assignedClass.subjectName}
         sectionName={assignedClass.sectionName}
         schoolYear={assignedClass.schoolYear}
-        semester={assignedClass.semester}
+        term={assignedClass.term}
         yearLevel={assignedClass.yearLevel}
         branchTitle={assignedClass.branchTitle}
         teacherName={assignedClass.teacherName}
@@ -42,7 +42,7 @@ export default async function StudentClassroomDetailPage({ params, searchParams 
               ["Section", assignedClass.sectionName],
               ["Year level", formatAcademicLevel(assignedClass.yearLevel)],
               ["School year", assignedClass.schoolYear],
-              ["Semester", formatSemester(assignedClass.semester)],
+              ["Term", formatTerm(assignedClass.term)],
               ["Branch", assignedClass.branchTitle ?? "Not assigned"],
             ].map(([label, value]) => (
               <div key={label} className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-medium [overflow-wrap:anywhere]">{value}</dd></div>
@@ -53,7 +53,7 @@ export default async function StudentClassroomDetailPage({ params, searchParams 
           <h2 className="font-semibold">Your student record</h2>
           <p className="mt-3 text-sm [overflow-wrap:anywhere]">{student.name}</p>
           <p className="mt-1 break-all text-sm text-muted-foreground">{student.studentNumber ? `Student number: ${student.studentNumber}` : "Student number not assigned"}</p>
-          <Button asChild variant="outline" className="mt-5 w-full"><Link href="/portal/grades"><GraduationCap aria-hidden="true" />All semester grades</Link></Button>
+          <Button asChild variant="outline" className="mt-5 w-full"><Link href="/portal/grades"><GraduationCap aria-hidden="true" />All term grades</Link></Button>
         </aside>
       </div>
     </>

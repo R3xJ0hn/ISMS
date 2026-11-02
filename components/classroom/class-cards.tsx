@@ -6,11 +6,11 @@ import { ArrowRight, BookOpen, Building2, CalendarDays, ChevronDown, Search, Sli
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StudentThumbnails } from "@/components/portal/student-thumbnails";
-import { academicLevelOptions, formatAcademicLevel, formatSemester, semesterOptions } from "@/lib/academic-levels";
+import { academicLevelOptions, formatAcademicLevel, formatTerm, termOptions } from "@/lib/academic-levels";
 import { classTableGrouping } from "@/lib/classes/grouping";
 import { classStatusOptions, getClassStatusOption } from "@/lib/classes/presentation";
 import type { ClassStudentPreview } from "@/lib/classes/student-preview";
-import type { AcademicLevel, ClassStatus, Semester } from "@/lib/generated/prisma/enums";
+import type { AcademicLevel, ClassStatus } from "@/lib/generated/prisma/enums";
 import { cn } from "@/lib/utils";
 import { ClassCoverDecoration, classCoverTheme } from "./class-banner";
 
@@ -26,7 +26,9 @@ export type ClassroomCardData = {
   sectionName: string;
   yearLevel: AcademicLevel;
   schoolYear: string;
-  semester: Semester | null;
+  term: string | null;
+  termId?: string;
+  termPosition?: number;
   branchTitle: string | null;
   teacherName?: string;
   studentCount?: number;
@@ -58,7 +60,7 @@ function ClassroomClassCard({ assignedClass, role }: { assignedClass: ClassroomC
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <p className="font-medium">{formatAcademicLevel(assignedClass.yearLevel)}</p>
           <span aria-hidden="true" className="text-muted-foreground">·</span>
-          <p className="text-muted-foreground">{formatSemester(assignedClass.semester)}</p>
+          <p className="text-muted-foreground">{formatTerm(assignedClass.term)}</p>
         </div>
         {assignedClass.teacherName && <p className="break-words text-sm text-muted-foreground">{assignedClass.teacherName}</p>}
         <p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="size-4 shrink-0" /><span className="min-w-0 [overflow-wrap:anywhere]">{assignedClass.branchTitle ?? "Branch not assigned"}</span></p>
@@ -78,10 +80,10 @@ function ClassroomGroupHeader({ assignedClass, headingId, count }: { assignedCla
       <div className="min-w-0 flex-1 border-l-4 border-primary pl-3 sm:pl-4">
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" />{assignedClass.schoolYear}</span>
-          <span>{formatSemester(assignedClass.semester)}</span>
+          <span>{formatTerm(assignedClass.term)}</span>
         </div>
         <h2 id={headingId} className="flex min-w-0 flex-wrap items-center gap-2.5">
-          <span className="sr-only">{assignedClass.schoolYear}, {formatSemester(assignedClass.semester)}, </span>
+          <span className="sr-only">{assignedClass.schoolYear}, {formatTerm(assignedClass.term)}, </span>
           <span className="min-w-0 max-w-full rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold tracking-wide text-primary [overflow-wrap:anywhere]">{assignedClass.programCode ?? "Program not assigned"}</span>
           <span className="min-w-0 text-base font-semibold [overflow-wrap:anywhere]">{formatAcademicLevel(assignedClass.yearLevel)}</span>
         </h2>
@@ -94,7 +96,7 @@ function ClassroomGroupHeader({ assignedClass, headingId, count }: { assignedCla
 export function ClassroomClassGrid({ classes, role }: { classes: ClassroomCardData[]; role: "teacher" | "student" }) {
   const searchId = useId();
   const yearId = useId();
-  const semesterId = useId();
+  const termId = useId();
   const levelId = useId();
   const programId = useId();
   const statusId = useId();
@@ -102,28 +104,28 @@ export function ClassroomClassGrid({ classes, role }: { classes: ClassroomCardDa
   const filterPanelId = useId();
   const [query, setQuery] = useState("");
   const [schoolYear, setSchoolYear] = useState("");
-  const [semester, setSemester] = useState("");
+  const [term, setTerm] = useState("");
   const [yearLevel, setYearLevel] = useState("");
   const [program, setProgram] = useState("");
   const [status, setStatus] = useState("");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const schoolYears = [...new Set(classes.map((assignedClass) => assignedClass.schoolYear))].sort((a, b) => b.localeCompare(a));
   const yearLevels = academicLevelOptions.filter((level) => classes.some((assignedClass) => assignedClass.yearLevel === level.value));
-  const hasUnassignedSemester = classes.some((assignedClass) => !assignedClass.semester);
+  const hasUnassignedTerm = classes.some((assignedClass) => !assignedClass.term);
   const programs = [...new Map(classes.filter((assignedClass) => assignedClass.programId !== null).map((assignedClass) => [assignedClass.programId!, assignedClass.programCode ?? "Unnamed program"])).entries()]
     .sort((left, right) => left[1].localeCompare(right[1], "en", { numeric: true, sensitivity: "base" }));
   const hasUnassignedProgram = classes.some((assignedClass) => assignedClass.programId === null);
-  const hasFilters = Boolean(query.trim() || schoolYear || semester || yearLevel || program || status);
-  const activeFilterCount = [schoolYear, semester, yearLevel, program, status].filter(Boolean).length;
+  const hasFilters = Boolean(query.trim() || schoolYear || term || yearLevel || program || status);
+  const activeFilterCount = [schoolYear, term, yearLevel, program, status].filter(Boolean).length;
   const searchTerms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const filteredClasses = classes.filter((assignedClass) => {
     if (schoolYear && assignedClass.schoolYear !== schoolYear) return false;
-    if (semester && (semester === "unassigned" ? assignedClass.semester != null : assignedClass.semester !== semester)) return false;
+    if (term && (term === "unassigned" ? assignedClass.term != null : assignedClass.term !== term)) return false;
     if (yearLevel && assignedClass.yearLevel !== yearLevel) return false;
     if (program && (program === "unassigned" ? assignedClass.programId !== null : assignedClass.programId !== program)) return false;
     if (status && assignedClass.status !== status) return false;
     const searchable = [assignedClass.classCode, getClassStatusOption(assignedClass.status)?.label, assignedClass.programCode, assignedClass.programLabel, assignedClass.subjectName, assignedClass.sectionName, assignedClass.schoolYear,
-      assignedClass.branchTitle, assignedClass.teacherName, formatAcademicLevel(assignedClass.yearLevel), formatSemester(assignedClass.semester)].filter(Boolean).join(" ").toLocaleLowerCase();
+      assignedClass.branchTitle, assignedClass.teacherName, formatAcademicLevel(assignedClass.yearLevel), formatTerm(assignedClass.term)].filter(Boolean).join(" ").toLocaleLowerCase();
     return searchTerms.every((term) => searchable.includes(term));
   });
   const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
@@ -142,7 +144,7 @@ export function ClassroomClassGrid({ classes, role }: { classes: ClassroomCardDa
   function clearFilters() {
     setQuery("");
     setSchoolYear("");
-    setSemester("");
+    setTerm("");
     setYearLevel("");
     setProgram("");
     setStatus("");
@@ -180,11 +182,11 @@ export function ClassroomClassGrid({ classes, role }: { classes: ClassroomCardDa
               <option value="">All school years</option>
               {schoolYears.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
-            <label htmlFor={semesterId} className="sr-only">Filter by semester</label>
-            <select id={semesterId} value={semester} onChange={(event) => setSemester(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">
-              <option value="">All semesters</option>
-              {semesterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              {hasUnassignedSemester && <option value="unassigned">Semester not assigned</option>}
+            <label htmlFor={termId} className="sr-only">Filter by term</label>
+            <select id={termId} value={term} onChange={(event) => setTerm(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">
+              <option value="">All terms</option>
+              {termOptions(classes).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {hasUnassignedTerm && <option value="unassigned">Term not assigned</option>}
             </select>
             <label htmlFor={levelId} className="sr-only">Filter by year level</label>
             <select id={levelId} value={yearLevel} onChange={(event) => setYearLevel(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">

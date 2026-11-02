@@ -24,8 +24,8 @@ export default async function ClassSummaryPage({ params, searchParams }: {
   if (!assignedClass) notFound();
   const selectedTab = (await searchParams)?.tab;
   const [summary, classwork, crossMatch] = await Promise.all([
-    assignedClass.spreadsheetUrl ? getClassSummary(assignedClass.spreadsheetUrl) : null,
-    assignedClass.spreadsheetUrl ? getClassworkCatalog(assignedClass.spreadsheetUrl) : null,
+    assignedClass.spreadsheetUrl ? getClassSummary(assignedClass.spreadsheetUrl,assignedClass.calendar) : null,
+    assignedClass.spreadsheetUrl ? getClassworkCatalog(assignedClass.spreadsheetUrl,assignedClass.calendar) : null,
     getClassRosterComparison(assignedClass.spreadsheetUrl, assignedClass.students.map(({ student }) => ({
       id: student.id, studentNumber: student.studentNumber, firstName: student.firstName,
       middleName: student.middleName, lastName: student.lastName, suffix: student.suffix,
@@ -63,7 +63,7 @@ export default async function ClassSummaryPage({ params, searchParams }: {
         </section>
       ) : summary.success ? (
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm" aria-label="Student summary records">
-          <StudentSummaryTable classId={assignedClass.id.toString()} students={summary.students} roster={roster} />
+          <StudentSummaryTable periods={assignedClass.calendar.periods} classId={assignedClass.id.toString()} students={summary.students} roster={roster} />
         </section>
       ) : (
         <div role="alert" className="rounded-2xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive">
@@ -84,7 +84,7 @@ export default async function ClassSummaryPage({ params, searchParams }: {
         defaultTab={selectedTab === "grades" || selectedTab === "students" || selectedTab === "classwork" ? selectedTab : "overview"}
         overview={(
           <>
-            <ClassBanner classId={assignedClass.id.toString()} classCode={assignedClass.classCode} subjectName={assignedClass.subjectName} sectionName={assignedClass.sectionName} schoolYear={assignedClass.schoolYear} semester={assignedClass.semester} yearLevel={assignedClass.yearLevel} branchTitle={assignedClass.branch?.title ?? null} />
+            <ClassBanner classId={assignedClass.id.toString()} classCode={assignedClass.classCode} subjectName={assignedClass.subjectName} sectionName={assignedClass.sectionName} schoolYear={assignedClass.schoolYear} term={assignedClass.term} yearLevel={assignedClass.yearLevel} branchTitle={assignedClass.branch?.title ?? null} />
             <div className="grid gap-4 sm:grid-cols-2">
               <section className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
                 <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Users aria-hidden="true" className="size-5" /></div>
@@ -92,7 +92,7 @@ export default async function ClassSummaryPage({ params, searchParams }: {
               </section>
               <SpreadsheetConnectionCard classId={assignedClass.id.toString()} classCode={assignedClass.classCode} spreadsheetUrl={spreadsheetUrl} />
             </div>
-            <PeriodVisibilityCard key={assignedClass.id.toString()} classId={assignedClass.id.toString()} visibility={visibility} />
+            <PeriodVisibilityCard calendar={assignedClass.calendar} key={assignedClass.id.toString()} classId={assignedClass.id.toString()} visibility={visibility} />
           </>
         )}
         classwork={<ClassworkView result={classwork} role="teacher" refreshHref={`/portal/my-classes/${assignedClass.id}?tab=classwork`} />}
